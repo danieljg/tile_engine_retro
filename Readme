@@ -1,0 +1,8 @@
+Tile Engine Design Document
+Daniel Jimenez
+18-11-2017
+
+This documents details the basic requirements for a general purpose and lightweight tile engine. The target architecture is the libretro API with priority for Wii, 3DS, and eventually PSP compatibility.
+
+The system is intended for simplicity of design and high performance. It is to be written from a low-level perspective, compiled from C code, with minimal dependencies. A firm toolset has not been defined at this point, and solutions must be implemented for tileset and palette formatting as well as sound.
+
