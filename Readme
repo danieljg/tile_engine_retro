@@ -18,6 +18,7 @@ All color is 16 bit ARGB (1,5,5,5).
 The data format is as follows:
 
  Palette size		- 8 bits
+ Padding                - 4 bits
  Palette qty		- 4 bits
  Palette data 0 	- (Palette size * 16)
  ---
