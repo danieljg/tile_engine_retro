@@ -35,8 +35,9 @@ int main( int argc, char* argv[] )
 
     int number_of_tiles = width/tile_size;
 
-    int colors_n = 0;
-    int palette_elements[256];
+    uint8_t color_i=0;
+    uint8_t colors_n = 0;
+    uint8_t palette_elements[256];
     for ( int jj=0 ; jj<256 ; jj++ )
     {
     palette_elements[jj]=0; //null is null
@@ -63,7 +64,7 @@ int main( int argc, char* argv[] )
             BMP_GetPixelIndex( bmp, x, y, &index );
             /* test if color exists in used palette */
             uint8_t color_exists=0;
-            int color_i=0;
+            color_i=0;
             for( color_i=0 ; color_i<(colors_n+1) ; color_i++ )
             {
                if(palette_elements[color_i] == index)
@@ -83,11 +84,31 @@ int main( int argc, char* argv[] )
     }
     /* Save result */
 
-    uint8_t bpp = log2(colors_n+1);
+    uint8_t buff = log2(colors_n+1);
+    write(filehandler,&buff,1);
+    buff = 0x01;
+    write(filehandler,&buff,1);
 
-    write(filehandler,&bpp,1);
-    bpp = 0x01;
-    write(filehandler,&bpp,1);
+    /* Write the palette */
+    for ( color_i=0 ; color_i<(colors_n+1) ; color_i++ )
+    {
+      uint16_t argb_color=0x0000;
+      BMP_GetPaletteColor(bmp,palette_elements[color_i], &r, &g, &b);
+      //fprintf(stdout,"0x%2x\n",r);
+      r=r>>3;g=g>>3;b=b>>3;
+      argb_color=(r<<10)|(g<<5)|b;
+      write(filehandler,&argb_color,2);
+    }
+
+    /* Write tile size and quantity */
+    write(filehandler,&tile_size,1);
+    buff=number_of_tiles>>16;
+    write(filehandler,&buff,1);//high byte
+    buff=number_of_tiles&0x00FFl;
+    write(filehandler,&buff,1);//low byte
+
+    uint8_t bpp = log2(colors_n+1);//bits per pixel
+    uint8_t ppb = 8/bpp;//pixels per byte
 
     /* Iterate through all tiles */
     for ( int tile = 0 ; tile < number_of_tiles ; tile++ )
@@ -96,15 +117,31 @@ int main( int argc, char* argv[] )
       for ( y = 0 ; y < tile_size ; ++y )
       {
         /* Iterate through all the pixels in a row*/
-        for ( x = tile_size*tile ; x < tile_size*(tile+1) ; ++x )
+        for ( x = tile_size*tile ; x < tile_size*(tile+1) ; x=x+ppb )
         {
+            for ( uint8_t xp = 0 ; xp < ppb ; xp++ )
+            {
+              /* Get pixel's index */
+              BMP_GetPixelIndex( bmp, x+xp, y, &index );
+              /* cycle through the reduced palette colors */
+              for ( color_i=0 ; color_i < (colors_n+1) ; color_i++ )
+              {
+                if( palette_elements[color_i]==index ) write(filehandler,&color_i,1);
+              }
+            }
         }
       }
     }
 
     fprintf(stdout,"%d\n",colors_n+1);
+    fprintf(stdout,"%d %d %d %d\n", palette_elements[0],
+                                    palette_elements[1],
+                                    palette_elements[2],
+                                    palette_elements[3]);
     fprintf(stdout,"%d\n",log2(colors_n+1));
     fflush(stdout);
+
+    close(filehandler);
 
     /* Free all memory allocated for the image */
     BMP_Free( bmp );
