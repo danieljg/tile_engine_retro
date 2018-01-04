@@ -24,6 +24,7 @@ The data format is as follows:
  ---
  Palette data (N-1)	- (Palette size * 16)
  Tile size		- 8 bits
+ Padding                - 4 bits
  Tile qty		- 12 bits
  Tile data 0		- (Tile size * Tile size * Palette size)
  ---

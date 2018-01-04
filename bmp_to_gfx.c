@@ -84,7 +84,7 @@ int main( int argc, char* argv[] )
     }
     /* Save result */
 
-    uint8_t buff = log2(colors_n+1);
+    uint8_t buff = (colors_n+1);
     write(filehandler,&buff,1);
     buff = 0x01;
     write(filehandler,&buff,1);
@@ -97,14 +97,17 @@ int main( int argc, char* argv[] )
       //fprintf(stdout,"0x%2x\n",r);
       r=r>>3;g=g>>3;b=b>>3;
       argb_color=(r<<10)|(g<<5)|b;
-      write(filehandler,&argb_color,2);
+      buff=argb_color>>8;
+      write(filehandler,&buff,1);//high byte
+      buff=argb_color&0x00FF;
+      write(filehandler,&buff,1);//low byte
     }
 
     /* Write tile size and quantity */
     write(filehandler,&tile_size,1);
-    buff=number_of_tiles>>16;
+    buff=number_of_tiles>>8;
     write(filehandler,&buff,1);//high byte
-    buff=number_of_tiles&0x00FFl;
+    buff=number_of_tiles&0x00FF;
     write(filehandler,&buff,1);//low byte
 
     uint8_t bpp = log2(colors_n+1);//bits per pixel
@@ -119,6 +122,7 @@ int main( int argc, char* argv[] )
         /* Iterate through all the pixels in a row*/
         for ( x = tile_size*tile ; x < tile_size*(tile+1) ; x=x+ppb )
         {
+            buff=0x00;
             for ( uint8_t xp = 0 ; xp < ppb ; xp++ )
             {
               /* Get pixel's index */
@@ -126,9 +130,14 @@ int main( int argc, char* argv[] )
               /* cycle through the reduced palette colors */
               for ( color_i=0 ; color_i < (colors_n+1) ; color_i++ )
               {
-                if( palette_elements[color_i]==index ) write(filehandler,&color_i,1);
+                if( palette_elements[color_i] == index )
+                {
+                  buff=buff|(color_i<<(bpp*(ppb-xp-1)));
+                  break;
+                }
               }
             }
+            write(filehandler,&buff,1);
         }
       }
     }
