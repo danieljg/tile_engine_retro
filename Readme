@@ -26,9 +26,9 @@ The data format is as follows:
  Tile size		- 8 bits
  Padding                - 4 bits
  Tile qty		- 12 bits
- Tile data 0		- (Tile size * Tile size * Palette size)
+ Tile data 0		- (Tile size * Tile size * log2(Palette size) )
  ---
- Tile data x		- (Tile size * Tile size * Palette size)
+ Tile data x		- (Tile size * Tile size * log2(Palette size) )
 
 
 

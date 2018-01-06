@@ -4,12 +4,16 @@
 #include <stdarg.h>
 #include <string.h>
 #include <math.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include "libretro.h"
 
 static uint32_t *frame_buf;
 static struct retro_log_callback logging;
 static retro_log_printf_t log_cb;
+
+int filehandler;
 
 static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 {
@@ -26,10 +30,18 @@ static int skip;
 void retro_init(void)
 {
    frame_buf = calloc(320 * 240, sizeof(uint32_t));
+   filehandler = open("output.gfx",O_RDONLY);
+   char buff[4];
+   read(filehandler,buff,4);
+   fprintf(stdout,"%s\n",buff);
+   fprintf(stdout,"%s\n",buff);
+   fprintf(stdout,"%s\n",buff);
+   fprintf(stdout,"%s\n",buff);
 }
 
 void retro_deinit(void)
 {
+   close(filehandler);
    free(frame_buf);
    frame_buf = NULL;
 }
