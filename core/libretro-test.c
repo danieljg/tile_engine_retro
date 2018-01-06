@@ -9,7 +9,7 @@
 
 #include "libretro.h"
 
-static uint32_t *frame_buf;
+static uint16_t *frame_buf;
 static struct retro_log_callback logging;
 static retro_log_printf_t log_cb;
 
@@ -29,7 +29,7 @@ static int skip;
 
 void retro_init(void)
 {
-   frame_buf = calloc(320 * 240, sizeof(uint32_t));
+   frame_buf = calloc(320 * 240, sizeof(uint16_t));
    filehandler = open("output.gfx",O_RDONLY);
    char buff[4];
    read(filehandler,buff,4);
@@ -37,6 +37,7 @@ void retro_init(void)
    fprintf(stdout,"%d\n",buff[1]);
    fprintf(stdout,"%d\n",buff[2]);
    fprintf(stdout,"%d\n",buff[3]);
+   read(filehandler,buff,1);   fprintf(stdout,"%d\n",buff[0]);
    read(filehandler,buff,1);   fprintf(stdout,"%d\n",buff[0]);
 }
 
@@ -154,11 +155,11 @@ static void update_input(void)
 */
 static void render_bricks(void)
 {
-   uint32_t *buf    = frame_buf;
+   uint16_t *buf    = frame_buf;
    unsigned stride  = 320; // Stride igual a ancho de viewport
-   uint32_t color_r = 0xaa4444; // rojo-ladrillo
-   uint32_t color_g = 0x444444; // gris-cemento
-   uint32_t *line   = buf;
+   uint16_t color_r = (0x15<<10)|(0x08<<5)|(0x08); // rojo-ladrillo
+   uint16_t color_g = (0x08<<10)|(0x08<<5)|(0x08); // gris-cemento
+   uint16_t *line   = buf;
 
    /* Este ciclo dibuja la pantalla linea por linea
    */
@@ -189,7 +190,7 @@ static void render_bricks(void)
       for (unsigned x = mouse_rel_x - 5; x <= mouse_rel_x + 5; x++)
          buf[y * stride + x] = 0xff;
 
-   video_cb(buf, 320, 240, stride << 2);
+   video_cb(buf, 320, 240, stride << 1);
 }
 
 static void check_variables(void)
@@ -225,10 +226,10 @@ void retro_run(void)
 
 bool retro_load_game(const struct retro_game_info *info)
 {
-   enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_XRGB8888;
+   enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_0RGB1555;
    if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
    {
-      log_cb(RETRO_LOG_INFO, "XRGB8888 is not supported.\n");
+      log_cb(RETRO_LOG_INFO, "0RGB1555 is not supported.\n");
       return false;
    }
 
