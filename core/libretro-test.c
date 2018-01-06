@@ -155,8 +155,8 @@ static void render_bricks(void)
 {
    uint32_t *buf    = frame_buf;
    unsigned stride  = 320; // Stride igual a ancho de viewport
-   uint32_t color_r = 0xaa4444; // rojo-ladrillo
-   uint32_t color_g = 0x444444; // gris-cemento
+   uint32_t color_r = (0x15<<10)|(0x08<<5)|(0x08); // rojo-ladrillo
+   uint32_t color_g = (0x08<<10)|(0x08<<5)|(0x08); // gris-cemento
    uint32_t *line   = buf;
 
    /* Este ciclo dibuja la pantalla linea por linea
@@ -224,10 +224,10 @@ void retro_run(void)
 
 bool retro_load_game(const struct retro_game_info *info)
 {
-   enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_XRGB8888;
+   enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_0RGB1555;
    if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
    {
-      log_cb(RETRO_LOG_INFO, "XRGB8888 is not supported.\n");
+      log_cb(RETRO_LOG_INFO, "0RGB1555 is not supported.\n");
       return false;
    }
 
