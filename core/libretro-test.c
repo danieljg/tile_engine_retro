@@ -27,18 +27,62 @@ static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 // Usada para desplazamiento de la pantalla
 static int skip;
 
+void print_gfx_data(int gfxhandler) {
+  char buff[4];
+  uint8_t palette_size, palette_qty, colors_per_pal;
+  uint8_t tile_size, tile_qty;
+
+  // Imprimiendo identificador GFX
+  read(gfxhandler, buff, 4);
+  fprintf(stdout,"\n%c",buff[0]);
+  fprintf(stdout,"%c",buff[1]);
+  fprintf(stdout,"%c",buff[2]);
+  fprintf(stdout,"%c",buff[3]);
+
+  // Leyendo información del encabezado de la paleta.
+  read(gfxhandler, buff, 2);
+  palette_size = buff[0];
+  palette_size = 2; // remplazando por bits/color Eliminar al corregir
+  palette_qty = buff[1];
+  colors_per_pal = 1 << palette_size; // 2 ^ palette_size
+  fprintf(stdout,"Palette size: %d (%d colors)\n", palette_size, colors_per_pal);
+  fprintf(stdout,"Palette qty: %d\n", palette_qty);
+  /* Leyendo datos de las paletas.
+  Nota: Por el momento da por hecho que existe una unica paleta. Solo guarda un espacio en memoria para la paleta y la sobreescribe con la ultima paleta leida.
+  */
+  uint16_t palette_data[colors_per_pal]; // Debe de ser un arreglo bidimencional para soportar mas de una paleta.
+  for (unsigned pal_i=0; pal_i<palette_qty; pal_i++) { // este ciclo itera sobre las paletas
+    fprintf(stdout,"Paleta %d:\n", pal_i);
+    for (unsigned col_i=0; col_i<colors_per_pal; col_i++) { // este ciclo itera sobre los colores
+      uint8_t red, green, blue;
+      read(gfxhandler, buff, 2);
+      palette_data[col_i] = (buff[0] << 8) | buff[1];
+      red = (palette_data[col_i]>>10) & 31;
+      green = (palette_data[col_i]>>5) & 31;
+      blue = palette_data[col_i] & 31;
+      fprintf(stdout,"\tColor %d: %d (R:%02x G:%02x B:%02x)\n", col_i, palette_data[col_i], red, green, blue);
+    }
+  }
+  fprintf(stdout,"----- Palette Data Ends -----\n\n");
+
+  // Leyendo información del encabezado de los tiles.
+  read(gfxhandler, buff, 3);
+  tile_size = buff[0];
+  tile_qty = (buff[1]<<8) | buff[2];
+  fprintf(stdout,"Tile size: %d\n", tile_size);
+  fprintf(stdout,"Tile qty: %d\n", tile_qty);
+  /* Falta mostrar los datos de los tiles, pero dejaré eso cuando lo haga graficamente.
+  */
+  fprintf(stdout,"----- Tile Data Ends -----\n\n");
+
+  fprintf(stdout,"*** The End ***\n\n");
+}
+
 void retro_init(void)
 {
    frame_buf = calloc(320 * 240, sizeof(uint16_t));
    filehandler = open("output.gfx",O_RDONLY);
-   char buff[4];
-   read(filehandler,buff,4);
-   fprintf(stdout,"%d\n",buff[0]);
-   fprintf(stdout,"%d\n",buff[1]);
-   fprintf(stdout,"%d\n",buff[2]);
-   fprintf(stdout,"%d\n",buff[3]);
-   read(filehandler,buff,1);   fprintf(stdout,"%d\n",buff[0]);
-   read(filehandler,buff,1);   fprintf(stdout,"%d\n",buff[0]);
+   print_gfx_data(filehandler);
 }
 
 void retro_deinit(void)
