@@ -42,7 +42,6 @@ void print_gfx_data(int gfxhandler) {
   // Leyendo información del encabezado de la paleta.
   read(gfxhandler, buff, 2);
   palette_size = buff[0];
-  palette_size = 2; // remplazando por bits/color Eliminar al corregir
   palette_qty = buff[1];
   colors_per_pal = 1 << palette_size; // 2 ^ palette_size
   fprintf(stdout,"Palette size: %d (%d colors)\n", palette_size, colors_per_pal);

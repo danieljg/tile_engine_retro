@@ -84,7 +84,7 @@ int main( int argc, char* argv[] )
     }
     /* Save result */
 
-    uint8_t buff = (colors_n+1);
+    uint8_t buff = log2(colors_n+1);
     write(filehandler,&buff,1);
     buff = 0x01;
     write(filehandler,&buff,1);
