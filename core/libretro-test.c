@@ -27,10 +27,18 @@ static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 // Usada para desplazamiento de la pantalla
 static int skip;
 
+void print_pixel(unsigned value) {
+  if (value==0) fprintf(stdout, " ");
+  if (value==1) fprintf(stdout, "x");
+  if (value==2) fprintf(stdout, "\\");
+  if (value==3) fprintf(stdout, "X");
+}
+
 void print_gfx_data(int gfxhandler) {
   char buff[4];
+  unsigned n_bytes;
   uint8_t palette_size, palette_qty, colors_per_pal;
-  uint8_t tile_size, tile_qty;
+  uint8_t tile_size, tile_qty, line_bytesize, bitpointer;
 
   // Imprimiendo identificador GFX
   read(gfxhandler, buff, 4);
@@ -70,10 +78,29 @@ void print_gfx_data(int gfxhandler) {
   tile_qty = (buff[1]<<8) | buff[2];
   fprintf(stdout,"Tile size: %d\n", tile_size);
   fprintf(stdout,"Tile qty: %d\n", tile_qty);
-  /* Falta mostrar los datos de los tiles, pero dejaré eso cuando lo haga graficamente.
-  */
+  line_bytesize = (tile_size * palette_size) >> 3;
+  fprintf(stdout, "Tile size in bytes: %d\n", line_bytesize * tile_size);
+  for (unsigned tile_i=0; tile_i<tile_qty; tile_i++) {
+    fprintf(stdout,"\nTile: %d:\n", tile_i);
+    for (unsigned line_i=0; line_i<tile_size; line_i++) {
+      fprintf(stdout,"\t", line_i);
+      for (unsigned byte_i=0; byte_i < line_bytesize; byte_i++) {
+        read(gfxhandler, buff, 1);
+        /* El siguiente bloque de código imprime los numeros si el tamaño de paleta es igual a 2 (creado para funcionar con el tileset de ejemplo).
+        */
+        if (palette_size==2) {
+          unsigned pixbuffer;
+          pixbuffer = buff[0] & 255;
+          print_pixel((pixbuffer>>6)&3);
+          print_pixel((pixbuffer>>4)&3);
+          print_pixel((pixbuffer>>2)&3);
+          print_pixel(pixbuffer&3);
+        }
+      }
+      fprintf(stdout,"\n");
+    }
+  }
   fprintf(stdout,"----- Tile Data Ends -----\n\n");
-
   fprintf(stdout,"*** The End ***\n\n");
 }
 
