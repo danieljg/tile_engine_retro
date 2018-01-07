@@ -142,12 +142,12 @@ int main( int argc, char* argv[] )
       }
     }
 
-    fprintf(stdout,"%d\n",colors_n+1);
-    fprintf(stdout,"%d %d %d %d\n", palette_elements[0],
+    fprintf(stdout,"%u\n",colors_n+1);
+    fprintf(stdout,"%u %u %u %u\n", palette_elements[0],
                                     palette_elements[1],
                                     palette_elements[2],
                                     palette_elements[3]);
-    fprintf(stdout,"%d\n",log2(colors_n+1));
+    fprintf(stdout,"%u\n",log2(colors_n+1));
     fflush(stdout);
 
     close(filehandler);
