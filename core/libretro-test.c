@@ -35,13 +35,12 @@ void print_pixel(unsigned value) {
   if (value==3) fprintf(stdout, "X");
 }
 
-void print_gfx_data(int gfxhandler) {
+void read_gfx_data(int gfxhandler) {
   char buff[4];
-  unsigned n_bytes;
   uint8_t palette_size, palette_qty, colors_per_pal;
-  uint8_t tile_size, tile_qty, line_bytesize, bitpointer;
+  uint8_t tile_size, tile_qty, line_bytesize;
 
-  // Imprimiendo identificador GFX
+  // Imprimiendo identificador GFX (TODO: cambiar a if(buf=="GFX\n") ...)
   read(gfxhandler, buff, 4);
   fprintf(stdout,"\n%c",buff[0]);
   fprintf(stdout,"%c",buff[1]);
@@ -59,9 +58,9 @@ void print_gfx_data(int gfxhandler) {
   Nota: Por el momento da por hecho que existe una unica paleta. Solo guarda un espacio en memoria para la paleta y la sobreescribe con la ultima paleta leida.
   */
   uint16_t palette_data[colors_per_pal]; // Debe de ser un arreglo bidimencional para soportar mas de una paleta.
-  for (unsigned pal_i=0; pal_i<palette_qty; pal_i++) { // este ciclo itera sobre las paletas
+  for (uint8_t pal_i=0; pal_i<palette_qty; pal_i++) { // este ciclo itera sobre las paletas
     fprintf(stdout,"Paleta %d:\n", pal_i);
-    for (unsigned col_i=0; col_i<colors_per_pal; col_i++) { // este ciclo itera sobre los colores
+    for (uint8_t col_i=0; col_i<colors_per_pal; col_i++) { // este ciclo itera sobre los colores
       uint8_t red, green, blue;
       read(gfxhandler, buff, 2);
       palette_data[col_i] = (buff[0] << 8) | buff[1];
@@ -69,6 +68,7 @@ void print_gfx_data(int gfxhandler) {
       green = (palette_data[col_i]>>5) & 31;
       blue = palette_data[col_i] & 31;
       fprintf(stdout,"\tColor %d: %d (R:%02x G:%02x B:%02x)\n", col_i, palette_data[col_i], red, green, blue);
+      hlf_sprt_palettes[0].colors[col_i] = palette_data[col_i];
     }
   }
   fprintf(stdout,"----- Palette Data Ends -----\n\n");
@@ -81,21 +81,31 @@ void print_gfx_data(int gfxhandler) {
   fprintf(stdout,"Tile qty: %d\n", tile_qty);
   line_bytesize = (tile_size * palette_size) >> 3;
   fprintf(stdout, "Tile size in bytes: %d\n", line_bytesize * tile_size);
-  for (unsigned tile_i=0; tile_i<tile_qty; tile_i++) {
+  for (uint16_t tile_i=0; tile_i<tile_qty; tile_i++) {
     fprintf(stdout,"\nTile: %d:\n", tile_i);
-    for (unsigned line_i=0; line_i<tile_size; line_i++) {
+    for (uint8_t line_i=0; line_i<tile_size; line_i++) {
       fprintf(stdout,"\t");
-      for (unsigned byte_i=0; byte_i < line_bytesize; byte_i++) {
+      for (uint16_t byte_i=0; byte_i < line_bytesize; byte_i++) {
         read(gfxhandler, buff, 1);
         /* El siguiente bloque de código imprime los numeros si el tamaño de paleta es igual a 2 (creado para funcionar con el tileset de ejemplo).
         */
         if (palette_size==2) {
-          unsigned pixbuffer;
-          pixbuffer = buff[0] & 255;
+          uint8_t pixbuffer;
+          pixbuffer = buff[0];
           print_pixel((pixbuffer>>6)&3);
           print_pixel((pixbuffer>>4)&3);
           print_pixel((pixbuffer>>2)&3);
           print_pixel(pixbuffer&3);
+          uint8_t palettebuffer=0x00;
+          palettebuffer=(pixbuffer>>6)&0x03;
+          palettebuffer=(palettebuffer<<4)|((pixbuffer>>4)&0x03);
+          hlf_sprt_tiles.tile[tile_i].two_pixel_color_index
+            [ (byte_i)<<1 + line_i*line_bytesize]=palettebuffer;
+         palettebuffer=0x00;
+         palettebuffer=(pixbuffer>>2)&0x03;
+         palettebuffer=(palettebuffer<<4)|(pixbuffer&0x03);
+         hlf_sprt_tiles.tile[tile_i].two_pixel_color_index
+           [( (byte_i)<<1 + line_i*line_bytesize)+1]=palettebuffer;
         }
       }
       fprintf(stdout,"\n");
@@ -108,8 +118,9 @@ void print_gfx_data(int gfxhandler) {
 void retro_init(void)
 {
    frame_buf = calloc(320 * 240, sizeof(uint16_t));
+   initialize_hlf_sprt_palettes();
    filehandler = open("output.gfx",O_RDONLY);
-   print_gfx_data(filehandler);
+   read_gfx_data(filehandler);
 }
 
 void retro_deinit(void)
@@ -227,7 +238,7 @@ static void update_input(void)
 static void render_bricks(void)
 {
    uint16_t *buf    = frame_buf;
-   unsigned stride  = 320; // Stride igual a ancho de viewport
+   uint16_t stride  = 320; // Stride igual a ancho de viewport
    uint16_t color_r = (0x15<<10)|(0x08<<5)|(0x08); // rojo-ladrillo
    uint16_t color_g = (0x08<<10)|(0x08<<5)|(0x08); // gris-cemento
    uint16_t *line   = buf;
@@ -236,24 +247,30 @@ static void render_bricks(void)
    */
 
    uint8_t scale_shift = 2; // 0: No escalar
-   unsigned x_abs;
-   unsigned y_abs;
+   uint16_t x_abs;
+   uint16_t y_abs;
 
    y_coord=2;
 
-   for (unsigned y = 0; y < 240; y++, line += stride)
+   for (uint16_t y = 0; y < 240; y++, line += stride)
    {
       y_abs = (y - y_coord) >> scale_shift;
-      unsigned index_y = y_abs % 4 == 3;
-      for (unsigned x = 0; x < 320; x++)
+      uint8_t index_y = y_abs % 4 == 3;
+      for (uint16_t x = 0; x < 320; x++)
       {
          x_abs = (x - x_coord) >> scale_shift;
-         unsigned index_x; // Cierto si hay cemento
+         uint8_t index_x; // Cierto si hay cemento
          if ((y_abs >> 2) % 2 == 1) index_x = x_abs % 8 == 3;
          else index_x = x_abs % 8 == 7;
          // Asignar color a pixel
          if (index_y || index_x) line[x] = color_g; // gris si hay cemento
          else line[x] = color_r; // rojo-ladrillo si no hay cemento
+         //Pintar...
+         uint8_t pixbuf=0x00;
+         pixbuf=hlf_sprt_tiles.tile[x>>3].two_pixel_color_index[((x%>>1)%8)+(y%16)<<1];
+         if( (x%2) == 0 ) pixbuf=(pixbuf&Mask_hlf_sprt_index_0)>>4;
+         else pixbuf=pixbuf&Mask_hlf_sprt_index_1;
+         if(pixbuf!=0) line[x]=hlf_sprt_palettes[0].colors[pixbuf];
       }
    }
 

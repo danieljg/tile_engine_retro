@@ -68,6 +68,7 @@ color_16bit colors[1+hlf_sprt_color_count];
 } hlf_sprt_palette;
 
 hlf_sprt_palette hlf_sprt_palettes[hlf_sprt_palette_count];
+               //hlf_sprt_palettes[0-15].colors[0_7]
 
 void initialize_hlf_sprt_palettes()
 {
