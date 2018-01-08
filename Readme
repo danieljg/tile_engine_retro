@@ -15,9 +15,10 @@ Specifications
 
 All color is 16 bit ARGB (1,5,5,5).
 
-The data format is as follows:
+The data format for graphics files is as follows:
 
- Palette size		- 8 bits //correct this name...
+ File Header "GFX\n"	- 32 bits 
+ Pixel bitdepth		- 8 bits //log2(palette size)
  Padding                - 4 bits
  Palette qty		- 4 bits
  Palette data 0 	- (Palette size * 16)
@@ -26,9 +27,28 @@ The data format is as follows:
  Tile size		- 8 bits
  Padding                - 4 bits
  Tile qty		- 12 bits
- Tile data 0		- (Tile size * Tile size * log2(Palette size) )
+ Tile data 0		- (Tile size * Tile size * Pixel bitdepth )
  ---
- Tile data x		- (Tile size * Tile size * log2(Palette size) )
+ Tile data x		- (Tile size * Tile size * Pixel bitdepth )
 
 
+The rendering system consists of two background layers (BG0 and BG1) and two
+sprite layers (SP0 and SP1) which are rendered to a viewport. The size of each
+of these layers is 512x320 and the viewport is 320x240 by default, although
+support for 256x224, 240x160, 400x240, and 480x272 is also planned.
+
+Rendering order is, from back to front: BG0, BG1, SP0, SP1.
+
+The SP0 layer is the 16x16 sprite layer (main sprite layer).
+The SP1 layer is the 8x8 sprite layer (bullet and score layer).
+
+The BG0 and BG1 layers use 64 color palettes. The SP0 layer has 8 palettes with
+15 colors each, and the SP1 layer has 16 palettes with 8 colors each. Palette
+index 0 is fully transparent for all layers except for BG0, for which it is used
+as final background color.
+
+For background layers, which use 8 bits per pixel, each graphics tile uses
+2048 bits or 256 bytes. A 320x240 viewport full of non-redundant graphics uses
+20x15=300 tiles which requires 76800 bytes or 75 kilo bytes. A full layer of
+size 512x320 has 640 tiles, which requires 160 kilo bytes.
 

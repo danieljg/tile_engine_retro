@@ -8,6 +8,7 @@
 #include <fcntl.h>
 
 #include "libretro.h"
+#include "../gfx_engine.h"
 
 static uint16_t *frame_buf;
 static struct retro_log_callback logging;
@@ -83,7 +84,7 @@ void print_gfx_data(int gfxhandler) {
   for (unsigned tile_i=0; tile_i<tile_qty; tile_i++) {
     fprintf(stdout,"\nTile: %d:\n", tile_i);
     for (unsigned line_i=0; line_i<tile_size; line_i++) {
-      fprintf(stdout,"\t", line_i);
+      fprintf(stdout,"\t");
       for (unsigned byte_i=0; byte_i < line_bytesize; byte_i++) {
         read(gfxhandler, buff, 1);
         /* El siguiente bloque de código imprime los numeros si el tamaño de paleta es igual a 2 (creado para funcionar con el tileset de ejemplo).
