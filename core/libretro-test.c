@@ -242,7 +242,7 @@ static void render_bricks(void)
 {
    uint16_t *buf    = frame_buf;
    uint16_t stride  = 320; // Stride igual a ancho de viewport
-   uint16_t color_r = (0x15<<10)|(0x08<<5)|(0x08); // rojo-ladrillo
+   uint16_t color_r = (0x15<<10)|(0x15<<5)|(0x15); // rojo-ladrillo
    uint16_t color_g = (0x08<<10)|(0x08<<5)|(0x08); // gris-cemento
    uint16_t *line   = buf;
 
