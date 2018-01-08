@@ -36,7 +36,7 @@ void print_pixel(unsigned value) {
 }
 
 void read_gfx_data(int gfxhandler) {
-  char buff[4];
+  uint8_t buff[4];
   uint8_t palette_size, palette_qty, colors_per_pal;
   uint8_t tile_size, tile_qty, line_bytesize;
 
@@ -100,13 +100,16 @@ void read_gfx_data(int gfxhandler) {
           palettebuffer=(pixbuffer>>6)&0x03;
           palettebuffer=(palettebuffer<<4)|((pixbuffer>>4)&0x03);
           hlf_sprt_tiles.tile[tile_i].two_pixel_color_index
-            [ (byte_i)<<1 + line_i*line_bytesize]=palettebuffer;
+            [ (byte_i<<1) + (line_i*line_bytesize<<1)]=palettebuffer;
+//fprintf(stdout,"%u",(byte_i<<1) + (line_i*line_bytesize<<1));
          palettebuffer=0x00;
          palettebuffer=(pixbuffer>>2)&0x03;
          palettebuffer=(palettebuffer<<4)|(pixbuffer&0x03);
          hlf_sprt_tiles.tile[tile_i].two_pixel_color_index
-           [( (byte_i)<<1 + line_i*line_bytesize)+1]=palettebuffer;
+           [ (byte_i<<1) + ((line_i*line_bytesize<<1)+1)]=palettebuffer;
+//fprintf(stdout,"%u",(byte_i<<1) + ((line_i*line_bytesize<<1)+1));
         }
+//fprintf(stdout,"%u",byte_i);
       }
       fprintf(stdout,"\n");
     }
@@ -267,7 +270,7 @@ static void render_bricks(void)
          else line[x] = color_r; // rojo-ladrillo si no hay cemento
          //Pintar...
          uint8_t pixbuf=0x00;
-         pixbuf=hlf_sprt_tiles.tile[x>>3].two_pixel_color_index[((x%>>1)%8)+(y%16)<<1];
+         pixbuf=hlf_sprt_tiles.tile[x>>3].two_pixel_color_index[((x>>1)%8)+((y%8)<<2)];
          if( (x%2) == 0 ) pixbuf=(pixbuf&Mask_hlf_sprt_index_0)>>4;
          else pixbuf=pixbuf&Mask_hlf_sprt_index_1;
          if(pixbuf!=0) line[x]=hlf_sprt_palettes[0].colors[pixbuf];
