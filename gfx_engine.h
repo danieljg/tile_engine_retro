@@ -13,9 +13,10 @@
 #define bg_color_count 63
 #define bg_tileset_number 4096
 
-#define sprt_count 32
-#define sprite_palette_count 8
-#define sprt_color_count 15
+#define full_sprt_count 32
+#define full_sprt_palette_count 8
+#define full_sprt_color_count 15
+#define full_sprt_tileset_number 4096
 
 #define hlf_sprt_count 128
 #define hlf_sprt_palette_count 16
@@ -48,6 +49,7 @@ void initialize_bg_palettes()
  }
 }
 
+
 #define Mask_bg_unused_index	0xC0
 #define Mask_bg_color_index	0x3F //one byte per pixel, using six bits
 
@@ -61,8 +63,37 @@ typedef struct {
 bg_tileset bg_tiles[bg_tileset_count];//bg_tiles[0-1].tile[0-4095].
                                       //pixel_color_index[ii*y+x]
 
-//missing sp definitions for the moment...
+typedef struct {
+color_16bit colors[1+full_sprt_color_count];
+} full_sprt_palette;
 
+full_sprt_palette full_sprt_palettes[full_sprt_palette_count];
+                //full_sprt_palettes[0-7].colors[0-15]
+
+void initialize_full_sprt_palettes()
+{
+ for(int ii=0;ii<full_sprt_palette_count;ii++)
+ {
+  for(int jj=0;jj<(1+full_sprt_color_count);jj++)
+  {
+   full_sprt_palettes[ii].colors[jj]=null_color;
+  }
+ }
+}
+
+#define Mask_full_sprt_index_0	0xF0//four bits per pixel, all bits are used
+#define Mask_full_sprt_index_1	0x0F//two pixels per byte
+
+typedef struct {
+ uint8_t two_pixel_color_index[half_tile_size*half_tile_size>>1];
+} full_sprt_tile;
+
+typedef struct {
+ full_sprt_tile tile[full_sprt_tileset_number]; //512KB at 4096 tiles per set
+} full_sprite_tileset;
+
+full_sprite_tileset full_sprite_tiles;//full_sprt_tiles.tile[0-4095].
+                         //two_pixel_color_index[0-31]&Mask_hlf_sprt_index_[0-1]
 typedef struct {
 color_16bit colors[1+hlf_sprt_color_count];
 } hlf_sprt_palette;
@@ -81,8 +112,9 @@ void initialize_hlf_sprt_palettes()
  }
 }
 
-#define Mask_hlf_sprt_index_0	0xF0
-#define Mask_hlf_sprt_index_1	0x0F //four bits per pixel, two pixels per byte
+#define Mask_hlf_sprt_index_0	0xF0 //for simplicity, we reserve four bits per
+#define Mask_hlf_sprt_index_1	0x0F //pixel (two pixels per byte), and the most
+                                     //significant bit is unused at this time
 
 typedef struct {       //there's only 32 elements for 64 pixels here so be 
  uint8_t two_pixel_color_index[half_tile_size*half_tile_size>>1];//careful!!!!!!

@@ -101,15 +101,12 @@ void read_gfx_data(int gfxhandler) {
           palettebuffer=(palettebuffer<<4)|((pixbuffer>>4)&0x03);
           hlf_sprt_tiles.tile[tile_i].two_pixel_color_index
             [ (byte_i<<1) + (line_i*line_bytesize<<1)]=palettebuffer;
-fprintf(stdout,"%u",(byte_i<<1) + (line_i*line_bytesize<<1));
          palettebuffer=0x00;
          palettebuffer=(pixbuffer>>2)&0x03;
          palettebuffer=(palettebuffer<<4)|(pixbuffer&0x03);
          hlf_sprt_tiles.tile[tile_i].two_pixel_color_index
            [ (byte_i<<1) + ((line_i*line_bytesize<<1)+1)]=palettebuffer;
-fprintf(stdout,"%u",(byte_i<<1) + ((line_i*line_bytesize<<1)+1));
         }
-//fprintf(stdout,"%u",byte_i);
       }
       fprintf(stdout,"\n");
     }

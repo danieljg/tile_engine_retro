@@ -131,7 +131,7 @@ else
 	$(CC) $(fpic) $(SHARED) $(INCLUDES) -o $@ $(OBJECTS) $(LDFLAGS)
 endif
 
-%.o: %.c
+%.o: %.c ../gfx_engine.h
 	$(CC) $(CFLAGS) $(fpic) -c -o $@ $<
 
 clean:
