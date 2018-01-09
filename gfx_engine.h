@@ -1,13 +1,13 @@
 #define full_tile_size 16
 #define half_tile_size 8
 
-#define bg_tile_number_x 32
-#define bg_tile_number_y 20
+#define bg_tile_number_x 32//layer_tile_number
+#define bg_tile_number_y 32
 
 #define vp_tile_number_x 20
 #define vp_tile_number_y 15
 
-#define bg_count 2
+#define bg_count 2//bg_layer_count
 #define bg_palette_count 2
 #define bg_tileset_count 2
 #define bg_color_count 63
@@ -40,15 +40,14 @@ bg_palette bg_palettes[bg_palette_count];
 
 void initialize_bg_palettes()
 {
- for(int ii=0;ii<bg_palette_count;ii++)
+ for(uint8_t ii=0;ii<bg_palette_count;ii++)
  {
-  for(int jj=0;jj<(1+bg_color_count);jj++)
+  for(uint8_t jj=0;jj<(1+bg_color_count);jj++)
   {
    bg_palettes[ii].colors[jj]=null_color;
   }
  }
 }
-
 
 #define Mask_bg_unused_index	0xC0
 #define Mask_bg_color_index	0x3F //one byte per pixel, using six bits
@@ -72,9 +71,9 @@ full_sprt_palette full_sprt_palettes[full_sprt_palette_count];
 
 void initialize_full_sprt_palettes()
 {
- for(int ii=0;ii<full_sprt_palette_count;ii++)
+ for(uint8_t ii=0;ii<full_sprt_palette_count;ii++)
  {
-  for(int jj=0;jj<(1+full_sprt_color_count);jj++)
+  for(uint8_t jj=0;jj<(1+full_sprt_color_count);jj++)
   {
    full_sprt_palettes[ii].colors[jj]=null_color;
   }
@@ -103,9 +102,9 @@ hlf_sprt_palette hlf_sprt_palettes[hlf_sprt_palette_count];
 
 void initialize_hlf_sprt_palettes()
 {
- for(int ii=0;ii<hlf_sprt_palette_count;ii++)
+ for(uint8_t ii=0;ii<hlf_sprt_palette_count;ii++)
  {
-  for(int jj=0;jj<(1+hlf_sprt_color_count);jj++)
+  for(uint8_t jj=0;jj<(1+hlf_sprt_color_count);jj++)
   {
    hlf_sprt_palettes[ii].colors[jj]=null_color;
   }
@@ -126,3 +125,14 @@ typedef struct {
 
 hlf_sprt_tileset hlf_sprt_tiles;//hlf_sprt_tiles.tile[0-4095].
                         //two_pixel_color_index[0-31]& Mask_hlf_sprt_index_[0-1]
+
+typedef struct {
+ uint16_t x_pos;
+ uint16_t y_pos;
+ uint8_t palette;
+} hlf_sprt_ObjectAttributeTable;
+
+hlf_sprt_ObjectAttributeTable hlf_sprt_attributes[hlf_sprt_count];
+       //hlf_sprt_attributes[0-128].x_pos;
+       //hlf_sprt_attributes[0-128].y_pos;
+       //hlf_sprt_attributes[0-128].palette;

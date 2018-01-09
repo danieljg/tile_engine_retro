@@ -239,8 +239,8 @@ static void render_bricks(void)
 {
    uint16_t *buf    = frame_buf;
    uint16_t stride  = 320; // Stride igual a ancho de viewport
-   uint16_t color_r = (0x15<<10)|(0x15<<5)|(0x15); // rojo-ladrillo
-   uint16_t color_g = (0x08<<10)|(0x08<<5)|(0x08); // gris-cemento
+   uint16_t color_r = (0x05<<10)|(0x05<<5)|(0x15); // rojo-ladrillo
+   uint16_t color_g = (0x04<<10)|(0x04<<5)|(0x08); // gris-cemento
    uint16_t *line   = buf;
 
    /* Este ciclo dibuja la pantalla linea por linea
@@ -297,7 +297,7 @@ void retro_run(void)
    render_bricks();
    // Desplazamiento de la pantalla
    skip++;
-   if(skip==1){
+   if(skip==2){
    x_coord+=1;
    y_coord+=1;
    skip=0;
