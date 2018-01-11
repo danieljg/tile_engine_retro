@@ -12,7 +12,7 @@
 #define bg_palette_count 2 // 1 bit
 #define bg_tileset_count 2 // 1 bit
 #define bg_color_count 63 // null * 63 = 64 colors (6 bits)
-#define bg_tileset_number 4096 // 12 bits
+#define bg_tileset_number 1024 // 10 bits
 
 #define full_sprt_count 32
 #define full_sprt_palette_count 8
