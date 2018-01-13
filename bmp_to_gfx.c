@@ -8,18 +8,19 @@
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 int main( int argc, char* argv[] )
 {
-    BMP*    bmp;
-    UCHAR   index;
-    UCHAR   r, g, b;
-    UINT    width, height;
-    UINT    x, y;
+    BMP*	bmp;
+    uint8_t	index;
+    uint8_t	r, g, b;
+    uint16_t	width, height;
+    uint16_t	x, y;
 
-    if ( argc != 3 )
+    if ( argc != 4 )
     {
-        fprintf( stderr, "Usage: %s <input file> <output file>\n", argv[ 0 ] );
+        fprintf( stderr, "Usage: %s <input file> <output file> tile_size\n", argv[ 0 ] );
         return 0;
     }
 
@@ -31,9 +32,8 @@ int main( int argc, char* argv[] )
     width = BMP_GetWidth( bmp );
     height = BMP_GetHeight( bmp );
 
-    int tile_size = height;
-
-    int number_of_tiles = width/tile_size;
+    uint8_t tile_size = atoi(argv[3]);
+    uint16_t number_of_tiles = (width/tile_size)*(height/tile_size);
 
     uint8_t color_i=0;
     uint8_t colors_n = 0;
@@ -43,7 +43,6 @@ int main( int argc, char* argv[] )
     palette_elements[jj]=0; //null is null
     }
 
-    fprintf(stdout,"sss\n");
     /* Open gfx file */
     int filehandler = open(argv[2],O_RDWR|O_CREAT|O_TRUNC,
                                    S_IRUSR|S_IWUSR);
@@ -51,35 +50,32 @@ int main( int argc, char* argv[] )
     /* write header */
     write(filehandler,"GFX\n",4);
 
-    /* Iterate through all tiles */
-    for ( int tile = 0 ; tile < number_of_tiles ; tile++ )
+    /* Iterate through all the rows */
+    for ( y = 0 ; y < height; y++ )
     {
-      /* Iterate through all the rows */
-      for ( y = 0 ; y < tile_size ; ++y )
+      /* Iterate through all the pixels in a row */
+      for ( x = 0 ; x < width ; x++ )
       {
-        /* Iterate through all the pixels in a row*/
-        for ( x = tile_size*tile ; x < tile_size*(tile+1) ; ++x )
-        {
-            /* Get pixel's index */
-            BMP_GetPixelIndex( bmp, x, y, &index );
-            /* test if color exists in used palette */
-            uint8_t color_exists=0;
-            color_i=0;
-            for( color_i=0 ; color_i<(colors_n+1) ; color_i++ )
-            {
-               if(palette_elements[color_i] == index)
-               {
-                color_exists=1;
-                break;
-               }
-            }
-            /* check if color exists */
-            if(color_exists==0)
-            {
-            palette_elements[color_i]=index;
-            colors_n++;
-            }
-        }
+          /* Get pixel's index */
+          BMP_GetPixelIndex( bmp, x, y, &index );
+          /* test if color exists in used palette */
+          uint8_t color_exists=0;
+          color_i=0;
+          for( color_i=0 ; color_i<(colors_n+1) ; color_i++ )
+          {
+             if(palette_elements[color_i] == index)
+             {
+              color_exists=1;
+              break;
+             }
+          }
+          /* check if color exists */
+          if(color_exists==0)
+          {
+          palette_elements[color_i]=index;
+          colors_n++;
+          }
+          //if(index==10)fprintf(stdout,"x: %u, y: %u\n",x,y);//test for odd colors..
       }
     }
     /* Save result */
@@ -116,11 +112,11 @@ int main( int argc, char* argv[] )
     /* Iterate through all tiles */
     for ( int tile = 0 ; tile < number_of_tiles ; tile++ )
     {
-      /* Iterate through all the rows */
-      for ( y = 0 ; y < tile_size ; ++y )
+      /* Iterate through all the rows for the tile */
+      for ( y = tile/(width/tile_size) ; y < tile/(width/tile_size)+tile_size ; ++y )
       {
-        /* Iterate through all the pixels in a row*/
-        for ( x = tile_size*tile ; x < tile_size*(tile+1) ; x=x+ppb )
+        /* Iterate through all the pixels in a row for the tile */
+        for ( x = (tile_size*tile)%width ; x < (tile_size*tile)%width+tile_size ; x=x+ppb )
         {
             buff=0x00;
             for ( uint8_t xp = 0 ; xp < ppb ; xp++ )
@@ -142,12 +138,12 @@ int main( int argc, char* argv[] )
       }
     }
 
-    fprintf(stdout,"%u\n",colors_n+1);
-    fprintf(stdout,"%u %u %u %u\n", palette_elements[0],
-                                    palette_elements[1],
-                                    palette_elements[2],
-                                    palette_elements[3]);
+    fprintf(stdout,"colors_n+1: %u\n",number_of_tiles);
+/*    for(uint8_t ii=0; ii<colors_n+1;ii++){
+     fprintf(stdout,"%u %u\n", ii, palette_elements[ii]);
+    }*/
     fprintf(stdout,"%u\n",log2(colors_n+1));
+    fprintf(stdout,"===\n");
     fflush(stdout);
 
     close(filehandler);
