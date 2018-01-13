@@ -22,16 +22,32 @@ color_16bit null_color=0x0000;
 //The viewport size is an integer number of tiles
 #define vp_tile_number_x 20
 #define vp_tile_number_y 15
-//The origin of the viewport may be displaced
+//The (initial) origin of the viewport may be displaced
 #define vp_x_origin 0
-#define vp_y_origin 0
+#define vp_y_origin 2
+
+typedef struct {
+ uint16_t width;
+ uint16_t height;
+ uint16_t x_origin;
+ uint16_t y_origin;
+} vp;
+
+vp viewport;
+
+void initialize_viewport() {
+ viewport.width	= full_tile_size*vp_tile_number_x;
+ viewport.height 	= full_tile_size*vp_tile_number_y;
+ viewport.x_origin	= vp_x_origin;
+ viewport.y_origin	= vp_y_origin;
+}
 
 //There are two background layers
 #define bg_layer_count 2
+
 //The bg layers are built using a tilemap, where each bg tile can be rotated,
 //flipped either horizontally or vertically and where one may choose between
 // one of two palette sets (intended for each bg to have its own palette set)
-#define bg_geometry_bits 4 // 0zyx where z:rotation, y:v-flip, x:h-flip
 #define bg_palette_set_count 2 // 1 bit
 //Each tile can reference one of two tilesets
 #define bg_tileset_count 2 // 1 bit
