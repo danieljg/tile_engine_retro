@@ -36,7 +36,7 @@ typedef struct {
 vp viewport;
 
 void initialize_viewport() {
- viewport.width	= full_tile_size*vp_tile_number_x;
+ viewport.width		= full_tile_size*vp_tile_number_x;
  viewport.height 	= full_tile_size*vp_tile_number_y;
  viewport.x_origin	= vp_x_origin;
  viewport.y_origin	= vp_y_origin;

@@ -117,9 +117,10 @@ void read_gfx_data(int gfxhandler) {
 
 void retro_init(void)
 {
-   frame_buf = calloc(320 * 240, sizeof(uint16_t));
+   initialize_viewport();
    initialize_hlf_sprt_palettes();
-   filehandler = open("output.gfx",O_RDONLY);
+   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
+   filehandler = open("font_numbers_8x8.gfx",O_RDONLY);
    read_gfx_data(filehandler);
 }
 
@@ -167,10 +168,10 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    };
 
    info->geometry = (struct retro_game_geometry) {
-      .base_width   = 320,
-      .base_height  = 240,
-      .max_width    = 320,
-      .max_height   = 240,
+      .base_width   = viewport.width,
+      .base_height  = viewport.height,
+      .max_width    = viewport.width,
+      .max_height   = viewport.height,
       .aspect_ratio = aspect,
    };
 }
@@ -238,7 +239,7 @@ static void update_input(void)
 static void render_bricks(void)
 {
    uint16_t *buf    = frame_buf;
-   uint16_t stride  = 320; // Stride igual a ancho de viewport
+   uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
    uint16_t color_r = (0x15<<10)|(0x05<<5)|(0x05); // rojo-ladrillo
    uint16_t color_g = (0x04<<10)|(0x04<<5)|(0x08); // gris-cemento
    uint16_t *line   = buf;
@@ -252,11 +253,11 @@ static void render_bricks(void)
 
    y_coord=2;
 
-   for (uint16_t y = 0; y < 240; y++, line += stride)
+   for (uint16_t y = 0; y < viewport.height; y++, line += stride)
    {
       y_abs = (y - y_coord) >> scale_shift;
       uint8_t index_y = y_abs % 4 == 3;
-      for (uint16_t x = 0; x < 320; x++)
+      for (uint16_t x = 0; x < viewport.width; x++)
       {
          x_abs = (x - x_coord) >> scale_shift;
          uint8_t index_x; // Cierto si hay cemento
@@ -278,7 +279,7 @@ static void render_bricks(void)
       for (unsigned x = mouse_rel_x - 5; x <= mouse_rel_x + 5; x++)
          buf[y * stride + x] = 0xff;
 
-   video_cb(buf, 320, 240, stride << 1);
+   video_cb(buf, viewport.width, viewport.height, stride << 1);
 }
 
 static void check_variables(void)
