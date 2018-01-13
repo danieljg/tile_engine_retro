@@ -7,11 +7,12 @@
 #define vp_tile_number_x 20
 #define vp_tile_number_y 15
 
-#define bg_count 2//bg_layer_count
-#define bg_palette_count 2
-#define bg_tileset_count 2
-#define bg_color_count 63
-#define bg_tileset_number 4096
+#define bg_count 2 // bg_layer_count
+
+#define bg_palette_count 2 // 1 bit
+#define bg_tileset_count 2 // 1 bit
+#define bg_color_count 63 // null * 63 = 64 colors (6 bits)
+#define bg_tileset_number 1024 // 10 bits
 
 #define full_sprt_count 32
 #define full_sprt_palette_count 8
@@ -113,9 +114,9 @@ void initialize_hlf_sprt_palettes()
 
 #define Mask_hlf_sprt_index_0	0xF0 //for simplicity, we reserve four bits per
 #define Mask_hlf_sprt_index_1	0x0F //pixel (two pixels per byte), and the most
-                                     //significant bit is unused at this time
+                                   //significant bit is unused at this time
 
-typedef struct {       //there's only 32 elements for 64 pixels here so be 
+typedef struct {       //there's only 32 elements for 64 pixels here so be
  uint8_t two_pixel_color_index[half_tile_size*half_tile_size>>1];//careful!!!!!!
 } hlf_sprt_tile;
 
