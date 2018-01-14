@@ -118,7 +118,7 @@ int main( int argc, char* argv[] )
     buff=number_of_tiles&0x00FF;
     write(filehandler,&buff,1);//low byte
 
-    uint8_t bpp = log2(colors_n+1);//bits per pixel
+    uint8_t bpp = log2(palette_size);//bits per pixel
     uint8_t ppb = 8/bpp;//pixels per byte
 
     /* Iterate through all tiles */

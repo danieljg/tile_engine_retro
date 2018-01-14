@@ -35,14 +35,15 @@ void print_pixel_4(uint8_t value) {
 
 
 void print_pixel_8(uint8_t value) {
-  if (value==0) fprintf(stdout, " ");
-  if (value==1) fprintf(stdout, "1");
-  if (value==2) fprintf(stdout, "2");
-  if (value==3) fprintf(stdout, "3");
-  if (value==4) fprintf(stdout, "4");
-  if (value==5) fprintf(stdout, "5");
-  if (value==6) fprintf(stdout, "6");
-  if (value==7) fprintf(stdout, "7");
+  if      (value==0) fprintf(stdout, "0");
+  else if (value==1) fprintf(stdout, "1");
+  else if (value==2) fprintf(stdout, "2");
+  else if (value==3) fprintf(stdout, "3");
+  else if (value==4) fprintf(stdout, "4");
+  else if (value==5) fprintf(stdout, "5");
+  else if (value==6) fprintf(stdout, "6");
+  else if (value==7) fprintf(stdout, "7");
+  else               fprintf(stdout, "~%u~",value);
 }
 
 void read_gfx_data() {
