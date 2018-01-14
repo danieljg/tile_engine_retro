@@ -14,8 +14,6 @@ static uint16_t *frame_buf;
 static struct retro_log_callback logging;
 static retro_log_printf_t log_cb;
 
-int filehandler;
-
 static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 {
    (void)level;
@@ -35,20 +33,23 @@ void print_pixel(unsigned value) {
   if (value==3) fprintf(stdout, "X");
 }
 
-void read_gfx_data(int gfxhandler) {
+void read_gfx_data() {
   uint8_t buff[4];
   uint8_t palette_size, palette_qty, colors_per_pal;
   uint8_t tile_size, tile_qty, line_bytesize;
 
-  // Imprimiendo identificador GFX (TODO: cambiar a if(buf=="GFX\n") ...)
-  read(gfxhandler, buff, 4);
+  int filehandler;
+  filehandler = open("bg_stars.gfx",O_RDONLY);
+
+  // Leyendo identificador GFX (TODO: cambiar a if(buf=="GFX\n") ...)
+  read(filehandler, buff, 4);
   fprintf(stdout,"\n%c",buff[0]);
   fprintf(stdout,"%c",buff[1]);
   fprintf(stdout,"%c",buff[2]);
   fprintf(stdout,"%c",buff[3]);
 
   // Leyendo información del encabezado de la paleta.
-  read(gfxhandler, buff, 2);
+  read(filehandler, buff, 2);
   palette_size = buff[0];
   palette_qty = buff[1];
   colors_per_pal = 1 << palette_size; // 2 ^ palette_size
@@ -62,19 +63,19 @@ void read_gfx_data(int gfxhandler) {
     fprintf(stdout,"Paleta %d:\n", pal_i);
     for (uint8_t col_i=0; col_i<colors_per_pal; col_i++) { // este ciclo itera sobre los colores
       uint8_t red, green, blue;
-      read(gfxhandler, buff, 2);
+      read(filehandler, buff, 2);
       palette_data[col_i] = (buff[0] << 8) | buff[1];
       red = (palette_data[col_i]>>10) & 31;
       green = (palette_data[col_i]>>5) & 31;
       blue = palette_data[col_i] & 31;
       fprintf(stdout,"\tColor %d: %d (R:%02x G:%02x B:%02x)\n", col_i, palette_data[col_i], red, green, blue);
-      hlf_sprt_palettes[0].colors[col_i] = palette_data[col_i];
+      bg.palette_sets[0].palettes[0].colors[col_i] = palette_data[col_i];
     }
   }
   fprintf(stdout,"----- Palette Data Ends -----\n\n");
 
   // Leyendo información del encabezado de los tiles.
-  read(gfxhandler, buff, 3);
+  read(filehandler, buff, 3);
   tile_size = buff[0];
   tile_qty = (buff[1]<<8) | buff[2];
   fprintf(stdout,"Tile size: %d\n", tile_size);
@@ -86,7 +87,7 @@ void read_gfx_data(int gfxhandler) {
     for (uint8_t line_i=0; line_i<tile_size; line_i++) {
       fprintf(stdout,"\t");
       for (uint16_t byte_i=0; byte_i < line_bytesize; byte_i++) {
-        read(gfxhandler, buff, 1);
+        read(filehandler, buff, 1);
         /* El siguiente bloque de código imprime los numeros si el tamaño de paleta es igual a 2 (creado para funcionar con el tileset de ejemplo).
         */
         if (palette_size==2) {
@@ -101,11 +102,17 @@ void read_gfx_data(int gfxhandler) {
           palettebuffer=(palettebuffer<<4)|((pixbuffer>>4)&0x03);
           hlf_sprt_tiles.tile[tile_i].two_pixel_color_index
             [ (byte_i<<1) + (line_i*line_bytesize<<1)]=palettebuffer;
-         palettebuffer=0x00;
-         palettebuffer=(pixbuffer>>2)&0x03;
-         palettebuffer=(palettebuffer<<4)|(pixbuffer&0x03);
-         hlf_sprt_tiles.tile[tile_i].two_pixel_color_index
-           [ (byte_i<<1) + ((line_i*line_bytesize<<1)+1)]=palettebuffer;
+          palettebuffer=0x00;
+          palettebuffer=(pixbuffer>>2)&0x03;
+          palettebuffer=(palettebuffer<<4)|(pixbuffer&0x03);
+          hlf_sprt_tiles.tile[tile_i].two_pixel_color_index
+            [ (byte_i<<1) + ((line_i*line_bytesize<<1)+1)]=palettebuffer;
+        }
+        else if (palette_size==4) {
+          uint8_t pixbuffer;
+          pixbuffer = buff[0];
+          bg.tilesets[0].tile[tile_i].two_pixel_color_index
+            [ (byte_i<<1) + ((line_i*line_bytesize<<1))]=pixbuffer;
         }
       }
       fprintf(stdout,"\n");
@@ -121,13 +128,14 @@ void retro_init(void)
   initialize_viewport();
   initialize_hlf_sprt_palettes();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
-  filehandler = open("font_numbers_8x8.gfx",O_RDONLY);
-  read_gfx_data(filehandler);
+  //filehandler = open("font_numbers_8x8.gfx",O_RDONLY);
+  //read_gfx_data(filehandler);
+  read_gfx_data();
 }
 
 void retro_deinit(void)
 {
-   close(filehandler);
+   //close(filehandler);
    free(frame_buf);
    frame_buf = NULL;
 }
