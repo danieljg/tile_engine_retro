@@ -66,23 +66,6 @@ typedef struct {
  bg_palette palettes[bg_palettes_per_set];
 } bg_palette_set;
 
-bg_palette_set bg_palette_sets[bg_palette_set_count];
- //bg_palette_sets[0-1].palettes[0-3].colors[0-15]
-
-void initialize_bg_palettes()
-{
- for(uint8_t ii=0;ii<bg_palettes_per_set;ii++)
- {
-  for(uint8_t jj=0;jj<bg_palette_color_count;jj++)
-  {
-   for(uint8_t kk=0;kk<bg_palette_set_count;kk++){
-    bg_palette_sets[kk].palettes[ii].colors[jj]=null_color;
-    bg_palette_sets[kk].palettes[ii].colors[jj]=null_color;
-   }
-  }
- }
-}
-
 #define Mask_bg_tile_unused_index	0xF0//four bits per pixel, all bits are used
 #define Mask_bg_tile_color_index	0x0F//two pixels per byte
 
@@ -93,9 +76,6 @@ typedef struct {
 typedef struct {
  bg_tile tile[bg_tileset_number]; // 128 kB at 1024 tiles per tileset
 } bg_tileset;
-
-bg_tileset bg_tilesets[bg_tileset_count];//bg_tilesets[0-1].tile[0-4095].
-                                      //pixel_color_index[ii*y+x]
 
 //background tilemap masks
 #define Mask_bgtm_reserved	0x8000 //bit 16
@@ -109,8 +89,30 @@ typedef struct {
 uint16_t tile_index[layer_number_x*layer_number_y]; //2Bytes*32*32=2kB
 } bg_tilemap;
 
-bg_tilemap bg_tilemaps[bg_layer_count];
- //bg_tilemaps[0-1].tile_index[xx+ii*yy]&Mask_bg_tm_
+typedef struct {
+  bg_palette_set palette_sets[bg_palette_set_count];
+  bg_tileset tilesets[bg_tileset_count];
+  bg_tilemap tilemaps[bg_layer_count];
+  uint16_t offset_x[bg_layer_count];
+  uint16_t offset_y[bg_layer_count];
+} bg_struct;
+
+bg_struct bg;
+
+void initialize_bg_palettes()
+{
+ for(uint8_t ii=0;ii<bg_palettes_per_set;ii++)
+ {
+  for(uint8_t jj=0;jj<bg_palette_color_count;jj++)
+  {
+   for(uint8_t kk=0;kk<bg_palette_set_count;kk++){
+    bg.palette_sets[kk].palettes[ii].colors[jj]=null_color;
+    bg.palette_sets[kk].palettes[ii].colors[jj]=null_color;
+   }
+  }
+ }
+}
+// TO DO: Escribir funciones de inicialización restantes
 
 #define full_sprt_count 32
 #define full_sprt_palette_count 8
