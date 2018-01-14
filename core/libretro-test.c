@@ -112,7 +112,7 @@ void read_gfx_data() {
           uint8_t pixbuffer;
           pixbuffer = buff[0];
           bg.tilesets[0].tile[tile_i].two_pixel_color_index
-            [ (byte_i<<1) + ((line_i*line_bytesize<<1)+1)]=pixbuffer;
+            [ (byte_i<<1) + ((line_i*line_bytesize<<1))]=pixbuffer;
         }
       }
       fprintf(stdout,"\n");
