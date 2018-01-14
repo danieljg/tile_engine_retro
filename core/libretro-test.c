@@ -117,11 +117,12 @@ void read_gfx_data(int gfxhandler) {
 
 void retro_init(void)
 {
-   initialize_viewport();
-   initialize_hlf_sprt_palettes();
-   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
-   filehandler = open("font_numbers_8x8.gfx",O_RDONLY);
-   read_gfx_data(filehandler);
+  initialize_bg();
+  initialize_viewport();
+  initialize_hlf_sprt_palettes();
+  frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
+  filehandler = open("font_numbers_8x8.gfx",O_RDONLY);
+  read_gfx_data(filehandler);
 }
 
 void retro_deinit(void)
@@ -240,13 +241,22 @@ static void render_frame(void)
 {
    uint16_t *buf    = frame_buf;
    uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
+   uint16_t *line   = buf;
+   //fprintf(stdout, "\tOrigin: (%d,%d)\n", viewport.x_origin, viewport.y_origin);
+   fprintf(stdout, "\tOrigin: (%d,%d)\n", bg.offset_x[0], bg.offset_y[0]);
+
+   uint16_t current_tile =  bg.tilemaps[0].tile_index[0];
+   //fprintf(stdout, "\t>%d>\n", current_tile);
+
+
+   /*
+
+
    uint16_t color_r = (0x15<<10)|(0x05<<5)|(0x05); // rojo-ladrillo
    uint16_t color_g = (0x04<<10)|(0x04<<5)|(0x08); // gris-cemento
-   uint16_t *line   = buf;
 
-   /* Este ciclo dibuja la pantalla linea por linea
-   */
 
+   // Este ciclo dibuja la pantalla linea por linea
    uint8_t scale_shift = 2; // 0: No escalar
    uint16_t x_abs;
    uint16_t y_abs;
@@ -274,6 +284,7 @@ static void render_frame(void)
          if(pixbuf!=0) line[x]=hlf_sprt_palettes[0].colors[pixbuf];
       }
    }
+   */
 
    for (unsigned y = mouse_rel_y - 5; y <= mouse_rel_y + 5; y++)
       for (unsigned x = mouse_rel_x - 5; x <= mouse_rel_x + 5; x++)

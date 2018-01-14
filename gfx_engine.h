@@ -99,6 +99,16 @@ typedef struct {
 
 bg_struct bg;
 
+void initialize_bg()
+{
+  for(uint8_t ii=0; ii<bg_layer_count; ii++) {
+    // inicializando offset de backgrounds
+    bg.offset_x[ii] = 0;
+    bg.offset_y[ii] = 0;
+  }
+}
+
+
 void initialize_bg_palettes()
 {
  for(uint8_t ii=0;ii<bg_palettes_per_set;ii++)
@@ -112,6 +122,8 @@ void initialize_bg_palettes()
   }
  }
 }
+
+
 // TO DO: Escribir funciones de inicialización restantes
 
 #define full_sprt_count 32
