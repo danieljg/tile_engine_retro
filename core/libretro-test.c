@@ -53,7 +53,8 @@ void read_gfx_data() {
   uint16_t tile_qty, line_bytesize=0;
 
   int filehandler;
-  filehandler = open("bg_stars.gfx",O_RDONLY);//Remember to close
+  //filehandler = open("bg_stars.gfx",O_RDONLY);//Remember to close
+  filehandler = open("sr388_invader.gfx",O_RDONLY);//Remember to close
 
   // Leyendo identificador GFX (TODO: cambiar a if(buf=="GFX\n") ...)
   read(filehandler, buff, 4);
@@ -274,7 +275,7 @@ static void render_frame(void)
   uint8_t twopixdata;
   for (uint8_t yy=0; yy<full_tile_size; yy++, line+=stride) {
     for (uint8_t x2=0; x2<full_tile_size; x2+=2) {
-      twopixdata = bg.tilesets[0].tile[0].two_pixel_color_index[yy*full_tile_size+x2];
+      twopixdata = bg.tilesets[0].tile[1].two_pixel_color_index[yy*full_tile_size+x2];
       line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
       line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
       //fprintf(stdout, "%d", twopixdata);
