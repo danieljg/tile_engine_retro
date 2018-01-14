@@ -66,8 +66,8 @@ typedef struct {
  bg_palette palettes[bg_palettes_per_set];
 } bg_palette_set;
 
-#define Mask_bg_tile_unused_index	0xF0//four bits per pixel, all bits are used
-#define Mask_bg_tile_color_index	0x0F//two pixels per byte
+#define Mask_bg_tile_index_0	0xF0//four bits per pixel, all bits are used
+#define Mask_bg_tile_index_1	0x0F//two pixels per byte
 
 typedef struct {
  uint8_t two_pixel_color_index[full_tile_size*full_tile_size>>1]; // 128 Bytes at 16 px/tile

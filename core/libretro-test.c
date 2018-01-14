@@ -58,7 +58,7 @@ void read_gfx_data() {
   /* Leyendo datos de las paletas.
   Nota: Por el momento da por hecho que existe una unica paleta. Solo guarda un espacio en memoria para la paleta y la sobreescribe con la ultima paleta leida.
   */
-  uint16_t palette_data[colors_per_pal]; // Debe de ser un arreglo bidimencional para soportar mas de una paleta.
+  uint16_t palette_data[colors_per_pal];
   for (uint8_t pal_i=0; pal_i<palette_qty; pal_i++) { // este ciclo itera sobre las paletas
     fprintf(stdout,"Paleta %d:\n", pal_i);
     for (uint8_t col_i=0; col_i<colors_per_pal; col_i++) { // este ciclo itera sobre los colores
@@ -247,58 +247,93 @@ static void update_input(void)
 */
 static void render_frame(void)
 {
-   uint16_t *buf    = frame_buf;
-   uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
-   uint16_t *line   = buf;
-   //fprintf(stdout, "\tOrigin: (%d,%d)\n", viewport.x_origin, viewport.y_origin);
-   fprintf(stdout, "\tOrigin: (%d,%d)\n", bg.offset_x[0], bg.offset_y[0]);
+  uint16_t *buf    = frame_buf;
+  uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
+  uint16_t *line   = buf;
+  //fprintf(stdout, "\tOrigin: (%d,%d)\n", viewport.x_origin, viewport.y_origin);
+  //fprintf(stdout, "\tOrigin: (%d,%d)\n", bg.offset_x[0], bg.offset_y[0]);
+  uint8_t twopixdata;
+  for (uint8_t yy=0; yy<full_tile_size; yy++) {
+    for (uint8_t x2=0; x2<full_tile_size; x2+=2) {
+      twopixdata = bg.tilesets[0].tile[0].two_pixel_color_index[yy*full_tile_size+x2];
+      fprintf(stdout, "%d", twopixdata);
+    }
+    fprintf(stdout, "\n");
+  }
+  fprintf(stdout, "-------\n");
+  /*
 
-   uint16_t current_tile =  bg.tilemaps[0].tile_index[0];
-   //fprintf(stdout, "\t>%d>\n", current_tile);
-
-
-   /*
-
-
-   uint16_t color_r = (0x15<<10)|(0x05<<5)|(0x05); // rojo-ladrillo
-   uint16_t color_g = (0x04<<10)|(0x04<<5)|(0x08); // gris-cemento
-
-
-   // Este ciclo dibuja la pantalla linea por linea
-   uint8_t scale_shift = 2; // 0: No escalar
-   uint16_t x_abs;
-   uint16_t y_abs;
-
-   y_coord=2;
-
-   for (uint16_t y = 0; y < viewport.height; y++, line += stride)
-   {
-      y_abs = (y - y_coord) >> scale_shift;
-      uint8_t index_y = y_abs % 4 == 3;
-      for (uint16_t x = 0; x < viewport.width; x++)
-      {
-         x_abs = (x - x_coord) >> scale_shift;
-         uint8_t index_x; // Cierto si hay cemento
-         if ((y_abs >> 2) % 2 == 1) index_x = x_abs % 8 == 3;
-         else index_x = x_abs % 8 == 7;
-         // Asignar color a pixel
-         if (index_y || index_x) line[x] = color_g; // gris si hay cemento
-         else line[x] = color_r; // rojo-ladrillo si no hay cemento
-         //Pintar...
-         uint8_t pixbuf=0x00;
-         pixbuf=hlf_sprt_tiles.tile[x>>3].two_pixel_color_index[((x>>1)%4)+((y%8)<<2)];
-         if( (x%2) == 0 ) pixbuf=(pixbuf&Mask_hlf_sprt_index_0)>>4;
-         else pixbuf=pixbuf&Mask_hlf_sprt_index_1;
-         if(pixbuf!=0) line[x]=hlf_sprt_palettes[0].colors[pixbuf];
+  uint16_t current_tile =  bg.tilemaps[0].tile_index[0];
+  uint16_t tile_i = 0;
+  uint16_t pix_i;
+  uint8_t two_pix_data;
+  uint16_t pix_id;
+  for(uint8_t ii=0; ii<vp_tile_number_y; ii++) {
+    for(uint8_t jj=0; jj<vp_tile_number_x; jj++) {
+      pix_i = 0;
+      for (uint8_t yy=0; yy<full_tile_size; yy++) {
+        for (uint8_t xx=0; xx<full_tile_size; xx++) {
+          two_pix_data = bg.tilesets[0].tile[tile_i].two_pixel_color_index[pix_i>>1];
+          if (pix_i%2 == 0) {
+            two_pix_data = (two_pix_data & Mask_bg_tile_index_0) >> 4;
+          }
+          else {
+            two_pix_data = two_pix_data & Mask_bg_tile_index_1;
+          }
+          pix_id = (ii*full_tile_size + yy) * stride + (jj*full_tile_size + xx);
+          buf[pix_id] = bg.palette_sets[0].palettes[0].colors[two_pix_data];
+          pix_i ++;
+        }
       }
-   }
-   */
+      tile_i ++;
+    }
+    //fprintf(stdout, "\n");
+  }
+  //fprintf(stdout, "\t>%d>\n", current_tile);
+  */
 
-   for (unsigned y = mouse_rel_y - 5; y <= mouse_rel_y + 5; y++)
-      for (unsigned x = mouse_rel_x - 5; x <= mouse_rel_x + 5; x++)
-         buf[y * stride + x] = 0xff;
+  /*
 
-   video_cb(buf, viewport.width, viewport.height, stride << 1);
+
+  uint16_t color_r = (0x15<<10)|(0x05<<5)|(0x05); // rojo-ladrillo
+  uint16_t color_g = (0x04<<10)|(0x04<<5)|(0x08); // gris-cemento
+
+
+  // Este ciclo dibuja la pantalla linea por linea
+  uint8_t scale_shift = 2; // 0: No escalar
+  uint16_t x_abs;
+  uint16_t y_abs;
+
+  y_coord=2;
+
+  for (uint16_t y = 0; y < viewport.height; y++, line += stride)
+  {
+    y_abs = (y - y_coord) >> scale_shift;
+    uint8_t index_y = y_abs % 4 == 3;
+    for (uint16_t x = 0; x < viewport.width; x++)
+    {
+       x_abs = (x - x_coord) >> scale_shift;
+       uint8_t index_x; // Cierto si hay cemento
+       if ((y_abs >> 2) % 2 == 1) index_x = x_abs % 8 == 3;
+       else index_x = x_abs % 8 == 7;
+       // Asignar color a pixel
+       if (index_y || index_x) line[x] = color_g; // gris si hay cemento
+       else line[x] = color_r; // rojo-ladrillo si no hay cemento
+       //Pintar...
+       uint8_t pixbuf=0x00;
+       pixbuf=hlf_sprt_tiles.tile[x>>3].two_pixel_color_index[((x>>1)%4)+((y%8)<<2)];
+       if( (x%2) == 0 ) pixbuf=(pixbuf&Mask_hlf_sprt_index_0)>>4;
+       else pixbuf=pixbuf&Mask_hlf_sprt_index_1;
+       if(pixbuf!=0) line[x]=hlf_sprt_palettes[0].colors[pixbuf];
+    }
+  }
+  */
+
+  for (unsigned y = mouse_rel_y - 5; y <= mouse_rel_y + 5; y++)
+    for (unsigned x = mouse_rel_x - 5; x <= mouse_rel_x + 5; x++)
+       buf[y * stride + x] = 0xff;
+
+  video_cb(buf, viewport.width, viewport.height, stride << 1);
 }
 
 
