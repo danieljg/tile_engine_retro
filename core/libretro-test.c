@@ -234,9 +234,9 @@ static void update_input(void)
    }
 }
 
-/* Dibuja una pared de ladrillos
+/* Dibuja una frame del juego
 */
-static void render_bricks(void)
+static void render_frame(void)
 {
    uint16_t *buf    = frame_buf;
    uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
@@ -282,6 +282,7 @@ static void render_bricks(void)
    video_cb(buf, viewport.width, viewport.height, stride << 1);
 }
 
+
 static void check_variables(void)
 {
 }
@@ -295,7 +296,7 @@ void retro_run(void)
 {
    update_input();
 
-   render_bricks();
+   render_frame();
    // Desplazamiento de la pantalla
    skip++;
    if(skip==2){
