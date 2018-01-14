@@ -278,11 +278,11 @@ static void render_frame(void)
       twopixdata = bg.tilesets[0].tile[0].two_pixel_color_index[yy*full_tile_size+x2];
       line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
       line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
-      //fprintf(stdout, "%d", twopixdata);
+      fprintf(stdout, "%u ", yy*full_tile_size+x2);
     }
-    //fprintf(stdout, "\n");
+    fprintf(stdout, "\n");
   }
-  //fprintf(stdout, "-------\n");
+  fprintf(stdout, "-------\n");
   /*
 
   uint16_t current_tile =  bg.tilemaps[0].tile_index[0];
