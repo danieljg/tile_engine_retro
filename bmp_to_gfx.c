@@ -81,22 +81,34 @@ int main( int argc, char* argv[] )
     /* Save result */
 
     uint8_t buff = log2(colors_n+1);
+    uint8_t palette_size=colors_n+1;
+    if(buff==3){
+      buff=4;
+      palette_size=(colors_n+1)<<1;
+    }
     write(filehandler,&buff,1);
     buff = 0x01;
     write(filehandler,&buff,1);
 
     /* Write the palette */
-    for ( color_i=0 ; color_i<(colors_n+1) ; color_i++ )
+    for ( color_i=0 ; color_i<palette_size ; color_i++ )
     {
       uint16_t argb_color=0x0000;
       BMP_GetPaletteColor(bmp,palette_elements[color_i], &r, &g, &b);
       //fprintf(stdout,"0x%2x\n",r);
       r=r>>3;g=g>>3;b=b>>3;
       argb_color=(r<<10)|(g<<5)|b;
-      buff=argb_color>>8;
-      write(filehandler,&buff,1);//high byte
-      buff=argb_color&0x00FF;
-      write(filehandler,&buff,1);//low byte
+      if(color_i<(colors_n+1)){
+        buff=argb_color>>8;
+        write(filehandler,&buff,1);//high byte
+        buff=argb_color&0x00FF;
+        write(filehandler,&buff,1);//low byte
+      }
+      else{
+      buff=0x0000;
+      write(filehandler,&buff,1);
+      write(filehandler,&buff,1);
+      }
     }
 
     /* Write tile size and quantity */

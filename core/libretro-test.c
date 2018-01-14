@@ -26,20 +26,33 @@ static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 // Usada para desplazamiento de la pantalla
 static int skip;
 
-void print_pixel(unsigned value) {
+void print_pixel_4(uint8_t value) {
   if (value==0) fprintf(stdout, " ");
   if (value==1) fprintf(stdout, "x");
   if (value==2) fprintf(stdout, "\\");
   if (value==3) fprintf(stdout, "X");
 }
 
+
+void print_pixel_8(uint8_t value) {
+  if (value==0) fprintf(stdout, " ");
+  if (value==1) fprintf(stdout, "1");
+  if (value==2) fprintf(stdout, "2");
+  if (value==3) fprintf(stdout, "3");
+  if (value==4) fprintf(stdout, "4");
+  if (value==5) fprintf(stdout, "5");
+  if (value==6) fprintf(stdout, "6");
+  if (value==7) fprintf(stdout, "7");
+}
+
 void read_gfx_data() {
   uint8_t buff[4];
   uint8_t palette_size, palette_qty, colors_per_pal;
-  uint8_t tile_size, tile_qty, line_bytesize;
+  uint8_t tile_size;
+  uint16_t tile_qty, line_bytesize=0;
 
   int filehandler;
-  filehandler = open("bg_stars.gfx",O_RDONLY);
+  filehandler = open("bg_stars.gfx",O_RDONLY);//Remember to close
 
   // Leyendo identificador GFX (TODO: cambiar a if(buf=="GFX\n") ...)
   read(filehandler, buff, 4);
@@ -93,10 +106,10 @@ void read_gfx_data() {
         if (palette_size==2) {
           uint8_t pixbuffer;
           pixbuffer = buff[0];
-          print_pixel((pixbuffer>>6)&3);
-          print_pixel((pixbuffer>>4)&3);
-          print_pixel((pixbuffer>>2)&3);
-          print_pixel(pixbuffer&3);
+          print_pixel_4((pixbuffer>>6)&3);
+          print_pixel_4((pixbuffer>>4)&3);
+          print_pixel_4((pixbuffer>>2)&3);
+          print_pixel_4(pixbuffer&3);
           uint8_t palettebuffer=0x00;
           palettebuffer=(pixbuffer>>6)&0x03;
           palettebuffer=(palettebuffer<<4)|((pixbuffer>>4)&0x03);
@@ -111,6 +124,10 @@ void read_gfx_data() {
         else if (palette_size==4) {
           uint8_t pixbuffer;
           pixbuffer = buff[0];
+          ///*
+          print_pixel_8(pixbuffer>>4);
+          print_pixel_8(pixbuffer&0x0F);
+          //*/
           bg.tilesets[0].tile[tile_i].two_pixel_color_index
             [ (byte_i<<1) + ((line_i*line_bytesize<<1))]=pixbuffer;
         }
@@ -120,6 +137,7 @@ void read_gfx_data() {
   }
   fprintf(stdout,"----- Tile Data Ends -----\n\n");
   fprintf(stdout,"*** The End ***\n\n");
+  close(filehandler);
 }
 
 void retro_init(void)
