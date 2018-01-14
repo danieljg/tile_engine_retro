@@ -70,9 +70,8 @@ void read_gfx_data() {
   colors_per_pal = 1 << palette_size; // 2 ^ palette_size
   fprintf(stdout,"Palette size: %d (%d colors)\n", palette_size, colors_per_pal);
   fprintf(stdout,"Palette qty: %d\n", palette_qty);
-  /* Leyendo datos de las paletas.
-  Nota: Por el momento da por hecho que existe una unica paleta. Solo guarda un espacio en memoria para la paleta y la sobreescribe con la ultima paleta leida.
-  */
+
+  // Leyendo datos de las paletas.
   uint16_t palette_data[colors_per_pal];
   for (uint8_t pal_i=0; pal_i<palette_qty; pal_i++) { // este ciclo itera sobre las paletas
     fprintf(stdout,"Paleta %d:\n", pal_i);
@@ -265,24 +264,29 @@ static void update_input(void)
 
 /* Dibuja una frame del juego
 */
+uint8_t frame_counter=0;
+uint16_t animation_tile=0;
 static void render_frame(void)
 {
   uint16_t *buf    = frame_buf;
   uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
   uint16_t *line   = buf;
-  //fprintf(stdout, "\tOrigin: (%d,%d)\n", viewport.x_origin, viewport.y_origin);
-  //fprintf(stdout, "\tOrigin: (%d,%d)\n", bg.offset_x[0], bg.offset_y[0]);
+
+  frame_counter++;
+  if(frame_counter==10){
+   frame_counter=0;
+   animation_tile++;
+   if(animation_tile==6) animation_tile=0;
+  }
+
   uint8_t twopixdata;
   for (uint8_t yy=0; yy<full_tile_size; yy++, line+=stride) {
     for (uint8_t x2=0; x2<full_tile_size; x2+=2) {
-      twopixdata = bg.tilesets[0].tile[0].two_pixel_color_index[(yy*full_tile_size+x2)>>1];
+      twopixdata = bg.tilesets[0].tile[animation_tile].two_pixel_color_index[(yy*full_tile_size+x2)>>1];
       line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
       line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
-      //fprintf(stdout, "%u ", (yy*full_tile_size+x2)>>1);
     }
-    //fprintf(stdout, "\n");
   }
-  //fprintf(stdout, "-------\n");
   /*
 
   uint16_t current_tile =  bg.tilemaps[0].tile_index[0];
