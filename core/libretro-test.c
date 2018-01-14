@@ -98,9 +98,9 @@ void read_gfx_data() {
   line_bytesize = (tile_size * palette_size) >> 3;
   fprintf(stdout, "Tile size in bytes: %d\n", line_bytesize * tile_size);
   for (uint16_t tile_i=0; tile_i<tile_qty; tile_i++) {
-    fprintf(stdout,"\nTile: %d:\n", tile_i);
+    //fprintf(stdout,"\nTile: %d:\n", tile_i);
     for (uint8_t line_i=0; line_i<tile_size; line_i++) {
-      fprintf(stdout,"\t");
+      //fprintf(stdout,"\t");
       for (uint16_t byte_i=0; byte_i < line_bytesize; byte_i++) {
         read(filehandler, buff, 1);
         /* El siguiente bloque de código imprime los numeros si el tamaño de paleta es igual a 2 (creado para funcionar con el tileset de ejemplo).
@@ -126,15 +126,15 @@ void read_gfx_data() {
         else if (palette_size==4) {
           uint8_t pixbuffer;
           pixbuffer = buff[0];
-          ///*
+          /*
           print_pixel_8(pixbuffer>>4);
           print_pixel_8(pixbuffer&0x0F);
-          //*/
+          */
           bg.tilesets[0].tile[tile_i].two_pixel_color_index
-            [ (byte_i<<1) + ((line_i*line_bytesize<<1))]=pixbuffer;
+            [ byte_i + (line_i*line_bytesize)]=pixbuffer;
         }
       }
-      fprintf(stdout,"\n");
+      //fprintf(stdout,"\n");
     }
   }
   fprintf(stdout,"----- Tile Data Ends -----\n\n");
@@ -275,14 +275,14 @@ static void render_frame(void)
   uint8_t twopixdata;
   for (uint8_t yy=0; yy<full_tile_size; yy++, line+=stride) {
     for (uint8_t x2=0; x2<full_tile_size; x2+=2) {
-      twopixdata = bg.tilesets[0].tile[0].two_pixel_color_index[yy*full_tile_size+x2];
+      twopixdata = bg.tilesets[0].tile[0].two_pixel_color_index[(yy*full_tile_size+x2)>>1];
       line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
       line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
-      fprintf(stdout, "%u ", yy*full_tile_size+x2);
+      //fprintf(stdout, "%u ", (yy*full_tile_size+x2)>>1);
     }
-    fprintf(stdout, "\n");
+    //fprintf(stdout, "\n");
   }
-  fprintf(stdout, "-------\n");
+  //fprintf(stdout, "-------\n");
   /*
 
   uint16_t current_tile =  bg.tilemaps[0].tile_index[0];
