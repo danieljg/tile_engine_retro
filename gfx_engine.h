@@ -16,8 +16,8 @@ color_16bit null_color=0x0000;
 
 //The frame is built using a number of layers
 //each layer has a size of 32x32 tiles
-#define layer_number_x 32
-#define layer_number_y 32
+#define layer_tile_number_x 32
+#define layer_tile_number_y 32
 
 //The viewport size is an integer number of tiles
 #define vp_tile_number_x 20
@@ -86,7 +86,7 @@ typedef struct {
 #define Mask_bgtm_index		0x03FF //bits 1-10
 
 typedef struct {
-uint16_t tile_index[layer_number_x*layer_number_y]; //2Bytes*32*32=2kB
+uint16_t tile_index[layer_tile_number_x*layer_tile_number_y]; //2Bytes*32*32=2kB
 } bg_tilemap;
 
 typedef struct {
@@ -101,10 +101,18 @@ bg_struct bg;
 
 void initialize_bg()
 {
-  for(uint8_t ii=0; ii<bg_layer_count; ii++) {
+  for(uint8_t ll=0; ll<bg_layer_count; ll++) {
     // inicializando offset de backgrounds
-    bg.offset_x[ii] = 0;
-    bg.offset_y[ii] = 0;
+    bg.offset_x[ll] = 0;
+    bg.offset_y[ll] = 0;
+    //inicializando tilemap (region del viewport inicial)
+    uint16_t kk=0;
+    for(uint8_t jj=0; jj<vp_tile_number_y; jj++) {
+      for(uint8_t ii=0; ii<vp_tile_number_x; ii++) {
+        bg.tilemaps[ll].tile_index[jj*layer_tile_number_y+ii]=kk;
+        kk++;
+      }
+    }
   }
 }
 

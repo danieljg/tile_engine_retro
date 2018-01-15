@@ -25,7 +25,7 @@ static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 
 // contadores de frames
 uint16_t frame_counter=0;
-uint16_t bg_scroll_frames=1;
+uint16_t bg_scroll_frames=2;
 
 void print_pixel_4(uint8_t value) {
   if (value==0) fprintf(stdout, " ");
@@ -277,26 +277,48 @@ static void render_frame(void)
   uint16_t *buf    = frame_buf;
   uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
   uint16_t *line   = buf;
-  uint8_t twopixdata;
 
   frame_counter++;
   if(frame_counter==bg_scroll_frames){
     frame_counter=0;
-    viewport.x_origin=(viewport.x_origin+1)%320;
+    viewport.x_origin=(viewport.x_origin+1)%(layer_tile_number_x*full_tile_size);
+    //viewport.y_origin=(viewport.y_origin+1)%(layer_tile_number_y*full_tile_size);
   }
 
-  uint16_t yy_vp;//may not be needed...
-  uint16_t xx_vp;
+  uint16_t yy_vp=0;
+  uint16_t xx_vp=0;
+  uint8_t twopixdata=0;
+  uint16_t tilemap_index=0;
+  uint16_t tileset_index=0;
   for (uint16_t yy=0; yy<viewport.height; yy++, line+=stride) {
-    yy_vp=yy+viewport.y_origin;
+    yy_vp=yy+viewport.y_origin-bg.offset_y[0];
     for (uint16_t x2=0; x2<viewport.width; x2+=2) {
-      xx_vp=x2+viewport.x_origin;
+      //process first pixel
+      xx_vp=x2+viewport.x_origin-bg.offset_x[0];
+      tilemap_index= ( (xx_vp/full_tile_size)%layer_tile_number_x + (yy_vp/full_tile_size)*layer_tile_number_x )
+                     %(layer_tile_number_x*layer_tile_number_y);
+      tilemap_index=bg.tilemaps[0].tile_index[tilemap_index];
+      tileset_index=tilemap_index&Mask_bgtm_index;
+      //todo: introduce tilemap palette data, rotation, flip, etc
       twopixdata = bg.tilesets[0]
-                     .tile[ (xx_vp/full_tile_size)%vp_tile_number_x + (yy_vp/full_tile_size)*vp_tile_number_x ]
+                     .tile[ tileset_index ]
                      .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
                                             %(full_tile_size*full_tile_size)];
-      line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
-      line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
+      if(x2%2==0) line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
+      else        line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
+      //process second pixel
+      xx_vp++;
+      tilemap_index= ( (xx_vp/full_tile_size)%layer_tile_number_x + (yy_vp/full_tile_size)*layer_tile_number_x )
+                     %(layer_tile_number_x*layer_tile_number_y);
+      tilemap_index=bg.tilemaps[0].tile_index[tilemap_index];
+      tileset_index=tilemap_index&Mask_bgtm_index;
+      //todo: introduce tilemap palette data, rotation, flip, etc
+      twopixdata = bg.tilesets[0]
+                     .tile[ tileset_index ]
+                     .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
+                                            %(full_tile_size*full_tile_size)];
+      if(x2%2==0) line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
+      else        line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
     }
   }
   /*
