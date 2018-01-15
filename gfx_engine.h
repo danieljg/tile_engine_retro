@@ -23,8 +23,8 @@ color_16bit null_color=0x0000;
 #define vp_tile_number_x 20
 #define vp_tile_number_y 15
 //The (initial) origin of the viewport may be displaced
-#define vp_x_origin 0
-#define vp_y_origin 2
+#define vp_x_origin 1
+#define vp_y_origin 0
 
 typedef struct {
  uint16_t width;
@@ -109,7 +109,8 @@ void initialize_bg()
     uint16_t kk=0;
     for(uint8_t jj=0; jj<vp_tile_number_y; jj++) {
       for(uint8_t ii=0; ii<vp_tile_number_x; ii++) {
-        bg.tilemaps[ll].tile_index[jj*layer_tile_number_y+ii]=kk;
+        //bg.tilemaps[ll].tile_index[jj*layer_tile_number_y+ii]=kk;
+        bg.tilemaps[ll].tile_index[jj*layer_tile_number_y+ii]=7;
         kk++;
       }
     }
