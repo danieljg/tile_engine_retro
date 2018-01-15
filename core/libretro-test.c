@@ -23,8 +23,9 @@ static void fallback_log(enum retro_log_level level, const char *fmt, ...)
    va_end(va);
 }
 
-// Usada para desplazamiento de la pantalla
-static int skip;
+// contadores de frames
+uint16_t frame_counter=0;
+uint16_t bg_scroll_frames=1;
 
 void print_pixel_4(uint8_t value) {
   if (value==0) fprintf(stdout, " ");
@@ -104,7 +105,7 @@ void read_gfx_data() {
   line_bytesize = (tile_size * palette_size) >> 3;
   fprintf(stdout, "Tile size in bytes: %d\n", line_bytesize * tile_size);
   for (uint16_t tile_i=0; tile_i<tile_qty; tile_i++) {
-    fprintf(stdout,"\nTile: %d:\n", tile_i);
+    //fprintf(stdout,"\nTile: %d:\n", tile_i);
     for (uint8_t line_i=0; line_i<tile_size; line_i++) {
       fprintf(stdout,"\t");
       for (uint16_t byte_i=0; byte_i < line_bytesize; byte_i++) {
@@ -140,7 +141,7 @@ void read_gfx_data() {
             [ byte_i + (line_i*line_bytesize)]=pixbuffer;
         }
       }
-      fprintf(stdout,"\n");
+      //fprintf(stdout,"\n");
     }
   }
   fprintf(stdout,"----- Tile Data Ends -----\n\n");
@@ -271,8 +272,6 @@ static void update_input(void)
 
 /* Dibuja una frame del juego
 */
-uint16_t frame_counter=0;
-uint16_t tile_animation=0;
 static void render_frame(void)
 {
   uint16_t *buf    = frame_buf;
@@ -280,17 +279,21 @@ static void render_frame(void)
   uint16_t *line   = buf;
   uint8_t twopixdata;
 
-  //frame_counter++;
-  if(frame_counter==10){
+  frame_counter++;
+  if(frame_counter==bg_scroll_frames){
     frame_counter=0;
-    tile_animation=(tile_animation+1)%300;
+    viewport.x_origin=(viewport.x_origin+1)%320;
   }
 
+  uint16_t yy_vp;//may not be needed...
+  uint16_t xx_vp;
   for (uint16_t yy=0; yy<viewport.height; yy++, line+=stride) {
+    yy_vp=yy+viewport.y_origin;
     for (uint16_t x2=0; x2<viewport.width; x2+=2) {
+      xx_vp=x2+viewport.x_origin;
       twopixdata = bg.tilesets[0]
-                     .tile[ tile_animation + x2/full_tile_size + (yy/full_tile_size)*vp_tile_number_x]
-                     .two_pixel_color_index[(( (yy%full_tile_size)*full_tile_size+(x2%full_tile_size))>>1)
+                     .tile[ (xx_vp/full_tile_size)%vp_tile_number_x + (yy_vp/full_tile_size)*vp_tile_number_x ]
+                     .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
                                             %(full_tile_size*full_tile_size)];
       line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
       line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
@@ -386,15 +389,6 @@ void retro_run(void)
    update_input();
 
    render_frame();
-   // Desplazamiento de la pantalla
-   skip++;
-   if(skip==2){
-   x_coord+=1;
-   y_coord+=1;
-   skip=0;
-   }
-   if(x_coord==64)x_coord=0;
-   if(y_coord==64)y_coord=0;
 
    audio_callback();
 
