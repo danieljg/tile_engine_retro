@@ -23,7 +23,7 @@ color_16bit null_color=0x0000;
 #define vp_tile_number_x 20
 #define vp_tile_number_y 15
 //The (initial) origin of the viewport may be displaced
-#define vp_x_origin 1
+#define vp_x_origin 0
 #define vp_y_origin 0
 
 typedef struct {

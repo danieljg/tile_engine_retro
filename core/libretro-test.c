@@ -25,7 +25,7 @@ static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 
 // contadores de frames
 uint16_t frame_counter=0;
-uint16_t bg_scroll_frames=30;
+uint16_t bg_scroll_frames=2;
 uint16_t animation_frames=10;
 
 void print_pixel_4(uint8_t value) {
@@ -280,13 +280,13 @@ static void render_frame(void)
   uint16_t *line   = buf;
 
   frame_counter++;
-  if((frame_counter%animation_frames)==0){
-  bg.tilemaps[0].tile_index[12]=(bg.tilemaps[0].tile_index[12]+1)%6;
-  }
-  if(frame_counter==bg_scroll_frames){
-    frame_counter=0;
+  if((frame_counter%bg_scroll_frames)==0){
     viewport.x_origin=(viewport.x_origin+1)%(layer_tile_number_x*full_tile_size);
     //viewport.y_origin=(viewport.y_origin+1)%(layer_tile_number_y*full_tile_size);
+  }
+  if((frame_counter%animation_frames)==0){
+    frame_counter=0;
+  bg.tilemaps[0].tile_index[12]=(bg.tilemaps[0].tile_index[12]+1)%6;
   }
 
   uint16_t yy_vp=0;
@@ -308,8 +308,24 @@ static void render_frame(void)
                      .tile[ tileset_index ]
                      .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
                                             %(full_tile_size*full_tile_size)];
+      if (xx_vp%2==0) {
         line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
-        line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];    
+        line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
+      }
+      else {
+        line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
+        xx_vp++;
+        tilemap_index=( (xx_vp/full_tile_size)%layer_tile_number_x + (yy_vp/full_tile_size)*layer_tile_number_x )
+                     %(layer_tile_number_x*layer_tile_number_y);
+        tilemap_index=bg.tilemaps[0].tile_index[tilemap_index];
+        tileset_index=tilemap_index&Mask_bgtm_index;
+        //todo: introduce tilemap palette data, rotation, flip, etc
+        twopixdata = bg.tilesets[0]
+                       .tile[ tileset_index ]
+                       .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
+                                              %(full_tile_size*full_tile_size)];
+        line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
+      } 
     }
   }
   /*
