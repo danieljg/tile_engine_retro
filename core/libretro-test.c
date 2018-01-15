@@ -62,8 +62,8 @@ void read_gfx_data() {
   uint16_t tile_qty, line_bytesize=0;
 
   int filehandler;
-  //filehandler = open("bg_stars.gfx",O_RDONLY);//Remember to close
-  filehandler = open("sr388_invader.gfx",O_RDONLY);//Remember to close
+  filehandler = open("bg_stars.gfx",O_RDONLY);//Remember to close
+  //filehandler = open("sr388_invader.gfx",O_RDONLY);//Remember to close
 
   // Leyendo identificador GFX (TODO: cambiar a if(buf=="GFX\n") ...)
   read(filehandler, buff, 4);
@@ -304,27 +304,34 @@ static void render_frame(void)
       tilemap_index=bg.tilemaps[0].tile_index[tilemap_index];
       tileset_index=tilemap_index&Mask_bgtm_index;
       //todo: introduce tilemap palette data, rotation, flip, etc
-      twopixdata = bg.tilesets[0]
-                     .tile[ tileset_index ]
+      twopixdata = bg.tilesets[0].tile[tileset_index]
                      .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
                                             %(full_tile_size*full_tile_size)];
-      if (xx_vp%2==0) {
+      if (xx_vp%2==0) {//verificamos si el pixel es par o impar
         line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
         line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
-      }
+      }//el caso impar es mas complicado, requiere tomar dos bytes distintos
       else {
         line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
         xx_vp++;
-        tilemap_index=( (xx_vp/full_tile_size)%layer_tile_number_x + (yy_vp/full_tile_size)*layer_tile_number_x )
-                     %(layer_tile_number_x*layer_tile_number_y);
-        tilemap_index=bg.tilemaps[0].tile_index[tilemap_index];
-        tileset_index=tilemap_index&Mask_bgtm_index;
-        //todo: introduce tilemap palette data, rotation, flip, etc
-        twopixdata = bg.tilesets[0]
-                       .tile[ tileset_index ]
-                       .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
-                                              %(full_tile_size*full_tile_size)];
-        line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
+        if (xx_vp%16!=0) {//si el segundo pixel no es el inicio de un tile, es mas facil
+          twopixdata = bg.tilesets[0].tile[tileset_index]
+                         .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
+                                                %(full_tile_size*full_tile_size)];
+          line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
+        }
+        else {//si el segundo pixel es el inicio de un tile, hay que buscar el indice en el mapa
+          tilemap_index=( (xx_vp/full_tile_size)%layer_tile_number_x + (yy_vp/full_tile_size)*layer_tile_number_x )
+                       %(layer_tile_number_x*layer_tile_number_y);
+          tilemap_index=bg.tilemaps[0].tile_index[tilemap_index];
+          tileset_index=tilemap_index&Mask_bgtm_index;
+          //todo: introduce tilemap palette data, rotation, flip, etc
+          twopixdata = bg.tilesets[0]
+                         .tile[ tileset_index ]
+                         .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
+                                                %(full_tile_size*full_tile_size)];
+          line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
+        }
       } 
     }
   }

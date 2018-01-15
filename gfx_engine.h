@@ -109,8 +109,8 @@ void initialize_bg()
     uint16_t kk=0;
     for(uint8_t jj=0; jj<vp_tile_number_y; jj++) {
       for(uint8_t ii=0; ii<vp_tile_number_x; ii++) {
-        //bg.tilemaps[ll].tile_index[jj*layer_tile_number_y+ii]=kk;
-        bg.tilemaps[ll].tile_index[jj*layer_tile_number_y+ii]=7;
+        bg.tilemaps[ll].tile_index[jj*layer_tile_number_y+ii]=kk;
+        //bg.tilemaps[ll].tile_index[jj*layer_tile_number_y+ii]=7;
         kk++;
       }
     }
