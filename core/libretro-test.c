@@ -33,8 +33,14 @@ void print_pixel_4(uint8_t value) {
   if (value==3) fprintf(stdout, "X");
 }
 
+//comment the following line to get nice pixel art in the debug console
+#define NUMERIC_DEBUG_OUTPUT
 
 void print_pixel_8(uint8_t value) {
+#ifdef NUMERIC_DEBUG_OUTPUT
+  if      (value==0) fprintf(stdout, " ");
+  else               fprintf(stdout, "%u",value);
+#else
   if      (value==0) fprintf(stdout, " ");
   else if (value==1) fprintf(stdout, ".");
   else if (value==2) fprintf(stdout, "x");
@@ -44,6 +50,7 @@ void print_pixel_8(uint8_t value) {
   else if (value==6) fprintf(stdout, "^");
   else if (value==7) fprintf(stdout, "v");
   else               fprintf(stdout, "~%u~",value);
+#endif
 }
 
 void read_gfx_data() {
@@ -53,8 +60,8 @@ void read_gfx_data() {
   uint16_t tile_qty, line_bytesize=0;
 
   int filehandler;
-  //filehandler = open("bg_stars.gfx",O_RDONLY);//Remember to close
-  filehandler = open("sr388_invader.gfx",O_RDONLY);//Remember to close
+  filehandler = open("bg_stars.gfx",O_RDONLY);//Remember to close
+  //filehandler = open("sr388_invader.gfx",O_RDONLY);//Remember to close
 
   // Leyendo identificador GFX (TODO: cambiar a if(buf=="GFX\n") ...)
   read(filehandler, buff, 4);
@@ -97,9 +104,9 @@ void read_gfx_data() {
   line_bytesize = (tile_size * palette_size) >> 3;
   fprintf(stdout, "Tile size in bytes: %d\n", line_bytesize * tile_size);
   for (uint16_t tile_i=0; tile_i<tile_qty; tile_i++) {
-    //fprintf(stdout,"\nTile: %d:\n", tile_i);
+    fprintf(stdout,"\nTile: %d:\n", tile_i);
     for (uint8_t line_i=0; line_i<tile_size; line_i++) {
-      //fprintf(stdout,"\t");
+      fprintf(stdout,"\t");
       for (uint16_t byte_i=0; byte_i < line_bytesize; byte_i++) {
         read(filehandler, buff, 1);
         /* El siguiente bloque de código imprime los numeros si el tamaño de paleta es igual a 2 (creado para funcionar con el tileset de ejemplo).
@@ -128,12 +135,12 @@ void read_gfx_data() {
           /*
           print_pixel_8(pixbuffer>>4);
           print_pixel_8(pixbuffer&0x0F);
-          */
+          //*/
           bg.tilesets[0].tile[tile_i].two_pixel_color_index
             [ byte_i + (line_i*line_bytesize)]=pixbuffer;
         }
       }
-      //fprintf(stdout,"\n");
+      fprintf(stdout,"\n");
     }
   }
   fprintf(stdout,"----- Tile Data Ends -----\n\n");
@@ -264,25 +271,27 @@ static void update_input(void)
 
 /* Dibuja una frame del juego
 */
-uint8_t frame_counter=0;
-uint16_t animation_tile=0;
+uint16_t frame_counter=0;
+uint16_t tile_animation=0;
 static void render_frame(void)
 {
   uint16_t *buf    = frame_buf;
   uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
   uint16_t *line   = buf;
+  uint8_t twopixdata;
 
-  frame_counter++;
+  //frame_counter++;
   if(frame_counter==10){
-   frame_counter=0;
-   animation_tile++;
-   if(animation_tile==6) animation_tile=0;
+    frame_counter=0;
+    tile_animation=(tile_animation+1)%300;
   }
 
-  uint8_t twopixdata;
-  for (uint8_t yy=0; yy<full_tile_size; yy++, line+=stride) {
-    for (uint8_t x2=0; x2<full_tile_size; x2+=2) {
-      twopixdata = bg.tilesets[0].tile[animation_tile].two_pixel_color_index[(yy*full_tile_size+x2)>>1];
+  for (uint16_t yy=0; yy<viewport.height; yy++, line+=stride) {
+    for (uint16_t x2=0; x2<viewport.width; x2+=2) {
+      twopixdata = bg.tilesets[0]
+                     .tile[ tile_animation + x2/full_tile_size + (yy/full_tile_size)*vp_tile_number_x]
+                     .two_pixel_color_index[(( (yy%full_tile_size)*full_tile_size+(x2%full_tile_size))>>1)
+                                            %(full_tile_size*full_tile_size)];
       line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
       line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
     }

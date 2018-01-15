@@ -125,7 +125,7 @@ int main( int argc, char* argv[] )
     for ( int tile = 0 ; tile < number_of_tiles ; tile++ )
     {
       /* Iterate through all the rows for the tile */
-      for ( y = tile/(width/tile_size) ; y < tile/(width/tile_size)+tile_size ; ++y )
+      for ( y = (tile/(width/tile_size))*tile_size ; y < (tile/(width/tile_size))*tile_size+tile_size ; ++y )
       {
         /* Iterate through all the pixels in a row for the tile */
         for ( x = (tile_size*tile)%width ; x < (tile_size*tile)%width+tile_size ; x=x+ppb )
