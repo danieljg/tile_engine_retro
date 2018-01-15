@@ -278,7 +278,7 @@ static void render_frame(void)
   uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
   uint16_t *line   = buf;
 
-  frame_counter++;
+  //frame_counter++;
   if(frame_counter==bg_scroll_frames){
     frame_counter=0;
     viewport.x_origin=(viewport.x_origin+1)%(layer_tile_number_x*full_tile_size);
@@ -317,7 +317,7 @@ static void render_frame(void)
                      .tile[ tileset_index ]
                      .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
                                             %(full_tile_size*full_tile_size)];
-      if(x2%2==0) line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
+      if(x2%2==1) line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
       else        line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
     }
   }
