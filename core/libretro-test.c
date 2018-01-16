@@ -274,6 +274,14 @@ static void update_input(void)
    }
 }
 
+void draw_point(uint8_t x, uint8_t y, uint16_t color) {
+  //uint16_t *buf    = frame_buf;
+  //uint16_t *line   = buf;
+  uint16_t *line   = frame_buf;
+  line +=  viewport.width * y;
+  line[x] = color;
+}
+
 /* Dibuja una frame del juego
 */
 static void render_frame(void)
@@ -346,9 +354,10 @@ static void render_frame(void)
                                                 %(full_tile_size*full_tile_size)];
           line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
         }
-      } 
+      }
     }
   }
+  draw_point(3, 10, 0x7c00);
 
   //full sprite rendering
   fsp.active_number=0;
