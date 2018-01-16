@@ -78,10 +78,10 @@ typedef struct {
 } bg_tileset;
 
 //background tilemap masks
-#define Mask_bgtm_reserved	0x8000 //bit 16
-#define Mask_bgtm_rotation	0x4000 //bit 15
-#define Mask_bgtm_v_flip	0x2000 //bit 14
-#define Mask_bgtm_h_flip	0x1000 //bit 13
+#define Mask_bgtm_rotation	0x8000 //bit 16
+#define Mask_bgtm_v_flip	0x4000 //bit 15
+#define Mask_bgtm_h_flip	0x2000 //bit 14
+#define Mask_bgtm_reserved	0x1000 //bit 13
 #define Mask_bgtm_palette	0X0C00 //bits 11-12
 #define Mask_bgtm_index		0x03FF //bits 1-10
 
@@ -135,42 +135,65 @@ void initialize_bg_palettes()
 
 // TO DO: Escribir funciones de inicialización restantes
 
-#define full_sprt_count 32
-#define full_sprt_palette_count 8
-#define full_sprt_color_count 16
-#define full_sprt_tileset_number 4096
+
+//La capa de sprites se divide en full sprites y half-sprites
+//la intencion es usar los full sprites para personajes
+//y half sprites para balas, score, etc
+//hay 8 paletas a elegir
+#define fsp_palette_number 8
+#define fsp_count 32
+#define fsp_palette_color_count 16
+#define fsp_tileset_number 1024
 
 typedef struct {
-color_16bit colors[full_sprt_color_count];
-} full_sprt_palette;
-
-full_sprt_palette full_sprt_palettes[full_sprt_palette_count];
-                //full_sprt_palettes[0-7].colors[0-15]
-
-void initialize_full_sprt_palettes()
-{
- for(uint8_t ii=0;ii<full_sprt_palette_count;ii++)
- {
-  for(uint8_t jj=0;jj<full_sprt_color_count;jj++)
-  {
-   full_sprt_palettes[ii].colors[jj]=null_color;
-  }
- }
-}
+color_16bit colors[fsp_palette_color_count];
+} fsp_palette;
 
 #define Mask_full_sprt_index_0	0xF0//four bits per pixel, all bits are used
 #define Mask_full_sprt_index_1	0x0F//two pixels per byte
 
 typedef struct {
- uint8_t two_pixel_color_index[half_tile_size*half_tile_size>>1];
-} full_sprt_tile;
+ uint8_t two_pixel_color_index[full_tile_size*full_tile_size>>1];
+} fsp_tile;
 
 typedef struct {
- full_sprt_tile tile[full_sprt_tileset_number]; //512KB at 4096 tiles per set
-} full_sprite_tileset;
+ fsp_tile tile[fsp_tileset_number]; //128KB at 1024 tiles per set
+} fsp_tileset;
 
-full_sprite_tileset full_sprite_tiles;//full_sprt_tiles.tile[0-4095].
-                         //two_pixel_color_index[0-31]&Mask_hlf_sprt_index_[0-1]
+//Full sprite Object Attribute Memory bitmasks
+#define Mask_fsp_oam_rotation 0x8000 //bit  16
+#define Mask_fsp_oam_v_flip   0x4000 //bit  15
+#define Mask_fsp_oam_h_flip   0x2000 //bit  14
+#define Mask_fsp_oam_palette  0x1C00 //bits 11-13
+#define Mask_fsp_oam_index    0x03FF //bits 1-10
+//OAM2 memory: geometry and toggles
+#define Mask_fsp_oam2_disable    0x80000000 //bit  32
+#define Mask_fsp_oam2_reserved2  0x7E000000 //bits 26-31
+#define Mask_fsp_oam2_y_pos      0x01FF0000 //bits 17-25
+#define Mask_fsp_oam2_reserved1  0x0000FE00 //bits 10-16
+#define Mask_fsp_oam2_x_pos      0x000001FF //bits 1-9
+
+typedef struct {
+ fsp_palette palettes[fsp_palette_number];
+ fsp_tileset tilesets[fsp_tileset_number];
+ uint16_t oam[fsp_count];
+ uint32_t oam2[fsp_count];
+ uint8_t active_number;
+} fsp_struct;
+
+fsp_struct fsp;
+
+void initialize_full_sprites()
+{
+ for(uint8_t ii=0;ii<fsp_palette_number;ii++)
+ {
+  for(uint8_t jj=0;jj<fsp_palette_color_count;jj++)
+  {
+   fsp.palettes[ii].colors[jj]=null_color;
+  }
+ }
+}
+
 
 #define hlf_sprt_count 128
 #define hlf_sprt_palette_count 16

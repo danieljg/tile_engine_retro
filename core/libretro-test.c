@@ -302,6 +302,7 @@ static void render_frame(void)
   bg.tilemaps[0].tile_index[12]=(bg.tilemaps[0].tile_index[12]+1)%6;
   }
 
+  //background rendering
   uint16_t yy_vp=0;
   uint16_t xx_vp=0;
   uint8_t twopixdata=0;
@@ -347,6 +348,12 @@ static void render_frame(void)
         }
       } 
     }
+  }
+
+  //full sprite rendering
+  fsp.active_number=0;
+  for(uint16_t current_sprite=fsp.active_number;current_sprite>0;current_sprite--) {
+   fprintf(stdout,"nope");
   }
   /*
 
@@ -415,10 +422,6 @@ static void render_frame(void)
     }
   }
   */
-
-  for (unsigned y = mouse_rel_y - 5; y <= mouse_rel_y + 5; y++)
-    for (unsigned x = mouse_rel_x - 5; x <= mouse_rel_x + 5; x++)
-       buf[y * stride + x] = 0xff;
 
   video_cb(buf, viewport.width, viewport.height, stride << 1);
 }
