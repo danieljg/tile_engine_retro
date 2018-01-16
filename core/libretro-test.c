@@ -26,7 +26,10 @@ static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 // contadores de frames
 uint16_t frame_counter=0;
 uint16_t bg_scroll_frames=2;
+uint16_t bg_scroll_per_frame=1;
 uint16_t animation_frames=10;
+// contador de scroll
+uint16_t scrolling_tilemap_index=0;
 
 void print_pixel_4(uint8_t value) {
   if (value==0) fprintf(stdout, " ");
@@ -279,13 +282,23 @@ static void render_frame(void)
   uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
   uint16_t *line   = buf;
 
+  //inicializando la linea de tiles a la derecha del viewport para scroll
+  if ( (viewport.x_origin-bg.offset_x[0])%full_tile_size==0 ) {
+    for(uint8_t jj=0; jj<vp_tile_number_y; jj++) {
+      bg.tilemaps[0].tile_index[jj*layer_tile_number_y+vp_tile_number_x
+                                +(viewport.x_origin-bg.offset_x[0])/full_tile_size]=scrolling_tilemap_index;
+      scrolling_tilemap_index=(scrolling_tilemap_index+21)%300;
+      //TODO: do something with the palette of the newly added tiles... it seems a bit periodic, obviously
+    }
+  }
+
   frame_counter++;
   if((frame_counter%bg_scroll_frames)==0){
-    viewport.x_origin=(viewport.x_origin+1)%(layer_tile_number_x*full_tile_size);
+    frame_counter=0;
+    viewport.x_origin=(viewport.x_origin+bg_scroll_per_frame)%(layer_tile_number_x*full_tile_size);
     //viewport.y_origin=(viewport.y_origin+1)%(layer_tile_number_y*full_tile_size);
   }
-  if((frame_counter%animation_frames)==0){
-    frame_counter=0;
+  if((frame_counter%animation_frames)==-10){
   bg.tilemaps[0].tile_index[12]=(bg.tilemaps[0].tile_index[12]+1)%6;
   }
 
