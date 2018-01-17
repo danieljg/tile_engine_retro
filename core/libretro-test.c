@@ -274,7 +274,7 @@ static void update_input(void)
    }
 }
 
-void draw_point(uint8_t x, uint8_t y, uint16_t color) {
+void draw_point(uint16_t x, uint16_t y, uint16_t color) {
   //uint16_t *buf    = frame_buf;
   //uint16_t *line   = buf;
   uint16_t *line   = frame_buf;
