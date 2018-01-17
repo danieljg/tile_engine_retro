@@ -282,16 +282,22 @@ void draw_point(int16_t x, int16_t y, int16_t color) {
   line[x] = color;
 }
 
-// Dibuja una linea usando el algoritmo de Bresenham (o lo hará en el futuro).
+/* Dibuja una linea usando el algoritmo de Bresenham.
+
+Nota: El algorito funciona, pero hay algo mal aún, tengo que dibujar
+manualmente el punto inicial y el final.
+*/
 void draw_line(int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t color) {
   int16_t dx = x2 - x1;
-  int16_t dy = y2 - y2;
+  int16_t dy = y2 - y1;
   int8_t increment_diag_x = (dx >= 0) ? 1: -1;
   dx *= increment_diag_x;
   int8_t increment_diag_y = (dy >= 0) ? 1: -1;
   dy *= increment_diag_y;
   int8_t increment_ort_x;
   int8_t increment_ort_y;
+  fprintf(stdout, "Dx%d Dy%d\n", dx, dy);
+
   if (dx >= dy) {
     increment_ort_x = increment_diag_x;
     increment_ort_y = 0;
@@ -308,8 +314,8 @@ void draw_line(int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t color) {
   int16_t step_ort = 2 * dy;
   int16_t step = step_ort - dx;
   int16_t step_diag = step - dx;
+  draw_point(x, y, color);
   while (x != x2) {
-    draw_point(x, y, color);
     if (step >= 0) {
       x += increment_diag_x;
       y += increment_diag_y;
@@ -320,8 +326,8 @@ void draw_line(int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t color) {
       y += increment_ort_y;
       step += step_ort;
     }
+    draw_point(x, y, color);
   }
-  //draw_point(x1, y1, color);
   draw_point(x2, y2, color);
 }
 
