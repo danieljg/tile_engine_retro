@@ -298,9 +298,15 @@ static void update_input(void)
    }
 }
 
+/* Dibuja un punto directamente en el buffer de video
+
+El código comentado pertenece a una versión anterior que usaba un apuntador al
+frame buffer. Parece funcionar igual al usar el frame buffer directamente.
+*/
 void draw_point(int16_t x, int16_t y, int16_t color) {
-  uint16_t *line = frame_buf;
-  line[viewport.width * y + x] = color;
+  //uint16_t *line = frame_buf;
+  //line[viewport.width * y + x] = color;
+  frame_buf[viewport.width * y + x] = color;
 }
 
 /* Dibuja una linea usando el algoritmo de Bresenham.
@@ -446,7 +452,7 @@ static void render_frame(void)
   //full sprite rendering
   for(uint16_t sprite_counter = fsp.active_number ;
                sprite_counter > 0 ; sprite_counter-- ) {
-    uint16_t current_sprite=sprite_counter-1; 
+    uint16_t current_sprite=sprite_counter-1;
     if(fsp.oam2[current_sprite]>Mask_fsp_oam2_disable) continue;
     for (uint8_t jj=0; jj<full_tile_size; jj++ ) {
       uint16_t yy_fsp=jj+viewport.y_origin-fsp.offset_y
