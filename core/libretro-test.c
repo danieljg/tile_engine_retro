@@ -275,6 +275,64 @@ static void update_input(void)
    }
 }
 
+void draw_point(int16_t x, int16_t y, int16_t color) {
+  //uint16_t *buf    = frame_buf;
+  //uint16_t *line   = buf;
+  uint16_t *line   = frame_buf;
+  line +=  viewport.width * y;
+  line[x] = color;
+}
+
+/* Dibuja una linea usando el algoritmo de Bresenham.
+
+Nota: El algorito funciona, pero hay algo mal aún, tengo que dibujar
+manualmente el punto inicial y el final.
+*/
+void draw_line(int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t color) {
+  int16_t dx = x2 - x1;
+  int16_t dy = y2 - y1;
+  int8_t increment_diag_x = (dx >= 0) ? 1: -1;
+  dx *= increment_diag_x;
+  int8_t increment_diag_y = (dy >= 0) ? 1: -1;
+  dy *= increment_diag_y;
+  int8_t increment_ort_x;
+  int8_t increment_ort_y;
+  fprintf(stdout, "Dx%d Dy%d\n", dx, dy);
+
+  if (dx >= dy) {
+    increment_ort_x = increment_diag_x;
+    increment_ort_y = 0;
+  }
+  else {
+    increment_ort_x = 0;
+    increment_ort_y = increment_diag_y;
+    int16_t aux = dy;
+    dy = dx;
+    dx = aux;
+  }
+  int16_t x = x1;
+  int16_t y = y1;
+  int16_t step_ort = 2 * dy;
+  int16_t step = step_ort - dx;
+  int16_t step_diag = step - dx;
+  draw_point(x, y, color);
+  while (x != x2) {
+    if (step >= 0) {
+      x += increment_diag_x;
+      y += increment_diag_y;
+      step += step_diag;
+    }
+    else {
+      x += increment_ort_x;
+      y += increment_ort_y;
+      step += step_ort;
+    }
+    draw_point(x, y, color);
+  }
+  draw_point(x2, y2, color);
+}
+
+
 /* Dibuja una frame del juego
 */
 static void render_frame(void)
@@ -358,9 +416,11 @@ static void render_frame(void)
                                                 %(full_tile_size*full_tile_size)];
           line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
         }
-      } 
+      }
     }
   }
+  draw_point(3, 10, 0x7c00); //probando función draw_point
+  draw_line(104, 32, 135, 100, 0x7fff); //probando función draw_line
 
   //full sprite rendering
   fsp.active_number=0;
