@@ -61,15 +61,13 @@ void print_pixel_8(uint8_t value) {
 #endif
 }
 
-void read_gfx_data() {
+void read_gfx_data(int gfxhandler, int gfxtype) {
   uint8_t buff[4];
   uint8_t palette_size, palette_qty, colors_per_pal;
   uint8_t tile_size;
   uint16_t tile_qty, line_bytesize=0;
 
-  int filehandler;
-  filehandler = open("bg_stars.gfx",O_RDONLY);//Remember to close
-  //filehandler = open("sr388_invader.gfx",O_RDONLY);//Remember to close
+  int filehandler=gfxhandler;
 
   // Leyendo identificador GFX (TODO: cambiar a if(buf=="GFX\n") ...)
   read(filehandler, buff, 4);
@@ -98,7 +96,16 @@ void read_gfx_data() {
       green = (palette_data[col_i]>>5) & 31;
       blue = palette_data[col_i] & 31;
       fprintf(stdout,"\tColor %d: %d (R:%02x G:%02x B:%02x)\n", col_i, palette_data[col_i], red, green, blue);
-      bg.palette_sets[0].palettes[0].colors[col_i] = palette_data[col_i];
+
+      if(gfxtype==0) {
+        bg.palette_sets[0].palettes[0].colors[col_i] = palette_data[col_i];
+      }
+      else if(gfxtype==1) {
+        bg.palette_sets[1].palettes[0].colors[col_i] = palette_data[col_i];
+      }
+      else if(gfxtype==2) {
+        fsp.palettes[0].colors[col_i] = palette_data[col_i];
+      }
     }
   }
   fprintf(stdout,"----- Palette Data Ends -----\n\n");
@@ -144,8 +151,19 @@ void read_gfx_data() {
           print_pixel_8(pixbuffer>>4);
           print_pixel_8(pixbuffer&0x0F);
           //*/
-          bg.tilesets[0].tile[tile_i].two_pixel_color_index
-            [ byte_i + (line_i*line_bytesize)]=pixbuffer;
+
+          if(gfxtype==0) {
+            bg.tilesets[0].tile[tile_i].two_pixel_color_index
+              [ byte_i + (line_i*line_bytesize)]=pixbuffer;
+          }
+          else if(gfxtype==1) {
+            bg.tilesets[1].tile[tile_i].two_pixel_color_index
+              [ byte_i + (line_i*line_bytesize)]=pixbuffer;
+          }
+          else if(gfxtype==2) {
+            fsp.tile[tile_i].two_pixel_color_index
+               [ byte_i + (line_i*line_bytesize)]=pixbuffer;
+          }
         }
       }
       //fprintf(stdout,"\n");
@@ -153,7 +171,6 @@ void read_gfx_data() {
   }
   fprintf(stdout,"----- Tile Data Ends -----\n\n");
   fprintf(stdout,"*** The End ***\n\n");
-  close(filehandler);
 }
 
 void retro_init(void)
@@ -162,9 +179,15 @@ void retro_init(void)
   initialize_viewport();
   initialize_hlf_sprt_palettes();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
+  int filehandler = open("bg_stars.gfx",O_RDONLY);
+  read_gfx_data(filehandler, 0);
+  close(filehandler);
+  filehandler = open("sr388_invader.gfx",O_RDONLY);//Remember to close
+  read_gfx_data(filehandler, 2);
+  close(filehandler);
   //filehandler = open("font_numbers_8x8.gfx",O_RDONLY);
   //read_gfx_data(filehandler);
-  read_gfx_data();
+  initialize_full_sprites();
 }
 
 void retro_deinit(void)
@@ -422,14 +445,36 @@ static void render_frame(void)
   draw_line(135, 100, 10, 60, 0x7c00);
   draw_line(10, 60, 104, 32,0x03e0);
   //full sprite rendering
-  fsp.active_number=0;
-  for(uint16_t current_sprite = fsp.active_number ;
-               current_sprite > 0 ; current_sprite-- ) {
-   for (uint8_t jj=0; jj<full_tile_size; jj++ ) {
-     for (uint8_t ii=0;ii<full_tile_size;ii++) {
-       
-     }
-   }
+  for(uint16_t sprite_counter = fsp.active_number ;
+               sprite_counter > 0 ; sprite_counter-- ) {
+    uint16_t current_sprite=sprite_counter-1; 
+    if(fsp.oam2[current_sprite]>Mask_fsp_oam2_disable) continue;
+    for (uint8_t jj=0; jj<full_tile_size; jj++ ) {
+      uint16_t yy_fsp=jj+viewport.y_origin-fsp.offset_y
+                     +((fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos)>>16);
+      if ( yy_fsp < viewport.y_origin
+         || yy_fsp > (viewport.y_origin+viewport.height) ) continue;
+      line=buf+yy_fsp*stride;
+      for (uint8_t ii=0;ii<full_tile_size;ii++) {
+        uint16_t xx_fsp=ii+viewport.x_origin-fsp.offset_x
+                       +(fsp.oam2[current_sprite]&Mask_fsp_oam2_x_pos);
+        if ( xx_fsp < viewport.x_origin
+           || xx_fsp > (viewport.x_origin+viewport.width) ) continue;
+        uint8_t twopixdata=fsp.tile[fsp.oam[current_sprite]
+                                     &Mask_fsp_oam_index]
+                              .two_pixel_color_index
+                               [(jj*full_tile_size+ii)>>1];
+        if (xx_fsp%2==0) {
+        twopixdata=twopixdata>>4;
+        }
+        else {
+        twopixdata=twopixdata&0x0F;
+        }
+        line[xx_fsp] = fsp.palettes[(fsp.oam[current_sprite]
+                                   &Mask_fsp_oam_palette)>>10]
+                          .colors[twopixdata];
+      }
+    }
   }
   /*
 

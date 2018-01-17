@@ -156,10 +156,6 @@ typedef struct {
  uint8_t two_pixel_color_index[full_tile_size*full_tile_size>>1];
 } fsp_tile;
 
-typedef struct {
- fsp_tile tile[fsp_tileset_number]; //128KB at 1024 tiles per set
-} fsp_tileset;
-
 //Full sprite Object Attribute Memory bitmasks
 #define Mask_fsp_oam_rotation 0x8000 //bit  16
 #define Mask_fsp_oam_v_flip   0x4000 //bit  15
@@ -172,10 +168,11 @@ typedef struct {
 #define Mask_fsp_oam2_y_pos      0x01FF0000 //bits 17-25
 #define Mask_fsp_oam2_reserved1  0x0000FE00 //bits 10-16
 #define Mask_fsp_oam2_x_pos      0x000001FF //bits 1-9
+//TODO: there's no position in OAM for the tileset
 
 typedef struct {
  fsp_palette palettes[fsp_palette_number];
- fsp_tileset tilesets[fsp_tileset_number];
+ fsp_tile tile[fsp_tileset_number]; //128 kB with 1024 tiles in the set
  uint16_t oam[fsp_count];
  uint32_t oam2[fsp_count];
  uint16_t offset_x;
@@ -194,6 +191,11 @@ void initialize_full_sprites()
    fsp.palettes[ii].colors[jj]=null_color;
   }
  }
+ fsp.offset_x=0;
+ fsp.offset_y=0;
+ fsp.active_number=1;
+ fsp.oam2[0]=0x00800000|0x00000080;
+ fsp.oam[0]=0x0000;
 }
 
 
