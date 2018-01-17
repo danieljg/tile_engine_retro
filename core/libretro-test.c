@@ -274,7 +274,7 @@ static void update_input(void)
    }
 }
 
-void draw_point(uint16_t x, uint16_t y, uint16_t color) {
+void draw_point(int16_t x, int16_t y, int16_t color) {
   //uint16_t *buf    = frame_buf;
   //uint16_t *line   = buf;
   uint16_t *line   = frame_buf;
@@ -283,14 +283,15 @@ void draw_point(uint16_t x, uint16_t y, uint16_t color) {
 }
 
 // Dibuja una linea usando el algoritmo de Bresenham (o lo hará en el futuro).
-void draw_line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {
-  uint16_t dx = x2 - x1;
-  uint16_t dy = y2 - y2;
-  uint8_t increment_diag_x = (dx >= 0) ? 1: -1;
+void draw_line(int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t color) {
+  int16_t dx = x2 - x1;
+  int16_t dy = y2 - y2;
+  int8_t increment_diag_x = (dx >= 0) ? 1: -1;
   dx *= increment_diag_x;
-  uint8_t increment_diag_y = (dy >= 0) ? 1: -1;
+  int8_t increment_diag_y = (dy >= 0) ? 1: -1;
   dy *= increment_diag_y;
-  uint8_t increment_ort_x, increment_ort_y;
+  int8_t increment_ort_x;
+  int8_t increment_ort_y;
   if (dx >= dy) {
     increment_ort_x = increment_diag_x;
     increment_ort_y = 0;
@@ -298,15 +299,15 @@ void draw_line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t colo
   else {
     increment_ort_x = 0;
     increment_ort_y = increment_diag_y;
-    uint16_t aux = dy;
+    int16_t aux = dy;
     dy = dx;
     dx = aux;
   }
-  uint16_t x = x1;
-  uint16_t y = y1;
-  uint16_t step_ort = 2 * dy;
-  uint16_t step = step_ort - dx;
-  uint16_t step_diag = step - dx;
+  int16_t x = x1;
+  int16_t y = y1;
+  int16_t step_ort = 2 * dy;
+  int16_t step = step_ort - dx;
+  int16_t step_diag = step - dx;
   while (x != x2) {
     draw_point(x, y, color);
     if (step >= 0) {
