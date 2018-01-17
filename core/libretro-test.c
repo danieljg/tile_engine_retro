@@ -276,11 +276,8 @@ static void update_input(void)
 }
 
 void draw_point(int16_t x, int16_t y, int16_t color) {
-  //uint16_t *buf    = frame_buf;
-  //uint16_t *line   = buf;
-  uint16_t *line   = frame_buf;
-  line +=  viewport.width * y;
-  line[x] = color;
+  uint16_t *line = frame_buf;
+  line[viewport.width * y + x] = color;
 }
 
 /* Dibuja una linea usando el algoritmo de Bresenham.
@@ -343,7 +340,7 @@ static void render_frame(void)
   if ( ((viewport.x_origin-bg.offset_x[0])%full_tile_size==0) ) {
     if (scroll_has_updated_bgtm==0) {
       for(uint8_t jj=0; jj<vp_tile_number_y; jj++) {
-        bg.tilemaps[0].tile_index[ jj*layer_tile_number_y 
+        bg.tilemaps[0].tile_index[ jj*layer_tile_number_y
                                   + ( vp_tile_number_x  + (viewport.x_origin-bg.offset_x[0])/full_tile_size)
                                     %layer_tile_number_x ]
                                   =scrolling_tilemap_index;
@@ -421,6 +418,8 @@ static void render_frame(void)
   draw_line(104, 32, 135, 100, 0x7fff); //probando función draw_line
   draw_line(135, 100, 10, 60, 0x7c00);
   draw_line(10, 60, 104, 32,0x03e0);
+  draw_line(15, 200, 16, 160, 0x0c00);
+
   //full sprite rendering
   fsp.active_number=0;
   for(uint16_t current_sprite=fsp.active_number;current_sprite>0;current_sprite--) {
