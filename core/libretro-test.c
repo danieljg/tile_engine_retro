@@ -282,6 +282,49 @@ void draw_point(uint16_t x, uint16_t y, uint16_t color) {
   line[x] = color;
 }
 
+// Dibuja una linea usando el algoritmo de Bresenham (o lo hará en el futuro).
+void draw_line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {
+  uint16_t dx = x2 - x1;
+  uint16_t dy = y2 - y2;
+  uint8_t increment_diag_x = (dx >= 0) ? 1: -1;
+  dx *= increment_diag_x;
+  uint8_t increment_diag_y = (dy >= 0) ? 1: -1;
+  dy *= increment_diag_y;
+  uint8_t increment_ort_x, increment_ort_y;
+  if (dx >= dy) {
+    increment_ort_x = increment_diag_x;
+    increment_ort_y = 0;
+  }
+  else {
+    increment_ort_x = 0;
+    increment_ort_y = increment_diag_y;
+    uint16_t aux = dy;
+    dy = dx;
+    dx = aux;
+  }
+  uint16_t x = x1;
+  uint16_t y = y1;
+  uint16_t step_ort = 2 * dy;
+  uint16_t step = step_ort - dx;
+  uint16_t step_diag = step - dx;
+  while (x != x2) {
+    draw_point(x, y, color);
+    if (step >= 0) {
+      x += increment_diag_x;
+      y += increment_diag_y;
+      step += step_diag;
+    }
+    else {
+      x += increment_ort_x;
+      y += increment_ort_y;
+      step += step_ort;
+    }
+  }
+  //draw_point(x1, y1, color);
+  draw_point(x2, y2, color);
+}
+
+
 /* Dibuja una frame del juego
 */
 static void render_frame(void)
@@ -357,7 +400,8 @@ static void render_frame(void)
       }
     }
   }
-  draw_point(3, 10, 0x7c00);
+  draw_point(3, 10, 0x7c00); //probando función draw_point
+  draw_line(104, 32, 135, 100, 0x7fff); //probando función draw_line
 
   //full sprite rendering
   fsp.active_number=0;
