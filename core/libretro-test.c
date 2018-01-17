@@ -424,8 +424,13 @@ static void render_frame(void)
 
   //full sprite rendering
   fsp.active_number=0;
-  for(uint16_t current_sprite=fsp.active_number;current_sprite>0;current_sprite--) {
-   fprintf(stdout,"nope");
+  for(uint16_t current_sprite = fsp.active_number ;
+               current_sprite > 0 ; current_sprite-- ) {
+   for (uint8_t jj=0; jj<full_tile_size; jj++ ) {
+     for (uint8_t ii=0;ii<full_tile_size;ii++) {
+       
+     }
+   }
   }
   /*
 

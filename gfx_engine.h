@@ -178,6 +178,8 @@ typedef struct {
  fsp_tileset tilesets[fsp_tileset_number];
  uint16_t oam[fsp_count];
  uint32_t oam2[fsp_count];
+ uint16_t offset_x;
+ uint16_t offset_y;
  uint8_t active_number;
 } fsp_struct;
 
