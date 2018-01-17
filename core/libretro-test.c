@@ -297,8 +297,6 @@ void draw_line(int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t color) {
   dy *= increment_diag_y;
   int8_t increment_ort_x;
   int8_t increment_ort_y;
-  fprintf(stdout, "Dx%d Dy%d\n", dx, dy);
-
   if (dx >= dy) {
     increment_ort_x = increment_diag_x;
     increment_ort_y = 0;
@@ -421,7 +419,8 @@ static void render_frame(void)
   }
   draw_point(3, 10, 0x7c00); //probando función draw_point
   draw_line(104, 32, 135, 100, 0x7fff); //probando función draw_line
-
+  draw_line(135, 100, 10, 60, 0x7c00);
+  draw_line(10, 60, 104, 32,0x03e0);
   //full sprite rendering
   fsp.active_number=0;
   for(uint16_t current_sprite = fsp.active_number ;
