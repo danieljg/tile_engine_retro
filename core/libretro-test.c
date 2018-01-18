@@ -298,65 +298,6 @@ static void update_input(void)
    }
 }
 
-/* Dibuja un punto directamente en el buffer de video
-
-El código comentado pertenece a una versión anterior que usaba un apuntador al
-frame buffer. Parece funcionar igual al usar el frame buffer directamente.
-*/
-void draw_point(int16_t x, int16_t y, int16_t color) {
-  //uint16_t *line = frame_buf;
-  //line[viewport.width * y + x] = color;
-  frame_buf[viewport.width * y + x] = color;
-}
-
-/* Dibuja una linea usando el algoritmo de Bresenham.
-
-Nota: El algorito funciona, pero hay algo mal aún, tengo que dibujar
-manualmente el punto inicial y el final.
-*/
-void draw_line(int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t color) {
-  int16_t dx = x2 - x1;
-  int16_t dy = y2 - y1;
-  int8_t increment_diag_x = (dx >= 0) ? 1: -1;
-  dx *= increment_diag_x;
-  int8_t increment_diag_y = (dy >= 0) ? 1: -1;
-  dy *= increment_diag_y;
-  int8_t increment_ort_x;
-  int8_t increment_ort_y;
-  if (dx >= dy) {
-    increment_ort_x = increment_diag_x;
-    increment_ort_y = 0;
-  }
-  else {
-    increment_ort_x = 0;
-    increment_ort_y = increment_diag_y;
-    int16_t aux = dy;
-    dy = dx;
-    dx = aux;
-  }
-  int16_t x = x1;
-  int16_t y = y1;
-  int16_t step_ort = 2 * dy;
-  int16_t step = step_ort - dx;
-  int16_t step_diag = step - dx;
-  draw_point(x, y, color);
-  while (x != x2) {
-    if (step >= 0) {
-      x += increment_diag_x;
-      y += increment_diag_y;
-      step += step_diag;
-    }
-    else {
-      x += increment_ort_x;
-      y += increment_ort_y;
-      step += step_ort;
-    }
-    draw_point(x, y, color);
-  }
-  draw_point(x2, y2, color);
-}
-
-
 /* Dibuja una frame del juego
 */
 static void render_frame(void)
@@ -443,11 +384,11 @@ static void render_frame(void)
       }
     }
   }
-  draw_point(3, 10, 0x7c00); //probando función draw_point
-  draw_line(104, 32, 135, 100, 0x7fff); //probando función draw_line
-  draw_line(135, 100, 10, 60, 0x7c00);
-  draw_line(10, 60, 104, 32,0x03e0);
-  draw_line(15, 200, 16, 160, 0x0c00);
+  draw_point(frame_buf, 3, 10, 0x7c00); //probando función draw_point
+  draw_line(frame_buf, 104, 32, 135, 100, 0x7fff); //probando función draw_line
+  draw_line(frame_buf, 135, 100, 10, 60, 0x7c00);
+  draw_line(frame_buf, 10, 60, 104, 32,0x03e0);
+  draw_line(frame_buf, 15, 200, 16, 160, 0x0c00);
 
   //full sprite rendering
   for(uint16_t sprite_counter = fsp.active_number ;
