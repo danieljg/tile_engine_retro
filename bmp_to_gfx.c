@@ -10,6 +10,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static uint8_t mylog2 (uint8_t val) {
+    if (val == 0) return 0;
+    if (val == 1) return 0;
+    uint8_t ret = 0;
+    while (val > 1) {
+        val >>= 1;
+        ret++;
+    }
+    return ret;
+}
+
 int main( int argc, char* argv[] )
 {
     BMP*	bmp;
@@ -27,6 +38,7 @@ int main( int argc, char* argv[] )
     /* Read an image file */
     bmp = BMP_ReadFile( argv[ 1 ] );
     BMP_CHECK_ERROR( stderr, -1 ); /* If an error has occurred, notify and exit */
+    fprintf(stdout,"input file: %s\n",argv[1]);
 
     /* Get image's dimensions */
     width = BMP_GetWidth( bmp );
@@ -84,6 +96,7 @@ int main( int argc, char* argv[] )
     uint8_t palette_size=colors_n+1;
 fprintf(stdout,"0x %u\n",log2(colors_n+1));
 fprintf(stdout,"00x %u\n",(uint8_t)log2(colors_n+1));
+fprintf(stdout,"000x %u\n",mylog2(colors_n+1));
 fprintf(stdout,"1x %u\n",palette_size);
 fprintf(stdout,"2x %u\n",buff);
     if (palette_size==12){

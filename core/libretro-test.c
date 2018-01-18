@@ -315,7 +315,7 @@ static void render_frame(void)
                                     %layer_tile_number_x ]
                                   =scrolling_tilemap_index;
         //scrolling_tilemap_index=(scrolling_tilemap_index+7)%300;
-        scrolling_tilemap_index=(scrolling_tilemap_index+7)%42;
+        scrolling_tilemap_index=(scrolling_tilemap_index+1)%32;
         //TODO: do something with the palette of the newly added tiles... it seems a bit periodic, obviously
       }
       scroll_has_updated_bgtm=1;
