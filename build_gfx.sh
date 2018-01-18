@@ -6,3 +6,5 @@ mv output.gfx core/font_numbers_8x8.gfx
 mv output.gfx core/bg_stars.gfx
 ./bmptogfx sr388_invader.bmp output.gfx 16
 mv output.gfx core/sr388_invader.gfx
+./bmptogfx panels_16x16_tilesheet.bmp output.gfx 16
+mv output.gfx core/panels_16x16_tilesheet.gfx

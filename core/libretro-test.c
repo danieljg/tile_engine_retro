@@ -180,7 +180,7 @@ void retro_init(void)
   initialize_viewport();
   initialize_hlf_sprt_palettes();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
-  int filehandler = open("bg_stars.gfx",O_RDONLY);
+  int filehandler = open("panels_16x16_tilesheet.gfx",O_RDONLY);
   read_gfx_data(filehandler, 0);
   close(filehandler);
   filehandler = open("sr388_invader.gfx",O_RDONLY);//Remember to close
@@ -332,7 +332,7 @@ fprintf(stdout,"in\n");
 
   if(scroll_frame_counter==0){
     viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
-    //viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
+    viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
   }
 
   if(animation_frame_counter==0){

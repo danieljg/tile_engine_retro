@@ -82,9 +82,18 @@ int main( int argc, char* argv[] )
 
     uint8_t buff = log2(colors_n+1);
     uint8_t palette_size=colors_n+1;
-    if(buff==3){
+fprintf(stdout,"0x %u\n",log2(colors_n+1));
+fprintf(stdout,"1x %u\n",palette_size);
+fprintf(stdout,"2x %u\n",buff);
+    if (palette_size==12){
       buff=4;
-      palette_size=(colors_n+1)<<1;
+      palette_size=16;
+fprintf(stdout,"sss\n");
+    }
+    else if(palette_size==8){
+fprintf(stdout,"%u \n",buff);
+      buff=4;
+      palette_size=16;
     }
     write(filehandler,&buff,1);
     buff = 0x01;
@@ -119,6 +128,8 @@ int main( int argc, char* argv[] )
     write(filehandler,&buff,1);//low byte
 
     uint8_t bpp = log2(palette_size);//bits per pixel
+fprintf(stdout,"palette_size: %u\n",palette_size);
+fprintf(stdout,"log2(palette_size): %u\n",log2(palette_size));
     uint8_t ppb = 8/bpp;//pixels per byte
 
     /* Iterate through all tiles */
@@ -150,11 +161,12 @@ int main( int argc, char* argv[] )
       }
     }
 
-    fprintf(stdout,"colors_n+1: %u\n",number_of_tiles);
-/*    for(uint8_t ii=0; ii<colors_n+1;ii++){
+    fprintf(stdout,"number_of_tiles: %u\n",number_of_tiles);
+    fprintf(stdout,"colors_n+1: %u\n",colors_n+1);
+    /*for(uint8_t ii=0; ii<colors_n+1;ii++){
      fprintf(stdout,"%u %u\n", ii, palette_elements[ii]);
-    }*/
-    fprintf(stdout,"%u\n",log2(colors_n+1));
+    }//*/
+    fprintf(stdout,"log2(colors_n+1): %u\n",log2(colors_n+1));
     fprintf(stdout,"===\n");
     fflush(stdout);
 
