@@ -314,7 +314,8 @@ static void render_frame(void)
                                   + ( vp_tile_number_x  + (viewport.x_origin-bg.offset_x[0])/full_tile_size)
                                     %layer_tile_number_x ]
                                   =scrolling_tilemap_index;
-        scrolling_tilemap_index=(scrolling_tilemap_index+7)%300;
+        //scrolling_tilemap_index=(scrolling_tilemap_index+7)%300;
+        scrolling_tilemap_index=(scrolling_tilemap_index+7)%42;
         //TODO: do something with the palette of the newly added tiles... it seems a bit periodic, obviously
       }
       scroll_has_updated_bgtm=1;
