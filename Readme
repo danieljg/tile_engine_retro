@@ -52,3 +52,11 @@ For background layers, which use 8 bits per pixel, each graphics tile uses
 20x15=300 tiles which requires 76800 bytes or 75 kilo bytes. A full layer of
 size 512x320 has 640 tiles, which requires 160 kilo bytes.
 
+ROADMAP TO 0.1
+
+-Full Sprites w/horizontal flip (at least)
+-Half Sprites for bullets and HUD
+-Controls and interaction
+-Collisions
+-Sprites for ships, explosions and bullets
+-Audio for bullets and hits
