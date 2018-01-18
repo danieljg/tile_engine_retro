@@ -83,6 +83,7 @@ int main( int argc, char* argv[] )
     uint8_t buff = log2(colors_n+1);
     uint8_t palette_size=colors_n+1;
 fprintf(stdout,"0x %u\n",log2(colors_n+1));
+fprintf(stdout,"00x %u\n",(uint8_t)log2(colors_n+1));
 fprintf(stdout,"1x %u\n",palette_size);
 fprintf(stdout,"2x %u\n",buff);
     if (palette_size==12){

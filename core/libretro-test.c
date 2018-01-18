@@ -330,7 +330,7 @@ static void render_frame(void)
 
   if(scroll_frame_counter==0){
     viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
-    viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
+    //viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
   }
 
   if(animation_frame_counter==0){
@@ -402,7 +402,6 @@ static void render_frame(void)
       uint16_t yy_fsp=((uint16_t)(yy_pos+jj-viewport.y_origin+fsp.offset_y))%(full_tile_size*layer_tile_number_y);
       if ( yy_fsp >= (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y)) continue;//discriminar los renglones visibles
       line=buf+yy_fsp*stride;
-      //line=buf+10*stride;//for debugging
       for (uint8_t ii=0;ii<full_tile_size;ii++) {//itera sobre pixeles
         uint16_t xx_pos=fsp.oam2[current_sprite]&Mask_fsp_oam2_x_pos;
         uint16_t xx_fsp=((uint16_t)(xx_pos+ii-viewport.x_origin+fsp.offset_x))%(full_tile_size*layer_tile_number_x);
