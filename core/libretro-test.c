@@ -176,6 +176,7 @@ void read_gfx_data(int gfxhandler, int gfxtype) {
 void retro_init(void)
 {
   initialize_bg();
+  initialize_full_sprites();
   initialize_viewport();
   initialize_hlf_sprt_palettes();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
@@ -187,7 +188,6 @@ void retro_init(void)
   close(filehandler);
   //filehandler = open("font_numbers_8x8.gfx",O_RDONLY);
   //read_gfx_data(filehandler);
-  initialize_full_sprites();
 }
 
 void retro_deinit(void)
@@ -389,7 +389,7 @@ static void render_frame(void)
     //viewport.y_origin=(viewport.y_origin+1)%(layer_tile_number_y*full_tile_size);
   }
 
-  if(animation_frame_counter==-10){
+  if(animation_frame_counter==0){
   bg.tilemaps[0].tile_index[12]=(bg.tilemaps[0].tile_index[12]+1)%6;
   }
 
@@ -447,11 +447,12 @@ static void render_frame(void)
   //full sprite rendering
   for(uint16_t sprite_counter = fsp.active_number ;
                sprite_counter > 0 ; sprite_counter-- ) {
-    uint16_t current_sprite=sprite_counter-1; 
+    uint16_t current_sprite=sprite_counter-1;
     if(fsp.oam2[current_sprite]>Mask_fsp_oam2_disable) continue;
     for (uint8_t jj=0; jj<full_tile_size; jj++ ) {
-      uint16_t yy_fsp=jj+viewport.y_origin-fsp.offset_y
-                     +((fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos)>>16);
+      uint16_t yy_fsp=(jj+viewport.y_origin-fsp.offset_y
+                      +((fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos)>>16)
+                      )%(layer_tile_number_y*full_tile_size);
       if ( yy_fsp < viewport.y_origin
          || yy_fsp > (viewport.y_origin+viewport.height) ) continue;
       line=buf+yy_fsp*stride;
@@ -464,85 +465,17 @@ static void render_frame(void)
                                      &Mask_fsp_oam_index]
                               .two_pixel_color_index
                                [(jj*full_tile_size+ii)>>1];
-        if (xx_fsp%2==0) {
+        if (ii%2==0) {
         twopixdata=twopixdata>>4;
         }
         else {
         twopixdata=twopixdata&0x0F;
         }
-        line[xx_fsp] = fsp.palettes[(fsp.oam[current_sprite]
-                                   &Mask_fsp_oam_palette)>>10]
+        line[xx_fsp] = fsp.palettes[0]
                           .colors[twopixdata];
       }
     }
   }
-  /*
-
-  uint16_t current_tile =  bg.tilemaps[0].tile_index[0];
-  uint16_t tile_i = 0;
-  uint16_t pix_i;
-  uint8_t two_pix_data;
-  uint16_t pix_id;
-  for(uint8_t ii=0; ii<vp_tile_number_y; ii++) {
-    for(uint8_t jj=0; jj<vp_tile_number_x; jj++) {
-      pix_i = 0;
-      for (uint8_t yy=0; yy<full_tile_size; yy++) {
-        for (uint8_t xx=0; xx<full_tile_size; xx++) {
-          two_pix_data = bg.tilesets[0].tile[tile_i].two_pixel_color_index[pix_i>>1];
-          if (pix_i%2 == 0) {
-            two_pix_data = (two_pix_data & Mask_bg_tile_index_0) >> 4;
-          }
-          else {
-            two_pix_data = two_pix_data & Mask_bg_tile_index_1;
-          }
-          pix_id = (ii*full_tile_size + yy) * stride + (jj*full_tile_size + xx);
-          buf[pix_id] = bg.palette_sets[0].palettes[0].colors[two_pix_data];
-          pix_i ++;
-        }
-      }
-      tile_i ++;
-    }
-    //fprintf(stdout, "\n");
-  }
-  //fprintf(stdout, "\t>%d>\n", current_tile);
-  */
-
-  /*
-
-
-  uint16_t color_r = (0x15<<10)|(0x05<<5)|(0x05); // rojo-ladrillo
-  uint16_t color_g = (0x04<<10)|(0x04<<5)|(0x08); // gris-cemento
-
-
-  // Este ciclo dibuja la pantalla linea por linea
-  uint8_t scale_shift = 2; // 0: No escalar
-  uint16_t x_abs;
-  uint16_t y_abs;
-
-  y_coord=2;
-
-  for (uint16_t y = 0; y < viewport.height; y++, line += stride)
-  {
-    y_abs = (y - y_coord) >> scale_shift;
-    uint8_t index_y = y_abs % 4 == 3;
-    for (uint16_t x = 0; x < viewport.width; x++)
-    {
-       x_abs = (x - x_coord) >> scale_shift;
-       uint8_t index_x; // Cierto si hay cemento
-       if ((y_abs >> 2) % 2 == 1) index_x = x_abs % 8 == 3;
-       else index_x = x_abs % 8 == 7;
-       // Asignar color a pixel
-       if (index_y || index_x) line[x] = color_g; // gris si hay cemento
-       else line[x] = color_r; // rojo-ladrillo si no hay cemento
-       //Pintar...
-       uint8_t pixbuf=0x00;
-       pixbuf=hlf_sprt_tiles.tile[x>>3].two_pixel_color_index[((x>>1)%4)+((y%8)<<2)];
-       if( (x%2) == 0 ) pixbuf=(pixbuf&Mask_hlf_sprt_index_0)>>4;
-       else pixbuf=pixbuf&Mask_hlf_sprt_index_1;
-       if(pixbuf!=0) line[x]=hlf_sprt_palettes[0].colors[pixbuf];
-    }
-  }
-  */
 
   video_cb(buf, viewport.width, viewport.height, stride << 1);
 }
