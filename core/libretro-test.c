@@ -453,19 +453,19 @@ static void render_frame(void)
   for(uint16_t sprite_counter = fsp.active_number ;
                sprite_counter > 0 ; sprite_counter-- ) {
     uint16_t current_sprite=sprite_counter-1;
-    if(fsp.oam2[current_sprite]>Mask_fsp_oam2_disable) continue;
-    for (uint8_t jj=0; jj<full_tile_size; jj++ ) {
+    if(fsp.oam2[current_sprite]>=Mask_fsp_oam2_disable) continue;//skips disabled sprites
+    for (uint8_t jj=0; jj<full_tile_size; jj++ ) {//itera sobre renglones
       uint16_t yy_fsp=(jj+viewport.y_origin-fsp.offset_y
                       +((fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos)>>16)
                       )%(layer_tile_number_y*full_tile_size);
       if ( yy_fsp < viewport.y_origin
-         || yy_fsp > (viewport.y_origin+viewport.height) ) continue;
+         || yy_fsp > (viewport.y_origin+viewport.height) ) continue;//discriminar los renglones visibles
       line=buf+yy_fsp*stride;
-      for (uint8_t ii=0;ii<full_tile_size;ii++) {
-        uint16_t xx_fsp=ii+viewport.x_origin-fsp.offset_x
+      for (uint8_t ii=0;ii<full_tile_size;ii++) {//itera sobre pixeles
+        uint16_t xx_fsp=ii-viewport.x_origin+fsp.offset_x
                        +(fsp.oam2[current_sprite]&Mask_fsp_oam2_x_pos);
         if ( xx_fsp < viewport.x_origin
-           || xx_fsp > (viewport.x_origin+viewport.width) ) continue;
+           || xx_fsp > (viewport.x_origin+viewport.width) ) continue;//discriminar los pixeles visibles
         uint8_t twopixdata=fsp.tile[fsp.oam[current_sprite]
                                      &Mask_fsp_oam_index]
                               .two_pixel_color_index
