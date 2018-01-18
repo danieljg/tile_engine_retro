@@ -331,12 +331,14 @@ fprintf(stdout,"in\n");
   animation_frame_counter=frame_counter%animation_wait_frames;
 
   if(scroll_frame_counter==0){
-    //viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
-    viewport.y_origin=(viewport.y_origin+bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
+    viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
+    //viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
   }
 
   if(animation_frame_counter==0){
   bg.tilemaps[0].tile_index[12]=(bg.tilemaps[0].tile_index[12]+1)%6;
+  fsp.oam[0]=(fsp.oam[0]&(~Mask_fsp_oam_index))|(((fsp.oam[0]&Mask_fsp_oam_index)+1)%6);
+  fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_x_pos))|(((fsp.oam2[0]&Mask_fsp_oam2_x_pos)+1)%(layer_tile_number_x*full_tile_size));
   }
 
   //background rendering
@@ -386,11 +388,11 @@ fprintf(stdout,"in\n");
       }
     }
   }
-  draw_point(frame_buf, 3, 10, 0x7c00); //probando función draw_point
-  draw_line(frame_buf, 104, 32, 135, 100, 0x7fff); //probando función draw_line
-  draw_line(frame_buf, 135, 100, 10, 60, 0x7c00);
-  draw_line(frame_buf, 10, 60, 104, 32,0x03e0);
-  draw_line(frame_buf, 15, 200, 16, 160, 0x0c00);
+  //draw_point(frame_buf, 3, 10, 0x7c00); //probando función draw_point
+  //draw_line(frame_buf, 104, 32, 135, 100, 0x7fff); //probando función draw_line
+  //draw_line(frame_buf, 135, 100, 10, 60, 0x7c00);
+  //draw_line(frame_buf, 10, 60, 104, 32,0x03e0);
+  //draw_line(frame_buf, 15, 200, 16, 160, 0x0c00);
 
   //full sprite rendering
   for(uint16_t sprite_counter = fsp.active_number ;
@@ -400,14 +402,15 @@ fprintf(stdout,"in\n");
     for (uint8_t jj=0; jj<full_tile_size; jj++ ) {//itera sobre renglones
       uint16_t yy_pos=(fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos)>>16;
       uint16_t yy_fsp=((uint16_t)(yy_pos+jj-viewport.y_origin+fsp.offset_y))%(full_tile_size*layer_tile_number_y);
-fprintf(stdout,"%u %u %u\n", yy_fsp >(full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_x),
-                             yy_fsp , (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_x));
-      if ( yy_fsp > (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_x)) continue;//discriminar los renglones visibles
+fprintf(stdout,"%u %u %u\n", yy_fsp >(full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y),
+                             yy_fsp , (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y));
+      if ( yy_fsp >= (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y)) continue;//discriminar los renglones visibles
       line=buf+yy_fsp*stride;
+      //line=buf+10*stride;//for debugging
       for (uint8_t ii=0;ii<full_tile_size;ii++) {//itera sobre pixeles
         uint16_t xx_pos=fsp.oam2[current_sprite]&Mask_fsp_oam2_x_pos;
         uint16_t xx_fsp=((uint16_t)(xx_pos+ii-viewport.x_origin+fsp.offset_x))%(full_tile_size*layer_tile_number_x);
-        if ( xx_fsp > (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x) ) continue;//discriminar los pixeles visibles
+        if ( xx_fsp >= (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x) ) continue;//discriminar los pixeles visibles
         uint8_t twopixdata=fsp.tile[fsp.oam[current_sprite]
                                      &Mask_fsp_oam_index]
                               .two_pixel_color_index
@@ -441,9 +444,9 @@ static void audio_callback(void)
 void retro_run(void)
 {
    update_input();
-
+fprintf(stdout,"i\n");
    render_frame();
-
+fprintf(stdout,"o\n");
    audio_callback();
 
    bool updated = false;
