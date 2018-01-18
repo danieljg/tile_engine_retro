@@ -306,8 +306,6 @@ static void render_frame(void)
   uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
   uint16_t *line   = buf;
 
-fprintf(stdout,"in\n");
-
   //inicializando la linea de tiles a la derecha del viewport para scroll
   if ( ((viewport.x_origin-bg.offset_x[0])%full_tile_size==0) ) {
     if (scroll_has_updated_bgtm==0) {
@@ -402,8 +400,6 @@ fprintf(stdout,"in\n");
     for (uint8_t jj=0; jj<full_tile_size; jj++ ) {//itera sobre renglones
       uint16_t yy_pos=(fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos)>>16;
       uint16_t yy_fsp=((uint16_t)(yy_pos+jj-viewport.y_origin+fsp.offset_y))%(full_tile_size*layer_tile_number_y);
-fprintf(stdout,"%u %u %u\n", yy_fsp >(full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y),
-                             yy_fsp , (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y));
       if ( yy_fsp >= (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y)) continue;//discriminar los renglones visibles
       line=buf+yy_fsp*stride;
       //line=buf+10*stride;//for debugging
@@ -428,7 +424,6 @@ fprintf(stdout,"%u %u %u\n", yy_fsp >(full_tile_size*vp_tile_number_y)%(full_til
     }
   }
   video_cb(buf, viewport.width, viewport.height, stride << 1);
-fprintf(stdout,"out\n");
 }
 
 
@@ -444,9 +439,7 @@ static void audio_callback(void)
 void retro_run(void)
 {
    update_input();
-fprintf(stdout,"i\n");
    render_frame();
-fprintf(stdout,"o\n");
    audio_callback();
 
    bool updated = false;
