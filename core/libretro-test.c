@@ -365,6 +365,8 @@ static void render_frame(void)
   uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
   uint16_t *line   = buf;
 
+fprintf(stdout,"in\n");
+
   //inicializando la linea de tiles a la derecha del viewport para scroll
   if ( ((viewport.x_origin-bg.offset_x[0])%full_tile_size==0) ) {
     if (scroll_has_updated_bgtm==0) {
@@ -388,8 +390,8 @@ static void render_frame(void)
   animation_frame_counter=frame_counter%animation_wait_frames;
 
   if(scroll_frame_counter==0){
-    viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
-    //viewport.y_origin=(viewport.y_origin+1)%(layer_tile_number_y*full_tile_size);
+    //viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
+    viewport.y_origin=(viewport.y_origin+bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
   }
 
   if(animation_frame_counter==0){
@@ -437,7 +439,7 @@ static void render_frame(void)
           twopixdata = bg.tilesets[0]
                          .tile[ tileset_index ]
                          .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
-                                                %(full_tile_size*full_tile_size)];
+                                     %(full_tile_size*full_tile_size)];
           line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
         }
       }
@@ -447,7 +449,7 @@ static void render_frame(void)
   draw_line(104, 32, 135, 100, 0x7fff); //probando función draw_line
   draw_line(135, 100, 10, 60, 0x7c00);
   draw_line(10, 60, 104, 32,0x03e0);
-  draw_line(15, 200, 16, 160, 0x0c00);
+  //draw_line(15, 200, 16, 160, 0x0c00);
 
   //full sprite rendering
   for(uint16_t sprite_counter = fsp.active_number ;
@@ -455,17 +457,16 @@ static void render_frame(void)
     uint16_t current_sprite=sprite_counter-1;
     if(fsp.oam2[current_sprite]>=Mask_fsp_oam2_disable) continue;//skips disabled sprites
     for (uint8_t jj=0; jj<full_tile_size; jj++ ) {//itera sobre renglones
-      uint16_t yy_fsp=(jj+viewport.y_origin-fsp.offset_y
-                      +((fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos)>>16)
-                      )%(layer_tile_number_y*full_tile_size);
-      if ( yy_fsp < viewport.y_origin
-         || yy_fsp > (viewport.y_origin+viewport.height) ) continue;//discriminar los renglones visibles
+      uint16_t yy_pos=(fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos)>>16;
+      uint16_t yy_fsp=((uint16_t)(yy_pos+jj-viewport.y_origin+fsp.offset_y))%(full_tile_size*layer_tile_number_y);
+fprintf(stdout,"%u %u %u\n", yy_fsp >(full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_x),
+                             yy_fsp , (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_x));
+      if ( yy_fsp > (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_x)) continue;//discriminar los renglones visibles
       line=buf+yy_fsp*stride;
       for (uint8_t ii=0;ii<full_tile_size;ii++) {//itera sobre pixeles
-        uint16_t xx_fsp=ii-viewport.x_origin+fsp.offset_x
-                       +(fsp.oam2[current_sprite]&Mask_fsp_oam2_x_pos);
-        if ( xx_fsp < viewport.x_origin
-           || xx_fsp > (viewport.x_origin+viewport.width) ) continue;//discriminar los pixeles visibles
+        uint16_t xx_pos=fsp.oam2[current_sprite]&Mask_fsp_oam2_x_pos;
+        uint16_t xx_fsp=((uint16_t)(xx_pos+ii-viewport.x_origin+fsp.offset_x))%(full_tile_size*layer_tile_number_x);
+        if ( xx_fsp > (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x) ) continue;//discriminar los pixeles visibles
         uint8_t twopixdata=fsp.tile[fsp.oam[current_sprite]
                                      &Mask_fsp_oam_index]
                               .two_pixel_color_index
@@ -476,13 +477,14 @@ static void render_frame(void)
         else {
         twopixdata=twopixdata&0x0F;
         }
+        if (twopixdata==0) continue;
         line[xx_fsp] = fsp.palettes[0]
                           .colors[twopixdata];
       }
     }
   }
-
   video_cb(buf, viewport.width, viewport.height, stride << 1);
+fprintf(stdout,"out\n");
 }
 
 
