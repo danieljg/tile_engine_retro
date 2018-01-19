@@ -30,7 +30,7 @@ static uint8_t animation_frame_counter=0;
 static uint8_t scroll_has_updated_bgtm=0;
 static uint16_t bg_scroll_per_step=1;
 static uint16_t bg_scroll_wait_frames=1<<1;
-static uint16_t animation_wait_frames=10;
+static uint16_t animation_wait_frames=16;
 // contador de scroll
 uint16_t scrolling_tilemap_index=0;
 
@@ -336,6 +336,21 @@ static void render_frame(void)
 
   if(animation_frame_counter==0){
   bg.tilemaps[0].tile_index[12]=(bg.tilemaps[0].tile_index[12]+1)%6;
+  ///*
+    if(bg.tilemaps[0].tile_index[15]>13) {
+      bg.tilemaps[0].tile_index[15]=8;
+    }
+    else {
+      bg.tilemaps[0].tile_index[15]++;
+    }//*/
+  ////*
+    if(bg.tilemaps[0].tile_index[18]>18) {
+      bg.tilemaps[0].tile_index[18]=17;
+    }
+    else {
+      bg.tilemaps[0].tile_index[18]++;
+    }
+  //*/
   fsp.oam[0]=(fsp.oam[0]&(~Mask_fsp_oam_index))|(((fsp.oam[0]&Mask_fsp_oam_index)+1)%6);
   fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_x_pos))|(((fsp.oam2[0]&Mask_fsp_oam2_x_pos)+1)%(layer_tile_number_x*full_tile_size));
   }
@@ -423,6 +438,9 @@ static void render_frame(void)
       }
     }
   }
+
+  //Render half-sprites
+
   video_cb(buf, viewport.width, viewport.height, stride << 1);
 }
 
