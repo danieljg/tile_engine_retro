@@ -418,3 +418,12 @@ void read_gfx_data(int gfxhandler, int gfxtype) {
   fprintf(stdout,"----- Tile Data Ends -----\n\n");
   fprintf(stdout,"*** The End ***\n\n");
 }
+
+/* Console data print functions
+*/
+void print_pixel_4(uint8_t value) {
+  if (value==0) fprintf(stdout, " ");
+  if (value==1) fprintf(stdout, "x");
+  if (value==2) fprintf(stdout, "\\");
+  if (value==3) fprintf(stdout, "X");
+}

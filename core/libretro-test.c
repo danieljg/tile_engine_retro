@@ -34,13 +34,6 @@ static uint16_t animation_wait_frames=16;
 // contador de scroll
 uint16_t scrolling_tilemap_index=0;
 
-void print_pixel_4(uint8_t value) {
-  if (value==0) fprintf(stdout, " ");
-  if (value==1) fprintf(stdout, "x");
-  if (value==2) fprintf(stdout, "\\");
-  if (value==3) fprintf(stdout, "X");
-}
-
 //comment the following line to get nice pixel art in the debug console
 #define NUMERIC_DEBUG_OUTPUT
 
