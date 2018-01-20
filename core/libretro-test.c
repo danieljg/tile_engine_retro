@@ -182,7 +182,19 @@ static void update_input(void)
    input_poll_cb();
    if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
    {
-      /* stub */
+      fprintf(stdout, "\tUP\n");
+   }
+   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
+   {
+      fprintf(stdout, "\tDOWN\n");
+   }
+   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
+   {
+      fprintf(stdout, "\tLEFT\n");
+   }
+   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
+   {
+      fprintf(stdout, "\tRIGHT\n");
    }
 }
 
