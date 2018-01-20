@@ -38,20 +38,20 @@ uint16_t scrolling_tilemap_index=0;
 #define NUMERIC_DEBUG_OUTPUT
 
 void print_pixel_8(uint8_t value) {
-#ifdef NUMERIC_DEBUG_OUTPUT
-  if      (value==0) fprintf(stdout, " ");
-  else               fprintf(stdout, "%u",value);
-#else
-  if      (value==0) fprintf(stdout, " ");
-  else if (value==1) fprintf(stdout, ".");
-  else if (value==2) fprintf(stdout, "x");
-  else if (value==3) fprintf(stdout, "*");
-  else if (value==4) fprintf(stdout, "+");
-  else if (value==5) fprintf(stdout, "o");
-  else if (value==6) fprintf(stdout, "^");
-  else if (value==7) fprintf(stdout, "v");
-  else               fprintf(stdout, "~%u~",value);
-#endif
+  #ifdef NUMERIC_DEBUG_OUTPUT
+    if      (value==0) fprintf(stdout, " ");
+    else               fprintf(stdout, "%u",value);
+  #else
+    if      (value==0) fprintf(stdout, " ");
+    else if (value==1) fprintf(stdout, ".");
+    else if (value==2) fprintf(stdout, "x");
+    else if (value==3) fprintf(stdout, "*");
+    else if (value==4) fprintf(stdout, "+");
+    else if (value==5) fprintf(stdout, "o");
+    else if (value==6) fprintf(stdout, "^");
+    else if (value==7) fprintf(stdout, "v");
+    else               fprintf(stdout, "~%u~",value);
+  #endif
 }
 
 void retro_init(void)

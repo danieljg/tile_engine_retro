@@ -307,6 +307,8 @@ void draw_line(uint16_t *viewport_buff, int16_t x1, int16_t y1, int16_t x2, int1
  draw_point(viewport_buff, x2, y2, color);
 }
 
+/* Reads graphics data from a gfx file.
+*/
 void read_gfx_data(int gfxhandler, int gfxtype) {
   uint8_t buff[4];
   uint8_t palette_size, palette_qty, colors_per_pal;
