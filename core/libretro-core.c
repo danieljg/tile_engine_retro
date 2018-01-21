@@ -176,18 +176,22 @@ static void update_input(void)
    if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
    {
       fprintf(stdout, "\tUP\n");
+      viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
    }
    if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
    {
       fprintf(stdout, "\tDOWN\n");
+      viewport.y_origin=(viewport.y_origin+bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
    }
    if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
    {
       fprintf(stdout, "\tLEFT\n");
+      viewport.x_origin=(viewport.x_origin-bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
    }
    if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
    {
       fprintf(stdout, "\tRIGHT\n");
+      viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
    }
 }
 
@@ -223,7 +227,7 @@ static void render_frame(void)
   animation_frame_counter=frame_counter%animation_wait_frames;
 
   if(scroll_frame_counter==0){
-    viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
+    //viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
     //viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
   }
 
