@@ -61,7 +61,7 @@ void retro_init(void)
   initialize_viewport();
   initialize_hlf_sprt_palettes();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
-  int filehandler = open("panels_16x16_tilesheet.gfx",O_RDONLY);
+  int filehandler = open("space_16x16_tilesheet.gfx",O_RDONLY);
   read_gfx_data(filehandler, 0);
   close(filehandler);
   filehandler = open("sr388_invader.gfx",O_RDONLY);//Remember to close
@@ -271,7 +271,7 @@ static void render_frame(void)
                                     %layer_tile_number_x ]
                                   =scrolling_tilemap_index;
         //scrolling_tilemap_index=(scrolling_tilemap_index+7)%300;
-        scrolling_tilemap_index=(scrolling_tilemap_index+1)%32;
+        scrolling_tilemap_index=(scrolling_tilemap_index+1)%300;
         //TODO: do something with the palette of the newly added tiles... it seems a bit periodic, obviously
       }
       scroll_has_updated_bgtm=1;
