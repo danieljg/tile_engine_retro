@@ -172,27 +172,51 @@ void retro_reset(void)
 
 static void update_input(void)
 {
-   input_poll_cb();
-   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
-   {
-      fprintf(stdout, "\tUP\n");
-      viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
-   }
-   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
-   {
-      fprintf(stdout, "\tDOWN\n");
-      viewport.y_origin=(viewport.y_origin+bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
-   }
-   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
-   {
-      fprintf(stdout, "\tLEFT\n");
-      viewport.x_origin=(viewport.x_origin-bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
-   }
-   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
-   {
-      fprintf(stdout, "\tRIGHT\n");
-      viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
-   }
+  input_poll_cb();
+  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
+  {
+    fprintf(stdout, "UP\t");
+    viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
+  }
+  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
+  {
+    fprintf(stdout, "DOWN\t");
+    viewport.y_origin=(viewport.y_origin+bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
+  }
+  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
+  {
+    fprintf(stdout, "LEFT\t");
+    viewport.x_origin=(viewport.x_origin-bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
+  }
+  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
+  {
+    fprintf(stdout, "RIGHT\t");
+    viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
+  }
+  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
+  {
+    fprintf(stdout, "A\t");
+  }
+  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B))
+  {
+    fprintf(stdout, "B\t");
+  }
+  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X))
+  {
+    fprintf(stdout, "X\t");
+  }
+  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y))
+  {
+    fprintf(stdout, "Y\t");
+  }
+  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT))
+  {
+    fprintf(stdout, "SELECT\t");
+  }
+  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START))
+  {
+    fprintf(stdout, "START\t");
+  }
 }
 
 /* Dibuja una frame del juego
