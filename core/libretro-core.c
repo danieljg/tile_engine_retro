@@ -176,12 +176,16 @@ static void update_input(void)
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
   {
     //fprintf(stdout, "UP\t");
-    viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
+    //viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
+    fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_y_pos))
+                |(((((fsp.oam2[0]&Mask_fsp_oam2_y_pos)>>16)+1)%(layer_tile_number_y*full_tile_size))<<16);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
   {
     //fprintf(stdout, "DOWN\t");
-    viewport.y_origin=(viewport.y_origin+bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
+    //viewport.y_origin=(viewport.y_origin+bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
+    fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_y_pos))
+                |(((((fsp.oam2[0]&Mask_fsp_oam2_y_pos)>>16)-1)%(layer_tile_number_y*full_tile_size))<<16);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
   {
