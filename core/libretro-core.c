@@ -170,34 +170,30 @@ void retro_reset(void)
    y_coord = 0;
 }
 
+static void move_sprite(int8_t vel_x, int8_t vel_y) {
+  fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_y_pos))|(((((fsp.oam2[0]&Mask_fsp_oam2_y_pos)>>16)+vel_y)%(layer_tile_number_y*full_tile_size))<<16);
+  fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_x_pos))|(((fsp.oam2[0]&Mask_fsp_oam2_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
+}
+
 static void update_input(void)
 {
   input_poll_cb();
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
   {
-    //fprintf(stdout, "UP\t");
-    //viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
-    fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_y_pos))
-                |(((((fsp.oam2[0]&Mask_fsp_oam2_y_pos)>>16)-1)%(layer_tile_number_y*full_tile_size))<<16);
+    move_sprite(0, -1);
+
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
   {
-    //fprintf(stdout, "DOWN\t");
-    //viewport.y_origin=(viewport.y_origin+bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
-    fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_y_pos))
-                |(((((fsp.oam2[0]&Mask_fsp_oam2_y_pos)>>16)+1)%(layer_tile_number_y*full_tile_size))<<16);
+    move_sprite(0, 1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
   {
-    //fprintf(stdout, "LEFT\t");
-    //viewport.x_origin=(viewport.x_origin-bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
-    fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_x_pos))|(((fsp.oam2[0]&Mask_fsp_oam2_x_pos)-1)%(layer_tile_number_x*full_tile_size));
+    move_sprite(-1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
   {
-    //fprintf(stdout, "RIGHT\t");
-    //viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
-    fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_x_pos))|(((fsp.oam2[0]&Mask_fsp_oam2_x_pos)+1)%(layer_tile_number_x*full_tile_size));
+    move_sprite(1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
   {
