@@ -208,7 +208,6 @@ static void update_input(void)
   {
     //fprintf(stdout, "B\t");
     viewport.y_origin=(viewport.y_origin+bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
-    fprintf(stdout, "X\t");
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X))
   {
