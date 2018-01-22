@@ -251,6 +251,12 @@ static void update_input(void)
   }
 }
 
+/* Actualiza las mecánicas del juego.
+*/
+static void update_game() {
+
+}
+
 /* Dibuja una frame del juego
 */
 static void render_frame(void)
@@ -410,6 +416,7 @@ static void audio_callback(void)
 void retro_run(void)
 {
    update_input();
+   update_game();
    render_frame();
    audio_callback();
 
