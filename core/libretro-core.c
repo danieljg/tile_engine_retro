@@ -171,9 +171,9 @@ void retro_reset(void)
    y_coord = 0;
 }
 
-static void move_sprite(int8_t vel_x, int8_t vel_y) {
-  fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_y_pos))|(((((fsp.oam2[0]&Mask_fsp_oam2_y_pos)>>16)+vel_y)%(layer_tile_number_y*full_tile_size))<<16);
-  fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_x_pos))|(((fsp.oam2[0]&Mask_fsp_oam2_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
+static void move_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
+  fsp.oam2[sp_id]=(fsp.oam2[sp_id]&(~Mask_fsp_oam2_y_pos))|(((((fsp.oam2[sp_id]&Mask_fsp_oam2_y_pos)>>16)+vel_y)%(layer_tile_number_y*full_tile_size))<<16);
+  fsp.oam2[sp_id]=(fsp.oam2[sp_id]&(~Mask_fsp_oam2_x_pos))|(((fsp.oam2[sp_id]&Mask_fsp_oam2_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
 }
 
 static void move_background(int8_t vel_x, int8_t vel_y) {
@@ -186,20 +186,19 @@ static void update_input(void)
   input_poll_cb();
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
   {
-    move_sprite(0, -1);
-
+    move_sprite(0, 0, -1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
   {
-    move_sprite(0, 1);
+    move_sprite(0, 0, 1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
   {
-    move_sprite(-1, 0);
+    move_sprite(0, -1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
   {
-    move_sprite(1, 0);
+    move_sprite(0, 1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
   {
@@ -219,27 +218,33 @@ static void update_input(void)
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L))
   {
-    fprintf(stdout, "L\t");
+    //fprintf(stdout, "L\t");
+    move_sprite(1, -1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R))
   {
-    fprintf(stdout, "R\t");
+    //fprintf(stdout, "R\t");
+    move_sprite(1, 1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2))
   {
-    fprintf(stdout, "L2\t");
+    //fprintf(stdout, "L2\t");
+    move_sprite(3, 0, -1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2))
   {
-    fprintf(stdout, "R2\t");
+    //fprintf(stdout, "R2\t");
+    move_sprite(3, 0, 1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3))
   {
-    fprintf(stdout, "L3\t");
+    //fprintf(stdout, "L3\t");
+    move_sprite(2, -1, -1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3))
   {
-    fprintf(stdout, "R3\t");
+    //fprintf(stdout, "R3\t");
+    move_sprite(2, 1, 1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT))
   {
