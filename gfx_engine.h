@@ -252,6 +252,12 @@ typedef struct {
 
 hsp_struct hsp;
 
+void add_half_sprite(uint16_t sp_index, uint16_t x_pos, uint16_t y_pos) {
+  hsp.oam[hsp.active_number] = 0x0000 | sp_index;
+  hsp.oam2[hsp.active_number] = x_pos|(y_pos<<16);
+  hsp.active_number++;
+}
+
 void initialize_half_sprites()
 {
  for(uint8_t ii=0;ii<hsp_palette_number;ii++)
@@ -263,9 +269,10 @@ void initialize_half_sprites()
  }
  hsp.offset_x=0;
  hsp.offset_y=0;
- hsp.active_number=1;
- hsp.oam2[0]=0x00000000;
- hsp.oam[0]=0x0000;
+ hsp.active_number=0;
+ add_half_sprite(1,0,0);
+ add_half_sprite(2,8,0);
+ add_half_sprite(4,16,0);
 }
 
 /* Dibuja un punto directamente en el buffer de video
