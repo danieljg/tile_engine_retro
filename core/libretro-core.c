@@ -260,6 +260,27 @@ static void update_input(void)
 */
 static void update_game() {
 
+
+  /* This block de code turns the green bot to yellow or red if gets too close to the metroid.
+  */
+  #define METROID_ID 0
+  #define GREENBOT_ID 1
+  int16_t m_x = fsp.oam2[METROID_ID]&Mask_fsp_oam2_x_pos;
+  int16_t m_y = (fsp.oam2[METROID_ID]&Mask_fsp_oam2_y_pos)>>16;
+  int16_t g_x = fsp.oam2[GREENBOT_ID]&Mask_fsp_oam2_x_pos;
+  int16_t g_y = (fsp.oam2[GREENBOT_ID]&Mask_fsp_oam2_y_pos)>>16;
+  int16_t d_x = m_x - g_x;
+  int16_t d_y = m_y - g_y;
+  if ((d_x * d_x + d_y * d_y) > 8100) {
+    fsp.oam[GREENBOT_ID]=(fsp.oam[GREENBOT_ID]&(~Mask_fsp_oam_index))|0x7;
+  }
+  else if ((d_x * d_x + d_y * d_y) > 1600) {
+    fsp.oam[GREENBOT_ID]=(fsp.oam[GREENBOT_ID]&(~Mask_fsp_oam_index))|0x8;
+  }
+  else {
+    fsp.oam[GREENBOT_ID]=(fsp.oam[GREENBOT_ID]&(~Mask_fsp_oam_index))|0x9;
+  }
+
 }
 
 /* Dibuja una frame del juego
