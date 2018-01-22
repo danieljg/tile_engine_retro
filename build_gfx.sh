@@ -4,8 +4,8 @@ gcc -o bmptogfx bmp_to_gfx.c qdbmp.c -lm
 mv output.gfx core/font_numbers_8x8.gfx
 ./bmptogfx bg_stars.bmp output.gfx 16
 mv output.gfx core/bg_stars.gfx
-./bmptogfx sr388_invader.bmp output.gfx 16
-mv output.gfx core/sr388_invader.gfx
+./bmptogfx fsp.bmp output.gfx 16
+mv output.gfx core/fsp.gfx
 ./bmptogfx panels_16x16_tilesheet.bmp output.gfx 16
 mv output.gfx core/panels_16x16_tilesheet.gfx
 ./bmptogfx space_16x16_tilesheet.bmp output.gfx 16
