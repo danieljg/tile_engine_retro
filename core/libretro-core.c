@@ -64,7 +64,8 @@ void retro_init(void)
   int filehandler = open("space_16x16_tilesheet.gfx",O_RDONLY);
   read_gfx_data(filehandler, 0);
   close(filehandler);
-  filehandler = open("sr388_invader.gfx",O_RDONLY);//Remember to close
+  //filehandler = open("sr388_invader.gfx",O_RDONLY);//Remember to close
+  filehandler = open("fsp.gfx",O_RDONLY);//Remember to close
   read_gfx_data(filehandler, 2);
   close(filehandler);
   //filehandler = open("font_numbers_8x8.gfx",O_RDONLY);
