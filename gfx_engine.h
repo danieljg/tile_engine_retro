@@ -117,7 +117,6 @@ void initialize_bg()
   }
 }
 
-
 void initialize_bg_palettes()
 {
  for(uint8_t ii=0;ii<bg_palettes_per_set;ii++)
@@ -272,6 +271,13 @@ void add_half_sprite(uint16_t sp_index, uint16_t x_pos, uint16_t y_pos) {
   hsp.oam[hsp.active_number] = 0x0000 | sp_index;
   hsp.oam2[hsp.active_number] = x_pos|(y_pos<<16);
   hsp.active_number++;
+}
+
+static void move_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
+  fsp.oam2[sp_id]=(fsp.oam2[sp_id]&(~Mask_fsp_oam2_y_pos))|(((((fsp.oam2[sp_id]&Mask_fsp_oam2_y_pos)>>16)+vel_y)%(layer_tile_number_y*full_tile_size))<<16); 
+  fsp.oam2[sp_id]=(fsp.oam2[sp_id]&(~Mask_fsp_oam2_x_pos))|(((fsp.oam2[sp_id]&Mask_fsp_oam2_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
+
+
 }
 
 void initialize_half_sprites()
