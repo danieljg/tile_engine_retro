@@ -59,7 +59,7 @@ void retro_init(void)
   initialize_bg();
   initialize_full_sprites();
   initialize_viewport();
-  initialize_hlf_sprt_palettes();
+  initialize_half_sprites();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
   int filehandler = open("space_16x16_tilesheet.gfx",O_RDONLY);
   read_gfx_data(filehandler, 0);
