@@ -183,6 +183,12 @@ typedef struct {
 
 fsp_struct fsp;
 
+void add_full_sprite(uint16_t sp_index, uint16_t x_pos, uint16_t y_pos) {
+  fsp.oam[fsp.active_number] = 0x0000 | sp_index;
+  fsp.oam2[fsp.active_number] = x_pos|(y_pos<<16);
+  fsp.active_number++;
+}
+
 void initialize_full_sprites()
 {
  for(uint8_t ii=0;ii<fsp_palette_number;ii++)
@@ -194,18 +200,14 @@ void initialize_full_sprites()
  }
  fsp.offset_x=0;
  fsp.offset_y=0;
- fsp.active_number=4;
- fsp.oam2[0]=0x00800000|0x00000080;//wtf is this sorcery...
- fsp.oam[0]=0x0000;
- fsp.oam2[1]=0x00200000|0x00000020;
- fsp.oam[1]=0x0007;
- fsp.oam2[2]=0x00200000|0x00000030;
- fsp.oam[2]=0x0008;
- fsp.oam2[3]=0x00200000|0x00000040;
- fsp.oam[3]=0x0009;
-
+ fsp.active_number=0;
+ add_full_sprite(0,128,128);
+ //fsp.oam2[0]=0x00800000|0x00000080;//wtf is this sorcery...
+ //fsp.oam[0]=0x0000;
+ add_full_sprite(7,32,32);
+ add_full_sprite(8,48,32);
+ add_full_sprite(9,64,32);
 }
-
 
 #define hsp_palette_number 16
 #define hsp_count 128
