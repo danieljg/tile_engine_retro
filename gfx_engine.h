@@ -380,6 +380,9 @@ void read_gfx_data(int gfxhandler, int gfxtype) {
       else if(gfxtype==2) {
         fsp.palettes[0].colors[col_i] = palette_data[col_i];
       }
+      else if(gfxtype==3) {
+        hsp.palettes[0].colors[col_i] = palette_data[col_i];
+      }
     }
   }
   fprintf(stdout,"----- Palette Data Ends -----\n\n");
@@ -395,7 +398,7 @@ void read_gfx_data(int gfxhandler, int gfxtype) {
   for (uint16_t tile_i=0; tile_i<tile_qty; tile_i++) {
     //fprintf(stdout,"\nTile: %d:\n", tile_i);
     for (uint8_t line_i=0; line_i<tile_size; line_i++) {
-      fprintf(stdout,"\t");
+      //fprintf(stdout,"\t");
       for (uint16_t byte_i=0; byte_i < line_bytesize; byte_i++) {
         read(filehandler, buff, 1);
         /* El siguiente bloque de código imprime los numeros si el tamaño de paleta es igual a 2 (creado para funcionar con el tileset de ejemplo).
@@ -403,10 +406,12 @@ void read_gfx_data(int gfxhandler, int gfxtype) {
         if (palette_size==2) {
           uint8_t pixbuffer;
           pixbuffer = buff[0];
+          /*
           print_pixel_4((pixbuffer>>6)&3);
           print_pixel_4((pixbuffer>>4)&3);
           print_pixel_4((pixbuffer>>2)&3);
           print_pixel_4(pixbuffer&3);
+          //*/
           uint8_t palettebuffer=0x00;
           palettebuffer=(pixbuffer>>6)&0x03;
           palettebuffer=(palettebuffer<<4)|((pixbuffer>>4)&0x03);
@@ -415,8 +420,10 @@ void read_gfx_data(int gfxhandler, int gfxtype) {
           palettebuffer=0x00;
           palettebuffer=(pixbuffer>>2)&0x03;
           palettebuffer=(palettebuffer<<4)|(pixbuffer&0x03);
+          if(gfxtype==3) {
           hsp.tile[tile_i].two_pixel_color_index
             [ (byte_i<<1) + ((line_i*line_bytesize<<1)+1)]=palettebuffer;
+          }
         }
         else if (palette_size==4) {
           uint8_t pixbuffer;

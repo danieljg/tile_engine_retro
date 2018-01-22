@@ -68,8 +68,9 @@ void retro_init(void)
   filehandler = open("fsp.gfx",O_RDONLY);//Remember to close
   read_gfx_data(filehandler, 2);
   close(filehandler);
-  //filehandler = open("font_numbers_8x8.gfx",O_RDONLY);
-  //read_gfx_data(filehandler);
+  filehandler = open("font_numbers_8x8.gfx",O_RDONLY);
+  read_gfx_data(filehandler,3);
+  close(filehandler);
 }
 
 void retro_deinit(void)
@@ -428,6 +429,34 @@ static void render_frame(void)
   }
 
   //Render half-sprites
+  for(uint16_t sprite_counter = hsp.active_number ;
+               sprite_counter > 0 ; sprite_counter --) {
+    uint16_t current_sprite=sprite_counter-1;
+    if(hsp.oam2[current_sprite]>=Mask_hsp_oam2_disable) continue;//skips disabled sprites
+    for (uint8_t jj=0; jj<half_tile_size; jj++) {
+      uint16_t yy_pos=(hsp.oam2[current_sprite]&Mask_hsp_oam2_y_pos)>>16;
+      uint16_t yy_hsp=((uint16_t)(yy_pos+jj-viewport.y_origin+hsp.offset_y))%(half_tile_size*layer_tile_number_y);
+      if ( yy_hsp >= (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y)) continue;//discriminar los renglones_visibles
+      line=buf+yy_hsp*stride;
+      for (uint8_t ii=0;ii<half_tile_size;ii++) {//itera sobre pixeles
+        uint16_t xx_pos = hsp.oam2[current_sprite]&Mask_hsp_oam2_x_pos;
+        uint16_t xx_hsp = ((uint16_t)(xx_pos+ii-viewport.x_origin+hsp.offset_x))%(full_tile_size*layer_tile_number_x);
+        if ( xx_hsp >= (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x) ) continue;//discriminar los pixeles visibles
+        uint8_t twopixdata=hsp.tile[hsp.oam[current_sprite]
+                                     &Mask_hsp_oam_index]
+                              .two_pixel_color_index
+                               [(jj*half_tile_size+ii)>>1];
+        if (ii%2==0) {
+        twopixdata=(twopixdata>>4)&Mask_half_sprite_index_1;
+        }
+        else {
+        twopixdata=twopixdata&Mask_half_sprite_index_1;
+        }
+        if (twopixdata==0) continue;
+        line[xx_hsp] = hsp.palettes[0].colors[twopixdata];
+      }
+    }
+  }
 
   video_cb(buf, viewport.width, viewport.height, stride << 1);
 }
