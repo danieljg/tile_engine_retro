@@ -183,6 +183,14 @@ typedef struct {
 
 fsp_struct fsp;
 
+/* ADD FULL SPRITE
+
+Esta función recibe 3 argumentos:
+- index: indice del sprite a utilizar
+- x_pos, y_pos: coordenadas del sprite
+
+El sprite es creado en el primer espacio disponible en la estructura de sprites. El contador de sprites es incrementado en 1
+*/
 void add_full_sprite(uint16_t sp_index, uint16_t x_pos, uint16_t y_pos) {
   fsp.oam[fsp.active_number] = 0x0000 | sp_index;
   fsp.oam2[fsp.active_number] = x_pos|(y_pos<<16);
@@ -252,6 +260,14 @@ typedef struct {
 
 hsp_struct hsp;
 
+/* ADD HALF SPRITE
+
+Esta función recibe 3 argumentos:
+- index: indice del sprite a utilizar
+- x_pos, y_pos: coordenadas del sprite
+
+El sprite es creado en el primer espacio disponible en la estructura de sprites. El contador de sprites es incrementado en 1
+*/
 void add_half_sprite(uint16_t sp_index, uint16_t x_pos, uint16_t y_pos) {
   hsp.oam[hsp.active_number] = 0x0000 | sp_index;
   hsp.oam2[hsp.active_number] = x_pos|(y_pos<<16);
@@ -270,9 +286,10 @@ void initialize_half_sprites()
  hsp.offset_x=0;
  hsp.offset_y=0;
  hsp.active_number=0;
- add_half_sprite(1,0,0);
- add_half_sprite(2,8,0);
- add_half_sprite(4,16,0);
+ add_half_sprite(1,0,232);
+ add_half_sprite(2,8,232);
+ add_half_sprite(4,16,232);
+ add_half_sprite(8,24,232);
 }
 
 /* Dibuja un punto directamente en el buffer de video
