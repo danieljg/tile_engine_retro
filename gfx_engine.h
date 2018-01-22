@@ -193,9 +193,16 @@ void initialize_full_sprites()
  }
  fsp.offset_x=0;
  fsp.offset_y=0;
- fsp.active_number=1;
+ fsp.active_number=4;
  fsp.oam2[0]=0x00800000|0x00000080;
  fsp.oam[0]=0x0000;
+ fsp.oam2[1]=0x00200000|0x00000020;
+ fsp.oam[1]=0x0007;
+ fsp.oam2[2]=0x00200000|0x00000030;
+ fsp.oam[2]=0x0008;
+ fsp.oam2[3]=0x00200000|0x00000040;
+ fsp.oam[3]=0x0009;
+
 }
 
 
