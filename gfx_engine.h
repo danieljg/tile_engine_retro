@@ -283,7 +283,7 @@ void draw_text(char label[], int16_t x_pos, int16_t y_pos) {
   int8_t len = strlen(label);
   for (uint8_t i = 0; i < len; i++) {
     x_tile = x_pos + i * 8;
-    add_half_sprite(label[i], x_tile, y_pos);
+    if (label[i] != 32) add_half_sprite(label[i], x_tile, y_pos);
   }
 }
 
@@ -302,7 +302,7 @@ void initialize_half_sprites()
   draw_text("in ASCII format! :D", 8, 184);
   draw_text("Bwa ha ha ha ha!!! (@_@) 1+2=4", 8, 200);
   draw_text("/tile_engine_retro$ sudo apt-get install", 8, 216);
-  draw_text("Nice!", 8, 122 );
+  draw_text("Nice! #$%&*", 8, 122 );
 }
 
 /* Dibuja un punto directamente en el buffer de video
