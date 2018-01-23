@@ -274,28 +274,34 @@ void add_half_sprite(uint16_t sp_index, uint16_t x_pos, uint16_t y_pos) {
 }
 
 static void move_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
-  fsp.oam2[sp_id]=(fsp.oam2[sp_id]&(~Mask_fsp_oam2_y_pos))|(((((fsp.oam2[sp_id]&Mask_fsp_oam2_y_pos)>>16)+vel_y)%(layer_tile_number_y*full_tile_size))<<16); 
+  fsp.oam2[sp_id]=(fsp.oam2[sp_id]&(~Mask_fsp_oam2_y_pos))|(((((fsp.oam2[sp_id]&Mask_fsp_oam2_y_pos)>>16)+vel_y)%(layer_tile_number_y*full_tile_size))<<16);
   fsp.oam2[sp_id]=(fsp.oam2[sp_id]&(~Mask_fsp_oam2_x_pos))|(((fsp.oam2[sp_id]&Mask_fsp_oam2_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
+}
 
-
+void draw_text(char label[], int16_t x_pos, int16_t y_pos) {
+  int16_t x_tile;
+  int8_t len = strlen(label);
+  for (uint8_t i = 0; i < len; i++) {
+    x_tile = x_pos + i * 8;
+    add_half_sprite(label[i], x_tile, y_pos);
+  }
 }
 
 void initialize_half_sprites()
 {
- for(uint8_t ii=0;ii<hsp_palette_number;ii++)
- {
-  for(uint8_t jj=0;jj<hsp_palette_color_count;jj++)
+  for(uint8_t ii=0;ii<hsp_palette_number;ii++)
   {
-   hsp.palettes[ii].colors[jj]=null_color;
+    for(uint8_t jj=0;jj<hsp_palette_color_count;jj++) {
+      hsp.palettes[ii].colors[jj]=null_color;
+    }
   }
- }
- hsp.offset_x=0;
- hsp.offset_y=0;
- hsp.active_number=0;
- add_half_sprite(1,0,232);
- add_half_sprite(2,8,232);
- add_half_sprite(4,16,232);
- add_half_sprite(8,24,232);
+  hsp.offset_x=0;
+  hsp.offset_y=0;
+  hsp.active_number=0;
+  draw_text("The font sprites are now indexed in", 8, 168);
+  draw_text("ASCII! :D", 8, 184);
+  draw_text("Ja ja ja ja!!! (@_@) 1+2=4", 8, 200);
+  draw_text("c:\> format C: /q/u", 8, 216);
 }
 
 /* Dibuja un punto directamente en el buffer de video
