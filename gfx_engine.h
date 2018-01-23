@@ -302,6 +302,7 @@ void initialize_half_sprites()
   draw_text("in ASCII format! :D", 8, 184);
   draw_text("Bwa ha ha ha ha!!! (@_@) 1+2=4", 8, 200);
   draw_text("/tile_engine_retro$ sudo apt-get install", 8, 216);
+  draw_text("Nice!", 8, 122 );
 }
 
 /* Dibuja un punto directamente en el buffer de video
