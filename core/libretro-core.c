@@ -290,6 +290,7 @@ static void render_frame(void)
   uint16_t *line   = buf;
 
   //inicializando la linea de tiles a la derecha del viewport para scroll
+  /*
   if ( ((viewport.x_origin-bg.offset_x[0])%full_tile_size==0) ) {
     if (scroll_has_updated_bgtm==0) {
       for(uint8_t jj=0; jj<vp_tile_number_y; jj++) {
@@ -307,6 +308,7 @@ static void render_frame(void)
   else {
     scroll_has_updated_bgtm=0;
   }
+  //*/
 
   frame_counter++;
   scroll_frame_counter=frame_counter%bg_scroll_wait_frames;
@@ -429,7 +431,7 @@ static void render_frame(void)
     if(hsp.oam2[current_sprite]>=Mask_hsp_oam2_disable) continue;//skips disabled sprites
     for (uint8_t jj=0; jj<half_tile_size; jj++) {
       uint16_t yy_pos=(hsp.oam2[current_sprite]&Mask_hsp_oam2_y_pos)>>16;
-      uint16_t yy_hsp=((uint16_t)(yy_pos+jj-viewport.y_origin+hsp.offset_y))%(half_tile_size*layer_tile_number_y);
+      uint16_t yy_hsp=((uint16_t)(yy_pos+jj-viewport.y_origin+hsp.offset_y))%(full_tile_size*layer_tile_number_y);
       if ( yy_hsp >= (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y)) continue;//discriminar los renglones_visibles
       line=buf+yy_hsp*stride;
       for (uint8_t ii=0;ii<half_tile_size;ii++) {//itera sobre pixeles
