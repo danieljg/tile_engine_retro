@@ -257,6 +257,24 @@ static void update_input(void)
   }
 }
 
+
+/*Actualiza los primeros 8 HALF SPRITES (0 - 7) con las coordenadas del Metroid */
+void update_coords(uint8_t x, uint8_t y) {
+  #define ASCII0 48
+  char digits[8];
+  digits[3] = ASCII0 + x%10; x=x/10;
+  digits[2] = ASCII0 + x%10; x=x/10;
+  digits[1] = ASCII0 + x%10; x=x/10;
+  digits[0] = ASCII0 + x;
+
+  digits[7] = ASCII0 + y%10; y=y/10;
+  digits[6] = ASCII0 + y%10; y=y/10;
+  digits[5] = ASCII0 + y%10; y=y/10;
+  digits[4] = ASCII0 + y;
+  for (uint8_t i=0; i<8; i++) {
+    hsp.oam[i]=(hsp.oam[i]&(~Mask_hsp_oam_index))|digits[i];
+  }
+}
 /* Actualiza las mecánicas del juego.
 */
 static void update_game() {
@@ -285,6 +303,7 @@ static void update_game() {
       fsp.oam[bot_id]=(fsp.oam[bot_id]&(~Mask_fsp_oam_index))|0x9;
     }
   }
+  update_coords(met_x, met_y);
 }
 
 /* Dibuja una frame del juego
