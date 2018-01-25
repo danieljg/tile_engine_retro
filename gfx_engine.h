@@ -374,23 +374,43 @@ void print_pixel_4(uint8_t value) {
 
 /* Reads graphics data from a gfx file.
 */
-void read_gfx_data(int gfxhandler, int gfxtype) {
+void read_gfx_data(FILE* file, int gfxtype) {
+  uint8_t* filebuf;
   uint8_t buff[4];
   uint8_t palette_size, palette_qty, colors_per_pal;
   uint8_t tile_size;
   uint16_t tile_qty, line_bytesize=0;
 
-  int filehandler=gfxhandler;
+  /*
+  //go to end of file
+  fseek(file, 0, SEEK_END);
+
+  //check the size of the file
+  off_t filesize=ftell(file);
+
+  //go to start of file
+  fseek(file, 0, SEEK_SET);
+
+  //allocate buffer
+  filebuf=malloc(filesize);
+  //if(!buffer) goto exit;
+
+  off_t bytes_read = fread(filebuf,1,filesize,file);
+  //if(size!=bytes_read) goto exit;
+  //*/
+
 
   // Leyendo identificador GFX (TODO: cambiar a if(buf=="GFX\n") ...)
-  read(filehandler, buff, 4);
+  //read(filebuf, buff, 4);
+  fread(buff,1,4,file);
   fprintf(stdout,"\n%c",buff[0]);
   fprintf(stdout,"%c",buff[1]);
   fprintf(stdout,"%c",buff[2]);
   fprintf(stdout,"%c",buff[3]);
 
   // Leyendo información del encabezado de la paleta.
-  read(filehandler, buff, 2);
+  //read(filebuf, buff, 2);
+  fread(buff,1,2,file);
   palette_size = buff[0];
   palette_qty = buff[1];
   colors_per_pal = 1 << palette_size; // 2 ^ palette_size
@@ -403,7 +423,8 @@ void read_gfx_data(int gfxhandler, int gfxtype) {
     fprintf(stdout,"Paleta %d:\n", pal_i);
     for (uint8_t col_i=0; col_i<colors_per_pal; col_i++) { // este ciclo itera sobre los colores
       uint8_t red, green, blue;
-      read(filehandler, buff, 2);
+      //read(filebuf, buff, 2);
+      fread(buff,1,2,file);
       palette_data[col_i] = (buff[0] << 8) | buff[1];
       red = (palette_data[col_i]>>10) & 31;
       green = (palette_data[col_i]>>5) & 31;
@@ -427,7 +448,8 @@ void read_gfx_data(int gfxhandler, int gfxtype) {
   fprintf(stdout,"----- Palette Data Ends -----\n\n");
 
   // Leyendo información del encabezado de los tiles.
-  read(filehandler, buff, 3);
+  //read(filebuf, buff, 3);
+  fread(buff,1,3,file);
   tile_size = buff[0];
   tile_qty = (buff[1]<<8) | buff[2];
   fprintf(stdout,"Tile size: %d\n", tile_size);
@@ -439,7 +461,8 @@ void read_gfx_data(int gfxhandler, int gfxtype) {
     for (uint8_t line_i=0; line_i<tile_size; line_i++) {
       //fprintf(stdout,"\t");
       for (uint16_t byte_i=0; byte_i < line_bytesize; byte_i++) {
-        read(filehandler, buff, 1);
+        //read(filebuf, buff, 1);
+        fread(buff,1,1,file);
         /* El siguiente bloque de código imprime los numeros si el tamaño de paleta es igual a 2 (creado para funcionar con el tileset de ejemplo).
         */
         if (palette_size==2) {
@@ -491,4 +514,5 @@ void read_gfx_data(int gfxhandler, int gfxtype) {
   }
   fprintf(stdout,"----- Tile Data Ends -----\n\n");
   fprintf(stdout,"*** The End ***\n\n");
+  //free(filebuf);
 }

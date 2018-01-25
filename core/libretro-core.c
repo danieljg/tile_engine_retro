@@ -10,6 +10,9 @@
 #include "libretro.h"
 #include "../gfx_engine.h"
 
+#if defined(_3DS)
+#endif
+
 static uint16_t *frame_buf;
 static struct retro_log_callback logging;
 static retro_log_printf_t log_cb;
@@ -61,15 +64,18 @@ void retro_init(void)
   initialize_viewport();
   initialize_half_sprites();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
-  int filehandler = open("space_16x16_tilesheet.gfx",O_RDONLY);
-  read_gfx_data(filehandler, 0);
-  close(filehandler);
-  filehandler = open("fsp.gfx",O_RDONLY);//Remember to close
-  read_gfx_data(filehandler, 2);
-  close(filehandler);
-  filehandler = open("font_8x8.gfx",O_RDONLY);
-  read_gfx_data(filehandler,3);
-  close(filehandler);
+  FILE* file = fopen("space_16x16_tilesheet.gfx","rb");
+  read_gfx_data(file, 0);
+  fclose(file);
+  file = fopen("fsp.gfx","rb");//Remember to close
+  read_gfx_data(file, 2);
+  fclose(file);
+  file = fopen("font_8x8.gfx","rb");
+  read_gfx_data(file,3);
+  fclose(file);
+
+char cwd[1024];
+   if (getcwd(cwd, sizeof(cwd)) != NULL) fprintf(stdout, "Current working dir: %s\n", cwd);
 }
 
 void retro_deinit(void)
