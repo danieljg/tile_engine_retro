@@ -259,7 +259,7 @@ static void update_input(void)
 
 
 /*Actualiza los primeros 8 HALF SPRITES (0 - 7) con las coordenadas del Metroid */
-void update_coords(uint8_t x, uint8_t y) {
+void update_coords(uint16_t x, uint16_t y) {
   #define ASCII0 48
   char digits[8];
   digits[3] = ASCII0 + x%10; x=x/10;
