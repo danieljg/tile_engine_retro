@@ -29,11 +29,26 @@ int main( int argc, char* argv[] )
     uint16_t	width, height;
     uint16_t	x, y;
     uint8_t target_argument_index = argc-2;
-    uint8_t tilesize_argument_index = argc-1;
+    uint8_t type_argument_index = argc-1;
+    char help_msg[] = "Usage: %s <input files2> <output file> gfx_type\n\tinput file: One or more input files\n\tgfx_type: 0:Background, 1:Full_Sprites, 2:Half-Sprites\n";
 
     if ( argc < 4 )
     {
-        fprintf( stderr, "Usage: %s <input file> <output file> tile_size\n", argv[ 0 ] );
+        fprintf( stderr, help_msg, argv[ 0 ] );
+        return 0;
+    }
+    uint8_t tile_size;
+    switch (atoi(argv[type_argument_index])) {
+      case 0: //Type 0: Background Tileset
+        tile_size = 16;
+      case 1: //Type 1: Full Sprites
+        tile_size = 16;
+        break;
+      case 2: //Type 2: Half Sprites
+        tile_size = 8;
+        break;
+      default:
+        fprintf(stderr, help_msg, argv[0]);
         return 0;
     }
 
@@ -49,7 +64,6 @@ int main( int argc, char* argv[] )
     width = BMP_GetWidth( bmp );
     height = BMP_GetHeight( bmp );
 
-    uint8_t tile_size = atoi(argv[tilesize_argument_index]);
     uint16_t number_of_tiles = (width/tile_size)*(height/tile_size);
 
     uint8_t color_i=0;
