@@ -28,8 +28,10 @@ int main( int argc, char* argv[] )
     uint8_t	r, g, b;
     uint16_t	width, height;
     uint16_t	x, y;
+    uint8_t target_argument_index = argc-2;
+    uint8_t tilesize_argument_index = argc-1;
 
-    if ( argc != 4 )
+    if ( argc < 4 )
     {
         fprintf( stderr, "Usage: %s <input file> <output file> tile_size\n", argv[ 0 ] );
         return 0;
@@ -38,13 +40,16 @@ int main( int argc, char* argv[] )
     /* Read an image file */
     bmp = BMP_ReadFile( argv[ 1 ] );
     BMP_CHECK_ERROR( stderr, -1 ); /* If an error has occurred, notify and exit */
-    fprintf(stdout,"input file: %s\n",argv[1]);
+    fprintf(stdout,"input files:\n");
+    for (uint8_t i=1; i < argc-2; i++) {
+      fprintf(stdout,"\t%s\n", argv[i]);
+    }
 
     /* Get image's dimensions */
     width = BMP_GetWidth( bmp );
     height = BMP_GetHeight( bmp );
 
-    uint8_t tile_size = atoi(argv[3]);
+    uint8_t tile_size = atoi(argv[tilesize_argument_index]);
     uint16_t number_of_tiles = (width/tile_size)*(height/tile_size);
 
     uint8_t color_i=0;
@@ -56,7 +61,7 @@ int main( int argc, char* argv[] )
     }
 
     /* Open gfx file */
-    int filehandler = open(argv[2],O_RDWR|O_CREAT|O_TRUNC,
+    int filehandler = open(argv[target_argument_index],O_RDWR|O_CREAT|O_TRUNC,
                                    S_IRUSR|S_IWUSR);
     if(filehandler<0) return -1;
     /* write header */

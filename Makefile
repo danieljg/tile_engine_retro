@@ -12,10 +12,10 @@ bmptogfx: bmp_to_gfx.c qdbmp.c
 	gcc -o bmptogfx bmp_to_gfx.c qdbmp.c -lm
 
 core/font_8x8.gfx: bmptogfx font_8x8.bmp
-	./bmptogfx font_8x8.bmp core/font_8x8.gfx 8
+	./bmptogfx font_8x8.bmp font_8x8.png core/font_8x8.gfx 8
 
 core/bg_stars.gfx: bmptogfx bg_stars.bmp
-	./bmptogfx bg_stars.bmp core/bg_stars.gfx 16
+	./bmptogfx bg_stars.bmp bg_stars.png core/bg_stars.gfx 16
 
 core/fsp.gfx: bmptogfx fsp.bmp
 	./bmptogfx fsp.bmp core/fsp.gfx 16
