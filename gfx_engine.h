@@ -299,8 +299,8 @@ void initialize_half_sprites()
   hsp.offset_y=0;
   hsp.active_number=0;
 
-  for (uint8_t ii=0; ii<4; ii++) add_half_sprite('0', 16+ii*8, 64);
-  for (uint8_t ii=0; ii<4; ii++) add_half_sprite('0', 64+ii*8, 64);
+  for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 24+ii*8, 64);
+  for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 56+ii*8, 64);
 
   draw_text("  The font sprites are now indexed", 8, 168);
   draw_text("in ASCII format! :D", 8, 184);
