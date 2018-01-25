@@ -41,6 +41,7 @@ int main( int argc, char* argv[] )
     switch (atoi(argv[type_argument_index])) {
       case 0: //Type 0: Background Tileset
         tile_size = 16;
+        break;
       case 1: //Type 1: Full Sprites
         tile_size = 16;
         break;
