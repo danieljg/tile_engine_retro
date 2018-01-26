@@ -271,7 +271,8 @@ void update_coords(uint16_t x, uint16_t y) {
     y=y/10;
   }
   for (uint8_t i=0; i<6; i++) {
-    hsp.oam[i]=(hsp.oam[i]&(~Mask_hsp_oam_index))|digits[i];
+    set_half_sprite(i, digits[i]);
+    //hsp.oam[i]=(hsp.oam[i]&(~Mask_hsp_oam_index))|digits[i];
   }
 }
 /* Actualiza las mecánicas del juego.
@@ -292,15 +293,9 @@ static void update_game() {
     square_total =
       (met_x - bot_x) * (met_x - bot_x) +
       (met_y - bot_y) * (met_y - bot_y);
-    if (square_total > 8100) {
-      fsp.oam[bot_id]=(fsp.oam[bot_id]&(~Mask_fsp_oam_index))|0x7;
-    }
-    else if (square_total > 1600) {
-      fsp.oam[bot_id]=(fsp.oam[bot_id]&(~Mask_fsp_oam_index))|0x8;
-    }
-    else {
-      fsp.oam[bot_id]=(fsp.oam[bot_id]&(~Mask_fsp_oam_index))|0x9;
-    }
+    if (square_total > 8100) set_full_sprite(bot_id, 0x7); // Green bot
+    else if (square_total > 1600) set_full_sprite(bot_id, 0x8); // Yellow bot
+    else set_full_sprite(bot_id, 0x9); //Red bot
   }
   update_coords(met_x, met_y);
 }

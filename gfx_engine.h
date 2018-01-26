@@ -283,6 +283,10 @@ static void move_half_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
   hsp.oam2[sp_id]=(hsp.oam2[sp_id]&(~Mask_hsp_oam2_x_pos))|(((hsp.oam2[sp_id]&Mask_hsp_oam2_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
 }
 
+static void set_half_sprite(int16_t sp_id, int16_t sp_index) {
+  hsp.oam[sp_id] = (hsp.oam[sp_id]&(~Mask_hsp_oam_index))|sp_index;
+}
+
 void draw_text(char label[], int16_t x_pos, int16_t y_pos) {
   int16_t x_tile;
   int8_t len = strlen(label);
