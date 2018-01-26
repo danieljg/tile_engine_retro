@@ -204,18 +204,26 @@ static void update_input(void)
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
   {
     move_background(1, 0);
+    //moving hud
+    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B))
   {
     move_background(0, 1);
+    //moving hud
+    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 0, 1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X))
   {
     move_background(0, -1);
+    //moving hud
+    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 0, -1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y))
   {
     move_background(-1, 0);
+    //moving hud
+    for (uint8_t i=0; i<6; i++) move_half_sprite(i, -1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L))
   {
