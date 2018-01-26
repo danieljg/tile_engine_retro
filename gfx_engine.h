@@ -278,6 +278,10 @@ static void move_full_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
   fsp.oam2[sp_id]=(fsp.oam2[sp_id]&(~Mask_fsp_oam2_x_pos))|(((fsp.oam2[sp_id]&Mask_fsp_oam2_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
 }
 
+static void set_full_sprite(int16_t sp_id, int16_t sp_index) {
+  fsp.oam[sp_id] = (fsp.oam[sp_id]&(~Mask_fsp_oam_index))|sp_index;
+}
+
 static void move_half_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
   hsp.oam2[sp_id]=(hsp.oam2[sp_id]&(~Mask_hsp_oam2_y_pos))|(((((hsp.oam2[sp_id]&Mask_hsp_oam2_y_pos)>>16)+vel_y)%(layer_tile_number_y*full_tile_size))<<16);
   hsp.oam2[sp_id]=(hsp.oam2[sp_id]&(~Mask_hsp_oam2_x_pos))|(((hsp.oam2[sp_id]&Mask_hsp_oam2_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
