@@ -64,13 +64,13 @@ void retro_init(void)
   initialize_viewport();
   initialize_half_sprites();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
-  FILE* file = fopen("space_16x16_tilesheet.gfx","rb");
+  FILE* file = fopen("bg0.gfx","rb");
   read_gfx_data(file, 0);
   fclose(file);
   file = fopen("fsp.gfx","rb");//Remember to close
   read_gfx_data(file, 2);
   fclose(file);
-  file = fopen("font_8x8.gfx","rb");
+  file = fopen("hsp.gfx","rb");
   read_gfx_data(file,3);
   fclose(file);
 
