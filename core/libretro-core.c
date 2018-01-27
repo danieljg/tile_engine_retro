@@ -445,8 +445,8 @@ static void render_frame(void)
         twopixdata=twopixdata&0x0F;
         }
         if (twopixdata==0) continue;
-        line[xx_fsp] = fsp.palettes[0]
-                          .colors[twopixdata];
+        uint8_t pal_id=(fsp.oam[current_sprite]&Mask_fsp_oam_palette)>>10;
+        line[xx_fsp] = fsp.palettes[pal_id].colors[twopixdata];
       }
     }
   }
@@ -476,7 +476,8 @@ static void render_frame(void)
         twopixdata=twopixdata&Mask_half_sprite_index_1;
         }
         if (twopixdata==0) continue;
-        line[xx_hsp] = hsp.palettes[0].colors[twopixdata];
+        uint8_t pal_id=(hsp.oam[current_sprite]&Mask_hsp_oam_palette)>>10;
+        line[xx_hsp] = hsp.palettes[pal_id].colors[twopixdata];
       }
     }
   }
