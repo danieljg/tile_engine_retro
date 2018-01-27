@@ -23,13 +23,17 @@ static uint8_t mylog2 (uint8_t val) {
 
 int main( int argc, char* argv[] )
 {
-    BMP*	bmp;
-    uint8_t	index;
+    BMP*	bmp[16];
+    uint8_t	index, buff;
+    uint8_t     number_of_inputs;
     uint8_t	r, g, b;
-    uint16_t	width, height;
+    uint16_t	width[16], height[16];
     uint16_t	x, y;
-    uint8_t target_argument_index = argc-2;
-    uint8_t type_argument_index = argc-1;
+    uint16_t    tiles_number=0;
+    uint16_t    number_of_tiles[16];
+    uint8_t     target_argument_index = argc-2;
+    uint8_t     type_argument_index = argc-1;
+
     char help_msg[] = "Usage: %s <input files2> <output file> gfx_type\n\tinput file: One or more input files\n\tgfx_type: 0:Background, 1:Full_Sprites, 2:Half-Sprites\n";
 
     if ( argc < 4 )
@@ -53,161 +57,150 @@ int main( int argc, char* argv[] )
         return 0;
     }
 
-    /* Read an image file */
-    bmp = BMP_ReadFile( argv[ 1 ] );
-    BMP_CHECK_ERROR( stderr, -1 ); /* If an error has occurred, notify and exit */
-    fprintf(stdout,"input files:\n");
-    for (uint8_t i=1; i < argc-2; i++) {
-      fprintf(stdout,"\t%s\n", argv[i]);
-    }
+    number_of_inputs=argc-3;
 
-    /* Get image's dimensions */
-    width = BMP_GetWidth( bmp );
-    height = BMP_GetHeight( bmp );
-
-    uint16_t number_of_tiles = (width/tile_size)*(height/tile_size);
-
-    uint8_t color_i=0;
-    uint8_t colors_n = 0;
-    uint8_t palette_elements[256];
-    for ( int jj=0 ; jj<256 ; jj++ )
-    {
-    palette_elements[jj]=0; //null is null
-    }
-
-    /* Open gfx file */
+    // Open gfx file
     int filehandler = open(argv[target_argument_index],O_RDWR|O_CREAT|O_TRUNC,
-                                   S_IRUSR|S_IWUSR);
+                                                       S_IRUSR|S_IWUSR        );
     if(filehandler<0) return -1;
-    /* write header */
+    // write header
     write(filehandler,"GFX\n",4);
 
-    /* Iterate through all the rows */
-    for ( y = 0 ; y < height; y++ )
+    uint8_t  palette_number=0;
+    uint16_t tile_number=0;
+    //cycle through input files
+    for (uint8_t ii=0; ii < number_of_inputs; ii++)
     {
-      /* Iterate through all the pixels in a row */
-      for ( x = 0 ; x < width ; x++ )
-      {
-          /* Get pixel's index */
-          BMP_GetPixelIndex( bmp, x, y, &index );
-          /* test if color exists in used palette */
-          uint8_t color_exists=0;
-          color_i=0;
-          for( color_i=0 ; color_i<(colors_n+1) ; color_i++ )
-          {
-             if(palette_elements[color_i] == index)
-             {
-              color_exists=1;
-              break;
-             }
-          }
-          /* check if color exists */
-          if(color_exists==0)
-          {
-          palette_elements[color_i]=index;
-          colors_n++;
-          }
-          //if(index==10)fprintf(stdout,"x: %u, y: %u\n",x,y);//test for odd colors..
-      }
-    }
-    /* Save result */
-
-    uint8_t buff = log2(colors_n+1);
-    uint8_t palette_size=colors_n+1;
-fprintf(stdout,"0x %u\n",log2(colors_n+1));
-fprintf(stdout,"00x %u\n",(uint8_t)log2(colors_n+1));
-fprintf(stdout,"000x %u\n",mylog2(colors_n+1));
-fprintf(stdout,"1x %u\n",palette_size);
-fprintf(stdout,"2x %u\n",buff);
-    if (palette_size==12){
-      buff=4;
-      palette_size=16;
-fprintf(stdout,"sss\n");
-    }
-    else if(palette_size==8){
-fprintf(stdout,"%u \n",buff);
-      buff=4;
-      palette_size=16;
-    }
-    write(filehandler,&buff,1);
-    buff = 0x01;
-    write(filehandler,&buff,1);
-
-    /* Write the palette */
-    for ( color_i=0 ; color_i<palette_size ; color_i++ )
-    {
-      uint16_t argb_color=0x0000;
-      BMP_GetPaletteColor(bmp,palette_elements[color_i], &r, &g, &b);
-      //fprintf(stdout,"0x%2x\n",r);
-      r=r>>3;g=g>>3;b=b>>3;
-      argb_color=(r<<10)|(g<<5)|b;
-      if(color_i<(colors_n+1)){
-        buff=argb_color>>8;
-        write(filehandler,&buff,1);//high byte
-        buff=argb_color&0x00FF;
-        write(filehandler,&buff,1);//low byte
+      fprintf(stdout, "Pre-processing input file:");
+      fprintf(stdout, "\t%s\n",argv[ii+1]);
+      //Read image file
+      bmp[ii] = BMP_ReadFile(argv[ii+1]);
+      BMP_CHECK_ERROR(stderr, -1);
+      //Get image size
+      width[ii] = BMP_GetWidth( bmp[ii] );
+      height[ii] = BMP_GetHeight( bmp[ii] );
+      //Calculate tile number
+      number_of_tiles[ii] = (width[ii]/tile_size)*(height[ii]/tile_size);
+      //test if this is a pure palette file or tileset file
+      if(width[ii]==4&height[ii]==4){  //(number_of_tiles[ii]==0)
+      //this is a palette file
+      palette_number++;
       }
       else{
-      buff=0x0000;
-      write(filehandler,&buff,1);
-      write(filehandler,&buff,1);
+      //this is a tileset file
+      tiles_number=tiles_number+number_of_tiles[ii];
       }
     }
+    if(palette_number==0)palette_number=1;
 
-    /* Write tile size and quantity */
-    write(filehandler,&tile_size,1);
-    buff=number_of_tiles>>8;
-    write(filehandler,&buff,1);//high byte
-    buff=number_of_tiles&0x00FF;
-    write(filehandler,&buff,1);//low byte
+    fprintf(stdout, "Done with preprocessing\n");
 
-    uint8_t bpp = log2(palette_size);//bits per pixel
-fprintf(stdout,"palette_size: %u\n",palette_size);
-fprintf(stdout,"log2(palette_size): %u\n",log2(palette_size));
-    uint8_t ppb = 8/bpp;//pixels per byte
+    //Write palette data
+    //just set it to 16 and be done with it
+    buff=4;
+    uint8_t palette_size=16;
+    write(filehandler,&buff,1);//write bits per pixel
+    buff = palette_number;
+    write(filehandler,&buff,1);//write number of palettes
 
-    /* Iterate through all tiles */
-    for ( int tile = 0 ; tile < number_of_tiles ; tile++ )
-    {
-      /* Iterate through all the rows for the tile */
-      for ( y = (tile/(width/tile_size))*tile_size ; y < (tile/(width/tile_size))*tile_size+tile_size ; ++y )
-      {
-        /* Iterate through all the pixels in a row for the tile */
-        for ( x = (tile_size*tile)%width ; x < (tile_size*tile)%width+tile_size ; x=x+ppb )
-        {
-            buff=0x00;
-            for ( uint8_t xp = 0 ; xp < ppb ; xp++ )
-            {
-              /* Get pixel's index */
-              BMP_GetPixelIndex( bmp, x+xp, y, &index );
-              /* cycle through the reduced palette colors */
-              for ( color_i=0 ; color_i < (colors_n+1) ; color_i++ )
-              {
-                if( palette_elements[color_i] == index )
-                {
-                  buff=buff|(color_i<<(bpp*(ppb-xp-1)));
-                  break;
-                }
-              }
-            }
-            write(filehandler,&buff,1);
-        }
-      }
-    }
+   //cycle again through input files
+   for (uint8_t ii=0; ii < number_of_inputs; ii++)
+   {
+     fprintf(stdout, "Processing input file: ");
+     fprintf(stdout, "\t%s...",argv[ii+1]);
+     //check if this is a palette file
+     if( (number_of_tiles[ii]==0) || ( (number_of_inputs==1) ) )
+     {
+       for ( uint8_t jj=0 ; jj<16 ; jj++ )
+       {
+         uint16_t argb_color=0x0000;
+         //here we test the pure palette files to set transparency
+         if(number_of_tiles[ii]==0)
+         {
+           BMP_GetPixelIndex( bmp[ii], jj%4, jj>>2, &index);
+           if (index)
+           {
+             argb_color=0x8000;
+           }
+         }
+         BMP_GetPaletteColor(bmp[ii],jj, &r, &g, &b);
+         r=r>>3;g=g>>3;b=b>>3;
+         argb_color+=(r<<10)|(g<<5)|b;
+         buff=argb_color>>8;
+         write(filehandler,&buff,1);//high byte
+         buff=argb_color&0x00FF;
+         write(filehandler,&buff,1);//low byte
+       }
+       fprintf(stdout,"\tdone\n");
+     }
+     else
+     {
+       fprintf(stdout,"\tnot a palette file...\n");
+     }
+   }
 
-    fprintf(stdout,"number_of_tiles: %u\n",number_of_tiles);
-    fprintf(stdout,"colors_n+1: %u\n",colors_n+1);
+   fprintf(stdout, "Done with processing palettes... on to tilesets\n");
+
+   // Write tile size and quantity
+   write(filehandler,&tile_size,1);
+   buff=tiles_number>>8;
+   write(filehandler,&buff,1);//high byte
+   buff=tiles_number&0x00FF;
+   write(filehandler,&buff,1);//low byte
+   uint8_t bpp = log2(palette_size);//bits per pixel
+   uint8_t ppb = 8/bpp;//pixels per byte
+
+   for (uint8_t ii=0; ii < number_of_inputs; ii++) {
+     fprintf(stdout, "Processing input file:");
+     fprintf(stdout, "\t%s... ",argv[ii+1]);
+
+     if( !(number_of_tiles[ii]==0) )
+     {
+
+       /* Iterate through all tiles */
+       for ( int tile = 0 ; tile < number_of_tiles[ii] ; tile++ )
+       {
+         /* Iterate through all the rows for the tile */
+         for ( y = (tile/(width[ii]/tile_size))*tile_size ; y < (tile/(width[ii]/tile_size))*tile_size+tile_size ; ++y )
+         {
+           /* Iterate through all the pixels in a row for the tile */
+           for ( x = (tile_size*tile)%width[ii] ; x < (tile_size*tile)%width[ii]+tile_size ; x=x+ppb )
+           {
+             buff=0x00;
+             for ( uint8_t xp = 0 ; xp < ppb ; xp++ )
+             {
+               /* Get pixel's index */
+               BMP_GetPixelIndex( bmp[ii], x+xp, y, &index );
+               buff=buff|(index<<(bpp*(ppb-xp-1)));
+             }
+             write(filehandler,&buff,1);
+           }
+         }
+       }
+       fprintf(stdout,"done\n");
+     }
+     else
+     {
+       fprintf(stdout,"not a tileset file\n");
+     }
+
+
+  }
+
+    fprintf(stdout,"number of tiles: %u\n",tiles_number);
     /*for(uint8_t ii=0; ii<colors_n+1;ii++){
      fprintf(stdout,"%u %u\n", ii, palette_elements[ii]);
     }//*/
-    fprintf(stdout,"log2(colors_n+1): %u\n",log2(colors_n+1));
     fprintf(stdout,"===\n");
     fflush(stdout);
 
     close(filehandler);
 
     /* Free all memory allocated for the image */
-    BMP_Free( bmp );
+    for (uint8_t ii=0; ii<number_of_inputs; ii++)
+    {
+    BMP_Free( bmp[ii] );
+    }
 
     return 0;
 }
