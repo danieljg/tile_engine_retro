@@ -389,7 +389,6 @@ void print_pixel_4(uint8_t value) {
 /* Reads graphics data from a gfx file.
 */
 void read_gfx_data(FILE* file, int gfxtype) {
-  uint8_t* filebuf;
   uint8_t buff[4];
   uint8_t palette_size, palette_qty, colors_per_pal;
   uint8_t tile_size;
@@ -479,7 +478,7 @@ void read_gfx_data(FILE* file, int gfxtype) {
         fread(buff,1,1,file);
         /* El siguiente bloque de código imprime los numeros si el tamaño de paleta es igual a 2 (creado para funcionar con el tileset de ejemplo).
         */
-        if (palette_size==2) {
+        if (palette_size==2) {//TODO change this...
           uint8_t pixbuffer;
           pixbuffer = buff[0];
           /*
@@ -521,6 +520,11 @@ void read_gfx_data(FILE* file, int gfxtype) {
             fsp.tile[tile_i].two_pixel_color_index
                [ byte_i + (line_i*line_bytesize)]=pixbuffer;
           }
+          if(gfxtype==3) {
+          hsp.tile[tile_i].two_pixel_color_index
+            [ byte_i + (line_i*line_bytesize)]=pixbuffer;
+          }
+
         }
       }
       //fprintf(stdout,"\n");

@@ -49,7 +49,7 @@ int main( int argc, char* argv[] )
       case 1: //Type 1: Full Sprites
         tile_size = 16;
         break;
-      case 2: //Type 2: Half Sprites
+      case 2: //Type 2: Half Sprites TODO also check
         tile_size = 8;
         break;
       default:
@@ -82,7 +82,7 @@ int main( int argc, char* argv[] )
       //Calculate tile number
       number_of_tiles[ii] = (width[ii]/tile_size)*(height[ii]/tile_size);
       //test if this is a pure palette file or tileset file
-      if(width[ii]==4&height[ii]==4){  //(number_of_tiles[ii]==0)
+      if(width[ii]==4&&height[ii]==4){  //(number_of_tiles[ii]==0)
       //this is a palette file
       palette_number++;
       }
@@ -147,7 +147,7 @@ int main( int argc, char* argv[] )
    write(filehandler,&buff,1);//high byte
    buff=tiles_number&0x00FF;
    write(filehandler,&buff,1);//low byte
-   uint8_t bpp = log2(palette_size);//bits per pixel
+   uint8_t bpp = mylog2(palette_size);//bits per pixel
    uint8_t ppb = 8/bpp;//pixels per byte
 
    for (uint8_t ii=0; ii < number_of_inputs; ii++) {
