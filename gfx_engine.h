@@ -192,7 +192,7 @@ El sprite es creado en el primer espacio disponible en la estructura de sprites.
 */
 void add_full_sprite(
     uint16_t sp_index,
-    uint16_t pal_index,
+    uint8_t pal_index,
     uint16_t x_pos, uint16_t y_pos
   ) {
   fsp.oam[fsp.active_number] = (pal_index<<10) | sp_index;
@@ -272,8 +272,12 @@ Esta función recibe 3 argumentos:
 
 El sprite es creado en el primer espacio disponible en la estructura de sprites. El contador de sprites es incrementado en 1
 */
-void add_half_sprite(uint16_t sp_index, uint16_t x_pos, uint16_t y_pos) {
-  hsp.oam[hsp.active_number] = 0x0000 | sp_index;
+void add_half_sprite(
+    uint16_t sp_index,
+    uint8_t pal_index,
+    uint16_t x_pos, uint16_t y_pos
+  ) {
+  hsp.oam[hsp.active_number] = (pal_index<<10) | sp_index;
   hsp.oam2[hsp.active_number] = x_pos|(y_pos<<16);
   hsp.active_number++;
 }
@@ -301,7 +305,7 @@ void draw_text(char label[], int16_t x_pos, int16_t y_pos) {
   int8_t len = strlen(label);
   for (uint8_t i = 0; i < len; i++) {
     x_tile = x_pos + i * 8;
-    if (label[i] != 32) add_half_sprite(label[i], x_tile, y_pos);
+    if (label[i] != 32) add_half_sprite(label[i], 0, x_tile, y_pos);
   }
 }
 
@@ -317,8 +321,8 @@ void initialize_half_sprites()
   hsp.offset_y=0;
   hsp.active_number=0;
 
-  for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 294+ii*8, 230);
-  for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 262+ii*8, 230);
+  for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 294+ii*8, 230);
+  for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 262+ii*8, 230);
   draw_text("  The font sprites are now indexed", 8, 168);
   draw_text("in ASCII format! :D", 8, 184);
   draw_text("Nice! #$%&*", 8, 122 );
