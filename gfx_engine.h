@@ -303,12 +303,16 @@ static void set_half_sprite(int16_t sp_id, int16_t sp_index) {
   hsp.oam[sp_id] = (hsp.oam[sp_id]&(~Mask_hsp_oam_index))|sp_index;
 }
 
-void draw_text(char label[], int16_t x_pos, int16_t y_pos) {
+void draw_text(
+    char label[],
+    int16_t x_pos, int16_t y_pos,
+    uint8_t pal_index
+  ) {
   int16_t x_tile;
   int8_t len = strlen(label);
   for (uint8_t i = 0; i < len; i++) {
     x_tile = x_pos + i * 8;
-    if (label[i] != 32) add_half_sprite(label[i], 0, x_tile, y_pos);
+    if (label[i] != 32) add_half_sprite(label[i], pal_index, x_tile, y_pos);
   }
 }
 
@@ -326,9 +330,9 @@ void initialize_half_sprites()
 
   for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 294+ii*8, 230);
   for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 262+ii*8, 230);
-  draw_text("  The font sprites are now indexed", 8, 168);
-  draw_text("in ASCII format! :D", 8, 184);
-  draw_text("Nice! #$%&*", 8, 122 );
+  draw_text("Now whit support for...", 8, 168, 0);
+  draw_text("...multi-palette sprites! :D", 8, 184, 1);
+  draw_text("Nice! #$%&*", 8, 122, 2);
 }
 
 /* Dibuja un punto directamente en el buffer de video
