@@ -6,10 +6,11 @@ run: core/tile_engine_retro_libretro.so GFX
 core/tile_engine_retro_libretro.so: gfx_engine.h core/libretro.h core/libretro-core.c core/link.T
 	cd core && make
 
-GFX: core/bg0.gfx core/fsp.gfx core/hsp.gfx
-
 bmptogfx: bmp_to_gfx.c qdbmp.c
 	gcc -o bmptogfx bmp_to_gfx.c qdbmp.c -lm
+
+# Generate GFX
+GFX: core/bg0.gfx core/fsp.gfx core/hsp.gfx
 
 core/bg0.gfx: bmptogfx bmp/bg0.bmp
 	./bmptogfx bmp/bg0.bmp core/bg0.gfx 0
