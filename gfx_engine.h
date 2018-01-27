@@ -446,16 +446,16 @@ void read_gfx_data(FILE* file, int gfxtype) {
       fprintf(stdout,"\tColor %d: %d (R:%02x G:%02x B:%02x)\n", col_i, palette_data[col_i], red, green, blue);
 
       if(gfxtype==0) {
-        bg.palette_sets[0].palettes[0].colors[col_i] = palette_data[col_i];
+        bg.palette_sets[0].palettes[pal_i].colors[col_i] = palette_data[col_i];
       }
       else if(gfxtype==1) {
-        bg.palette_sets[1].palettes[0].colors[col_i] = palette_data[col_i];
+        bg.palette_sets[1].palettes[pal_i].colors[col_i] = palette_data[col_i];
       }
       else if(gfxtype==2) {
-        fsp.palettes[0].colors[col_i] = palette_data[col_i];
+        fsp.palettes[pal_i].colors[col_i] = palette_data[col_i];
       }
       else if(gfxtype==3) {
-        hsp.palettes[0].colors[col_i] = palette_data[col_i];
+        hsp.palettes[pal_i].colors[col_i] = palette_data[col_i];
       }
     }
   }
