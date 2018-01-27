@@ -214,6 +214,7 @@ void initialize_full_sprites()
  add_full_sprite(7,32,32);
  add_full_sprite(8,48,32);
  add_full_sprite(9,64,32);
+ add_full_sprite(12,120,32); 
 }
 
 #define hsp_palette_number 16
