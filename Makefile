@@ -14,8 +14,8 @@ bmptogfx: bmp_to_gfx.c qdbmp.c
 core/bg0.gfx: bmptogfx bmp/bg0.bmp
 	./bmptogfx bmp/bg0.bmp core/bg0.gfx 0
 
-core/fsp.gfx: bmptogfx bmp/fsp1.bmp
-	./bmptogfx bmp/fsp1.bmp core/fsp.gfx 1
+core/fsp.gfx: bmptogfx bmp/fsp1.bmp bmp/fsp1.pal bmp/fsp2.bmp bmp/fsp2.pal
+	./bmptogfx bmp/fsp1.bmp bmp/fsp1.pal bmp/fsp2.bmp bmp/fsp2.pal core/fsp.gfx 1
 
 core/hsp.gfx: bmptogfx bmp/hsp1.bmp
 	./bmptogfx bmp/hsp1.bmp core/hsp.gfx 2
