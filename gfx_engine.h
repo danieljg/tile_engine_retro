@@ -46,9 +46,13 @@ void initialize_viewport() {
 #define bg_layer_count 2
 
 //The bg layers are built using a tilemap, where each bg tile can be rotated,
-//flipped either horizontally or vertically
+//flipped either horizontally or vertically and where one may choose between
+// one of two palette sets (intended for each bg to have its own palette set)
+#define bg_palette_set_count 2 // 1 bit
+//Each tile can reference one of two tilesets
+#define bg_tileset_count 2 // 1 bit
 //Number of palettes per bg palette set
-#define bg_palettes_per_layer 4 // 2 bits
+#define bg_palettes_per_set 4 // 2 bits
 //Number of colors in each bg palette
 #define bg_palette_color_count 16 // 4 bits
 //Number of tiles in a tileset
@@ -59,57 +63,76 @@ typedef struct {
 } bg_palette;
 
 typedef struct {
- uint8_t pixel_color_index[full_tile_size*full_tile_size]; // 256 Bytes at 16 px/tile
-} bg_tileset;
+ bg_palette palettes[bg_palettes_per_set];
+} bg_palette_set;
+
+#define Mask_bg_tile_index_0	0xF0//four bits per pixel, all bits are used
+#define Mask_bg_tile_index_1	0x0F//two pixels per byte
 
 typedef struct {
-uint16_t tileset_index;
-uint8_t  palette;
-uint8_t  h_flip;
-uint8_t  v_flip;
-uint8_t  rotation;
+ uint8_t two_pixel_color_index[full_tile_size*full_tile_size>>1]; // 128 Bytes at 16 px/tile
+} bg_tile;
+
+typedef struct {
+ bg_tile tile[bg_tileset_number]; // 128 kB at 1024 tiles per tileset
+} bg_tileset;
+
+//background tilemap masks
+#define Mask_bgtm_rotation	0x8000 //bit 16
+#define Mask_bgtm_v_flip	0x4000 //bit 15
+#define Mask_bgtm_h_flip	0x2000 //bit 14
+#define Mask_bgtm_reserved	0x1000 //bit 13
+#define Mask_bgtm_palette	0X0C00 //bits 11-12
+#define Mask_bgtm_index		0x03FF //bits 1-10
+
+typedef struct {
+uint16_t tile_index[layer_tile_number_x*layer_tile_number_y]; //2Bytes*32*32=2kB
 } bg_tilemap;
 
 typedef struct {
-  bg_palette palette[bg_palettes_per_layer];
-  bg_tileset tileset[bg_tileset_number];
-  bg_tilemap tilemap[layer_tile_number_x*layer_tile_number_y];
-  uint16_t offset_x[full_tile_size*vp_tile_number_y];
-  uint16_t offset_y[full_tile_size*vp_tile_number_y];
+  bg_palette_set palette_sets[bg_palette_set_count];
+  bg_tileset tilesets[bg_tileset_count];
+  bg_tilemap tilemaps[bg_layer_count];
+  uint16_t offset_x[bg_layer_count];
+  uint16_t offset_y[bg_layer_count];
 } bg_struct;
 
-bg_struct bg[bg_layer_count];
+bg_struct bg;
 
 void initialize_bg()
 {
-  for(uint8_t ll=0; ll<bg_layer_count; ll++)
-  {
+  for(uint8_t ll=0; ll<bg_layer_count; ll++) {
     // inicializando offset de backgrounds
-    for(uint8_t kk=0; kk<viewport.height; kk++) {
-      bg[ll].offset_x[kk] = 0;
-      bg[ll].offset_y[kk] = 0;
-    }
+    bg.offset_x[ll] = 0;
+    bg.offset_y[ll] = 0;
     //inicializando tilemap (region del viewport inicial)
     uint16_t kk=0;
     for(uint8_t jj=0; jj<vp_tile_number_y; jj++) {
       for(uint8_t ii=0; ii<vp_tile_number_x; ii++) {
-        bg[ll].tilemap[jj*layer_tile_number_y+ii].tileset_index=kk;
+        bg.tilemaps[ll].tile_index[jj*layer_tile_number_y+ii]=kk;
+        //bg.tilemaps[ll].tile_index[jj*layer_tile_number_y+ii]=7;
         kk++;
-      }
-    }
-    // inicializando paletas
-    for(uint8_t ii=0;ii<bg_palettes_per_layer;ii++)
-    {
-      for(uint8_t jj=0;jj<bg_palette_color_count;jj++)
-      {
-      bg[ll].palette[ii].colors[jj]=null_color;
       }
     }
   }
 }
 
+void initialize_bg_palettes()
+{
+ for(uint8_t ii=0;ii<bg_palettes_per_set;ii++)
+ {
+  for(uint8_t jj=0;jj<bg_palette_color_count;jj++)
+  {
+   for(uint8_t kk=0;kk<bg_palette_set_count;kk++){
+    bg.palette_sets[kk].palettes[ii].colors[jj]=null_color;
+    bg.palette_sets[kk].palettes[ii].colors[jj]=null_color;
+   }
+  }
+ }
+}
 
-//TODO: Escribir funciones de inicialización restantes
+
+// TO DO: Escribir funciones de inicialización restantes
 
 
 //La capa de sprites se divide en full sprites y half-sprites
@@ -125,26 +148,33 @@ typedef struct {
 color_16bit colors[fsp_palette_color_count];
 } fsp_palette;
 
+#define Mask_full_sprt_index_0	0xF0//four bits per pixel, all bits are used
+#define Mask_full_sprt_index_1	0x0F//two pixels per byte
+
 typedef struct {
- uint8_t pixel_color_index[full_tile_size*full_tile_size];
+ uint8_t two_pixel_color_index[full_tile_size*full_tile_size>>1];
 } fsp_tile;
 
-typedef struct{
- uint16_t tileset_index;
- uint8_t  disable;
- uint8_t  palette;
- uint16_t x_pos;
- uint16_t y_pos;
- uint8_t  h_flip;
- uint8_t  v_flip;
- uint8_t  rotation;
- uint8_t  double_size;
-} fsp_oam;
+//Full sprite Object Attribute Memory bitmasks
+#define Mask_fsp_oam_rotation 0x8000 //bit  16
+#define Mask_fsp_oam_v_flip   0x4000 //bit  15
+#define Mask_fsp_oam_h_flip   0x2000 //bit  14
+#define Mask_fsp_oam_palette  0x1C00 //bits 11-13
+#define Mask_fsp_oam_index    0x03FF //bits 1-10
+//OAM2 memory: geometry and toggles
+#define Mask_fsp_oam2_disable    0x80000000 //bit  32
+#define Mask_fsp_oam2_reserved2  0x7E000000 //bits 26-31
+#define Mask_fsp_oam2_y_pos      0x01FF0000 //bits 17-25
+#define Mask_fsp_oam2_reserved1  0x0000FE00 //bits 10-16
+#define Mask_fsp_oam2_x_pos      0x000001FF //bits 1-9
+//TODO: there's no position in OAM for the tileset, no double-size option
+//TODO: refactor code so that x position of pixels is sampled at 1/8 pixel resolution
 
 typedef struct {
- fsp_palette palette[fsp_palette_number];
- fsp_tile tile[fsp_tileset_number];
- fsp_oam oam[fsp_count];
+ fsp_palette palettes[fsp_palette_number];
+ fsp_tile tile[fsp_tileset_number]; //128 kB with 1024 tiles in the set
+ uint16_t oam[fsp_count];
+ uint32_t oam2[fsp_count];
  uint16_t offset_x;
  uint16_t offset_y;
  uint8_t active_number;
@@ -152,16 +182,21 @@ typedef struct {
 
 fsp_struct fsp;
 
-//El sprite es creado en el primer espacio disponible en la estructura de sprites. El contador de sprites es incrementado en 1
+/* ADD FULL SPRITE
+
+Esta función recibe 3 argumentos:
+- index: indice del sprite a utilizar
+- x_pos, y_pos: coordenadas del sprite
+
+El sprite es creado en el primer espacio disponible en la estructura de sprites. El contador de sprites es incrementado en 1
+*/
 void add_full_sprite(
     uint16_t sp_index,
     uint8_t pal_index,
     uint16_t x_pos, uint16_t y_pos
   ) {
-  fsp.oam[fsp.active_number].tileset_index = sp_index;
-  fsp.oam[fsp.active_number].palette = pal_index;
-  fsp.oam[fsp.active_number].x_pos = x_pos;
-  fsp.oam[fsp.active_number].y_pos = y_pos;
+  fsp.oam[fsp.active_number] = (pal_index<<10) | sp_index;
+  fsp.oam2[fsp.active_number] = x_pos|(y_pos<<16);
   fsp.active_number++;
 }
 
@@ -171,7 +206,7 @@ void initialize_full_sprites()
  {
   for(uint8_t jj=0;jj<fsp_palette_color_count;jj++)
   {
-   fsp.palette[ii].colors[jj]=null_color;
+   fsp.palettes[ii].colors[jj]=null_color;
   }
  }
  fsp.offset_x=0;
@@ -198,26 +233,33 @@ typedef struct {
 color_16bit colors[hsp_palette_color_count];
 } hsp_palette;
 
+#define Mask_half_sprite_reserved2  0x80//unused padding
+#define Mask_half_sprite_index_0    0x70//three bits per pixel
+#define Mask_half_sprite_reserved1  0x08//unused padding
+#define Mask_half_sprite_index_1    0x07//two pixels per byte
+
 typedef struct {
-uint8_t pixel_color_index[half_tile_size*half_tile_size];
+uint8_t two_pixel_color_index[half_tile_size*half_tile_size>>1];
 } hsp_tile;
 
-typedef struct {
- uint16_t tileset_index;
- uint8_t  disable;
- uint8_t  palette;
- uint16_t x_pos;
- uint16_t y_pos;
- uint8_t  h_flip;
- uint8_t  v_flip;
- uint8_t  rotate;
- uint8_t  double_size;
-} hsp_oam;
+//half sprite Object Attribute Memory bitmasks
+#define Mask_hsp_oam_rotation 0x8000
+#define Mask_hsp_oam_v_flip   0x4000
+#define Mask_hsp_oam_h_flip   0x2000
+#define Mask_hsp_oam_palette  0x1C00
+#define Mask_hsp_oam_index    0x03FF
+//OAM2 memory: geometry and toggles
+#define Mask_hsp_oam2_disable    0x80000000 //bit 32
+#define Mask_hsp_oam2_reserved2  0x7E000000 //bits 26-31
+#define Mask_hsp_oam2_y_pos      0x01FF0000 //bits 17-25
+#define Mask_hsp_oam2_reserved1  0x0000FE00 //bits 10-16
+#define Mask_hsp_oam2_x_pos      0x000001FF //bits 1-9
 
 typedef struct {
- hsp_palette palette[hsp_palette_number];
+ hsp_palette palettes[hsp_palette_number];
  hsp_tile tile[hsp_tileset_number];
- hsp_oam oam[hsp_count];
+ uint16_t oam[hsp_count];
+ uint32_t oam2[hsp_count];
  uint16_t offset_x;
  uint16_t offset_y;
  uint8_t active_number;
@@ -233,43 +275,39 @@ Esta función recibe 3 argumentos:
 
 El sprite es creado en el primer espacio disponible en la estructura de sprites. El contador de sprites es incrementado en 1
 */
-void add_half_sprite(uint16_t sp_index,
-                     uint8_t pal_index,
-                     uint16_t x_pos,
-                     uint16_t y_pos) {
-  uint8_t active_number = hsp.active_number;
-  hsp.oam[active_number].palette       = pal_index;
-  hsp.oam[active_number].tileset_index = sp_index;
-  hsp.oam[active_number].x_pos = x_pos;
-  hsp.oam[active_number].y_pos = y_pos;
+void add_half_sprite(
+    uint16_t sp_index,
+    uint8_t pal_index,
+    uint16_t x_pos, uint16_t y_pos
+  ) {
+  hsp.oam[hsp.active_number] = (pal_index<<10) | sp_index;
+  hsp.oam2[hsp.active_number] = x_pos|(y_pos<<16);
   hsp.active_number++;
 }
 
-static void move_full_sprite(int16_t sp_id,
-                             int8_t vel_x,
-                             int8_t vel_y) {
-  fsp.oam[sp_id].y_pos=(fsp.oam[sp_id].y_pos+vel_y)%(layer_tile_number_y*full_tile_size);
-  fsp.oam[sp_id].x_pos=(fsp.oam[sp_id].x_pos+vel_x)%
-(layer_tile_number_x*full_tile_size);
+static void move_full_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
+  fsp.oam2[sp_id]=(fsp.oam2[sp_id]&(~Mask_fsp_oam2_y_pos))|(((((fsp.oam2[sp_id]&Mask_fsp_oam2_y_pos)>>16)+vel_y)%(layer_tile_number_y*full_tile_size))<<16);
+  fsp.oam2[sp_id]=(fsp.oam2[sp_id]&(~Mask_fsp_oam2_x_pos))|(((fsp.oam2[sp_id]&Mask_fsp_oam2_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
 }
 
 static void set_full_sprite(int16_t sp_id, int16_t sp_index) {
-  fsp.oam[sp_id].tileset_index = sp_index;
+  fsp.oam[sp_id] = (fsp.oam[sp_id]&(~Mask_fsp_oam_index))|sp_index;
 }
 
 static void move_half_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
-  hsp.oam[sp_id].y_pos = (hsp.oam[sp_id].y_pos+vel_y)%(layer_tile_number_y*full_tile_size);
-  hsp.oam[sp_id].x_pos = (hsp.oam[sp_id].x_pos+vel_x)%(layer_tile_number_x*full_tile_size);
+  hsp.oam2[sp_id]=(hsp.oam2[sp_id]&(~Mask_hsp_oam2_y_pos))|(((((hsp.oam2[sp_id]&Mask_hsp_oam2_y_pos)>>16)+vel_y)%(layer_tile_number_y*full_tile_size))<<16);
+  hsp.oam2[sp_id]=(hsp.oam2[sp_id]&(~Mask_hsp_oam2_x_pos))|(((hsp.oam2[sp_id]&Mask_hsp_oam2_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
 }
 
 static void set_half_sprite(int16_t sp_id, int16_t sp_index) {
-  hsp.oam[sp_id].tileset_index = sp_index;
+  hsp.oam[sp_id] = (hsp.oam[sp_id]&(~Mask_hsp_oam_index))|sp_index;
 }
 
-void draw_text(char label[],
-               int16_t x_pos,
-               int16_t y_pos,
-               uint8_t pal_index) {
+void draw_text(
+    char label[],
+    int16_t x_pos, int16_t y_pos,
+    uint8_t pal_index
+  ) {
   int16_t x_tile;
   int8_t len = strlen(label);
   for (uint8_t i = 0; i < len; i++) {
@@ -283,7 +321,7 @@ void initialize_half_sprites()
   for(uint8_t ii=0;ii<hsp_palette_number;ii++)
   {
     for(uint8_t jj=0;jj<hsp_palette_color_count;jj++) {
-      hsp.palette[ii].colors[jj]=null_color;
+      hsp.palettes[ii].colors[jj]=null_color;
     }
   }
   hsp.offset_x=0;
@@ -292,133 +330,24 @@ void initialize_half_sprites()
 
   for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 294+ii*8, 230);
   for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 262+ii*8, 230);
-  draw_text("Now with support for...", 8, 168, 0);
+  draw_text("Now whit support for...", 8, 168, 0);
   draw_text("...multi-palette sprites! :D", 8, 184, 1);
   draw_text("Nice! #$%&*", 8, 122, 2);
 }
 
-/* Reads graphics data from a gfx file.
+/* Dibuja un punto directamente en el buffer de video
+
+El código comentado pertenece a una versión anterior que usaba un apuntador al
+frame buffer. Parece funcionar igual al usar el frame buffer directamente.
 */
-void read_gfx_data(FILE* file, int gfxtype) {
-  uint8_t buff[4];
-  uint8_t palette_size, palette_qty, colors_per_pal;
-  uint8_t tile_size;
-  uint16_t tile_qty, line_bytesize=0;
-
-  // Leyendo identificador GFX (TODO: cambiar a if(buf=="GFX\n") ...)
-  fread(buff,1,4,file);
-  fprintf(stdout,"\n%c",buff[0]);
-  fprintf(stdout,"%c",buff[1]);
-  fprintf(stdout,"%c",buff[2]);
-  fprintf(stdout,"%c",buff[3]);
-
-  // Leyendo información del encabezado de la paleta.
-  fread(buff,1,2,file);
-  palette_size = buff[0];
-  palette_qty = buff[1];
-  colors_per_pal = 1 << palette_size; // 2 ^ palette_size
-  fprintf(stdout,"Palette size: %d (%d colors)\n", palette_size, colors_per_pal);
-  fprintf(stdout,"Palette qty: %d\n", palette_qty);
-
-  // Leyendo datos de las paletas.
-  uint16_t palette_data[colors_per_pal];
-  for (uint8_t pal_i=0; pal_i<palette_qty; pal_i++) { // este ciclo itera sobre las paletas
-    fprintf(stdout,"Paleta %d:\n", pal_i);
-    for (uint8_t col_i=0; col_i<colors_per_pal; col_i++) { // este ciclo itera sobre los colores
-      uint8_t red, green, blue;
-      fread(buff,1,2,file);
-      palette_data[col_i] = (buff[0] << 8) | buff[1];
-      red = (palette_data[col_i]>>10) & 31;
-      green = (palette_data[col_i]>>5) & 31;
-      blue = palette_data[col_i] & 31;
-      fprintf(stdout,"\tColor %d: %d (R:%02x G:%02x B:%02x)\n", col_i, palette_data[col_i], red, green, blue);
-      if(gfxtype==0) {
-        bg[0].palette[pal_i].colors[col_i] = palette_data[col_i];
-      }
-      else if(gfxtype==1) {
-        bg[1].palette[pal_i].colors[col_i] = palette_data[col_i];
-      }
-      else if(gfxtype==2) {
-        fsp.palette[pal_i].colors[col_i] = palette_data[col_i];
-      }
-      else if(gfxtype==3) {
-        hsp.palette[pal_i].colors[col_i] = palette_data[col_i];
-      }
-    }
-  }
-  fprintf(stdout,"----- Palette Data Ends -----\n\n");
-
-  // Leyendo información del encabezado de los tiles.
-  fread(buff,1,3,file);
-  tile_size = buff[0];
-  tile_qty = (buff[1]<<8) | buff[2];
-  fprintf(stdout,"Tile size: %d\n", tile_size);
-  fprintf(stdout,"Tile qty: %d\n", tile_qty);
-  line_bytesize = (tile_size * palette_size) >> 3;
-  fprintf(stdout, "Tile size in bytes: %d\n", line_bytesize * tile_size);
-  for (uint16_t tile_i=0; tile_i<tile_qty; tile_i++) {
-    //fprintf(stdout,"\nTile: %d:\n", tile_i);
-    for (uint8_t line_i=0; line_i<tile_size; line_i++) {
-      //fprintf(stdout,"\t");
-      for (uint16_t byte_i=0; byte_i < line_bytesize; byte_i++) {
-        fread(buff,1,1,file);
-        if (palette_size==4)
-        {
-          uint8_t pixbuffer;
-          pixbuffer = buff[0];
-          uint8_t pixel1=0;
-          uint8_t pixel2=0;
-          pixel1=pixbuffer>>4;
-          pixel2=pixbuffer&0x0F;
-          if(gfxtype==0)
-          {
-            bg[0].tileset[tile_i].pixel_color_index
-              [ (byte_i + (line_i*line_bytesize))<<1]=pixel1;
-            bg[0].tileset[tile_i].pixel_color_index
-              [ ((byte_i + (line_i*line_bytesize))<<1) + 1]=pixel2;
-          }
-          else if(gfxtype==1)
-          {
-            bg[1].tileset[tile_i].pixel_color_index
-              [ (byte_i + (line_i*line_bytesize))<<1 ]=pixel1;
-            bg[1].tileset[tile_i].pixel_color_index
-              [ ((byte_i + (line_i*line_bytesize))<<1) + 1]=pixel2;
-          }
-          else if(gfxtype==2)
-          {
-            fsp.tile[tile_i].pixel_color_index
-               [ (byte_i + (line_i*line_bytesize))<<1]=pixel1;
-            fsp.tile[tile_i].pixel_color_index
-               [ ((byte_i + (line_i*line_bytesize))<<1) + 1]=pixel2;
-          }
-          else if(gfxtype==3)
-          {
-            hsp.tile[tile_i].pixel_color_index
-               [ (byte_i + (line_i*line_bytesize))<<1]=pixel1;
-            hsp.tile[tile_i].pixel_color_index
-               [ ((byte_i + (line_i*line_bytesize))<<1) + 1]=pixel2;
-          }
-        }
-        else
-        {
-        fprintf(stdout,"PALETTE SIZE !== 4\n");
-        }
-      }
-      //fprintf(stdout,"\n");
-    }
-  }
-  fprintf(stdout,"----- Tile Data Ends -----\n\n");
-  fprintf(stdout,"*** The End ***\n\n");
-  //free(filebuf);
-}
-
-
-// Dibuja un punto directamente en el buffer de video
 void draw_point(uint16_t *viewport_buff, int16_t x, int16_t y, int16_t color) {
+ //uint16_t *line = frame_buf;
+ //line[viewport.width * y + x] = color;
  viewport_buff[viewport.width * y + x] = color;
 }
 
 /* Dibuja una linea usando el algoritmo de Bresenham.
+
 Nota: El algorito funciona, pero hay algo mal aún, tengo que dibujar
 manualmente el punto inicial y el final.
 */
@@ -462,4 +391,162 @@ void draw_line(uint16_t *viewport_buff, int16_t x1, int16_t y1, int16_t x2, int1
    draw_point(viewport_buff, x, y, color);
  }
  draw_point(viewport_buff, x2, y2, color);
+}
+
+/* Console data print functions
+*/
+void print_pixel_4(uint8_t value) {
+  if (value==0) fprintf(stdout, " ");
+  if (value==1) fprintf(stdout, "x");
+  if (value==2) fprintf(stdout, "\\");
+  if (value==3) fprintf(stdout, "X");
+}
+
+/* Reads graphics data from a gfx file.
+*/
+void read_gfx_data(FILE* file, int gfxtype) {
+  uint8_t buff[4];
+  uint8_t palette_size, palette_qty, colors_per_pal;
+  uint8_t tile_size;
+  uint16_t tile_qty, line_bytesize=0;
+
+  /*
+  //go to end of file
+  fseek(file, 0, SEEK_END);
+
+  //check the size of the file
+  off_t filesize=ftell(file);
+
+  //go to start of file
+  fseek(file, 0, SEEK_SET);
+
+  //allocate buffer
+  filebuf=malloc(filesize);
+  //if(!buffer) goto exit;
+
+  off_t bytes_read = fread(filebuf,1,filesize,file);
+  //if(size!=bytes_read) goto exit;
+  //*/
+
+
+  // Leyendo identificador GFX (TODO: cambiar a if(buf=="GFX\n") ...)
+  //read(filebuf, buff, 4);
+  fread(buff,1,4,file);
+  fprintf(stdout,"\n%c",buff[0]);
+  fprintf(stdout,"%c",buff[1]);
+  fprintf(stdout,"%c",buff[2]);
+  fprintf(stdout,"%c",buff[3]);
+
+  // Leyendo información del encabezado de la paleta.
+  //read(filebuf, buff, 2);
+  fread(buff,1,2,file);
+  palette_size = buff[0];
+  palette_qty = buff[1];
+  colors_per_pal = 1 << palette_size; // 2 ^ palette_size
+  fprintf(stdout,"Palette size: %d (%d colors)\n", palette_size, colors_per_pal);
+  fprintf(stdout,"Palette qty: %d\n", palette_qty);
+
+  // Leyendo datos de las paletas.
+  uint16_t palette_data[colors_per_pal];
+  for (uint8_t pal_i=0; pal_i<palette_qty; pal_i++) { // este ciclo itera sobre las paletas
+    fprintf(stdout,"Paleta %d:\n", pal_i);
+    for (uint8_t col_i=0; col_i<colors_per_pal; col_i++) { // este ciclo itera sobre los colores
+      uint8_t red, green, blue;
+      //read(filebuf, buff, 2);
+      fread(buff,1,2,file);
+      palette_data[col_i] = (buff[0] << 8) | buff[1];
+      red = (palette_data[col_i]>>10) & 31;
+      green = (palette_data[col_i]>>5) & 31;
+      blue = palette_data[col_i] & 31;
+      fprintf(stdout,"\tColor %d: %d (R:%02x G:%02x B:%02x)\n", col_i, palette_data[col_i], red, green, blue);
+
+      if(gfxtype==0) {
+        bg.palette_sets[0].palettes[pal_i].colors[col_i] = palette_data[col_i];
+      }
+      else if(gfxtype==1) {
+        bg.palette_sets[1].palettes[pal_i].colors[col_i] = palette_data[col_i];
+      }
+      else if(gfxtype==2) {
+        fsp.palettes[pal_i].colors[col_i] = palette_data[col_i];
+      }
+      else if(gfxtype==3) {
+        hsp.palettes[pal_i].colors[col_i] = palette_data[col_i];
+      }
+    }
+  }
+  fprintf(stdout,"----- Palette Data Ends -----\n\n");
+
+  // Leyendo información del encabezado de los tiles.
+  //read(filebuf, buff, 3);
+  fread(buff,1,3,file);
+  tile_size = buff[0];
+  tile_qty = (buff[1]<<8) | buff[2];
+  fprintf(stdout,"Tile size: %d\n", tile_size);
+  fprintf(stdout,"Tile qty: %d\n", tile_qty);
+  line_bytesize = (tile_size * palette_size) >> 3;
+  fprintf(stdout, "Tile size in bytes: %d\n", line_bytesize * tile_size);
+  for (uint16_t tile_i=0; tile_i<tile_qty; tile_i++) {
+    //fprintf(stdout,"\nTile: %d:\n", tile_i);
+    for (uint8_t line_i=0; line_i<tile_size; line_i++) {
+      //fprintf(stdout,"\t");
+      for (uint16_t byte_i=0; byte_i < line_bytesize; byte_i++) {
+        //read(filebuf, buff, 1);
+        fread(buff,1,1,file);
+        /* El siguiente bloque de código imprime los numeros si el tamaño de paleta es igual a 2 (creado para funcionar con el tileset de ejemplo).
+        */
+        if (palette_size==2) {//TODO change this...
+          uint8_t pixbuffer;
+          pixbuffer = buff[0];
+          /*
+          print_pixel_4((pixbuffer>>6)&3);
+          print_pixel_4((pixbuffer>>4)&3);
+          print_pixel_4((pixbuffer>>2)&3);
+          print_pixel_4(pixbuffer&3);
+          //*/
+          uint8_t palettebuffer=0x00;
+          palettebuffer=(pixbuffer>>6)&0x03;
+          palettebuffer=(palettebuffer<<4)|((pixbuffer>>4)&0x03);
+          hsp.tile[tile_i].two_pixel_color_index
+            [ (byte_i<<1) + (line_i*line_bytesize<<1)]=palettebuffer;
+          palettebuffer=0x00;
+          palettebuffer=(pixbuffer>>2)&0x03;
+          palettebuffer=(palettebuffer<<4)|(pixbuffer&0x03);
+          if(gfxtype==3) {
+          hsp.tile[tile_i].two_pixel_color_index
+            [ (byte_i<<1) + ((line_i*line_bytesize<<1)+1)]=palettebuffer;
+          }
+        }
+        else if (palette_size==4) {
+          uint8_t pixbuffer;
+          pixbuffer = buff[0];
+          /*
+          print_pixel_8(pixbuffer>>4);
+          print_pixel_8(pixbuffer&0x0F);
+          //*/
+
+          if(gfxtype==0) {
+            bg.tilesets[0].tile[tile_i].two_pixel_color_index
+              [ byte_i + (line_i*line_bytesize)]=pixbuffer;
+          }
+          else if(gfxtype==1) {
+            bg.tilesets[1].tile[tile_i].two_pixel_color_index
+              [ byte_i + (line_i*line_bytesize)]=pixbuffer;
+          }
+          else if(gfxtype==2) {
+            fsp.tile[tile_i].two_pixel_color_index
+               [ byte_i + (line_i*line_bytesize)]=pixbuffer;
+          }
+          if(gfxtype==3) {
+          hsp.tile[tile_i].two_pixel_color_index
+            [ byte_i + (line_i*line_bytesize)]=pixbuffer;
+          }
+
+        }
+      }
+      //fprintf(stdout,"\n");
+    }
+  }
+  fprintf(stdout,"----- Tile Data Ends -----\n\n");
+  fprintf(stdout,"*** The End ***\n\n");
+  //free(filebuf);
 }
