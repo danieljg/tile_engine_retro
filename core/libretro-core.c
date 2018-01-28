@@ -306,6 +306,10 @@ static void update_game() {
     else set_full_sprite(bot_id, 0x9); //Red bot
   }
   update_coords(met_x, met_y);
+  // Animating spaceships
+  for (uint8_t i=4; i<=7; i++) {
+    fsp.oam[i]=(fsp.oam[i]&(~Mask_fsp_oam_index))|((((fsp.oam[i]&Mask_fsp_oam_index)+1)%3)+13 );
+  }
 }
 
 /* Dibuja una frame del juego
