@@ -28,3 +28,8 @@ core/fsp.gfx: bmptogfx $(fsp_input)
 
 core/hsp.gfx: bmptogfx $(hsp_input)
 	./bmptogfx $(hsp_input) core/hsp.gfx 2
+
+clean:
+	rm core/*.o
+	rm core/*.so
+	rm core/*.gfx
