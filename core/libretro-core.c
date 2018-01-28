@@ -280,11 +280,9 @@ void update_coords(uint16_t x, uint16_t y) {
   }
   for (uint8_t i=0; i<6; i++) {
     set_half_sprite(i, digits[i]);
-    //hsp.oam[i]=(hsp.oam[i]&(~Mask_hsp_oam_index))|digits[i];
   }
 }
-/* Actualiza las mecánicas del juego.
-*/
+// Actualiza las mecánicas del juego.
 static void update_game() {
   /* This block de code turns the green bots to yellow or red they get too close to the metroid.
   */
@@ -293,11 +291,11 @@ static void update_game() {
   int16_t met_x, met_y;
   int16_t bot_x, bot_y;
   int16_t square_total;
-  met_x = fsp.oam2[METROID_ID]&Mask_fsp_oam2_x_pos;
-  met_y = (fsp.oam2[METROID_ID]&Mask_fsp_oam2_y_pos)>>16;
+  met_x = fsp.oam[METROID_ID].x_pos;
+  met_y = fsp.oam[METROID_ID].y_pos;
   for (uint16_t bot_id = 1; bot_id <= 3; bot_id++) {
-    bot_x = fsp.oam2[bot_id]&Mask_fsp_oam2_x_pos;
-    bot_y = (fsp.oam2[bot_id]&Mask_fsp_oam2_y_pos)>>16;
+    bot_x = fsp.oam[bot_id].x_pos;
+    bot_y = fsp.oam[bot_id].y_pos;
     square_total =
       (met_x - bot_x) * (met_x - bot_x) +
       (met_y - bot_y) * (met_y - bot_y);
@@ -316,27 +314,7 @@ static void render_frame(void)
   uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
   uint16_t *line   = buf;
 
-  //inicializando la linea de tiles a la derecha del viewport para scroll
-  /*
-  if ( ((viewport.x_origin-bg.offset_x[0])%full_tile_size==0) ) {
-    if (scroll_has_updated_bgtm==0) {
-      for(uint8_t jj=0; jj<vp_tile_number_y; jj++) {
-        bg.tilemaps[0].tile_index[ jj*layer_tile_number_y
-                                  + ( vp_tile_number_x  + (viewport.x_origin-bg.offset_x[0])/full_tile_size)
-                                    %layer_tile_number_x ]
-                                  =scrolling_tilemap_index;
-        //scrolling_tilemap_index=(scrolling_tilemap_index+7)%300;
-        scrolling_tilemap_index=(scrolling_tilemap_index+1)%300;
-        //TODO: do something with the palette of the newly added tiles... it seems a bit periodic, obviously
-      }
-      scroll_has_updated_bgtm=1;
-    }
-  }
-  else {
-    scroll_has_updated_bgtm=0;
-  }
-  //*/
-
+  //TODO: get this logic stuff out of render_frame()
   frame_counter++;
   scroll_frame_counter=frame_counter%bg_scroll_wait_frames;
   animation_frame_counter=frame_counter%animation_wait_frames;
@@ -347,106 +325,77 @@ static void render_frame(void)
   }
 
   if(animation_frame_counter==0){
-  bg.tilemaps[0].tile_index[12]=(bg.tilemaps[0].tile_index[12]+1)%6;
+  bg[0].tilemap[12].tileset_index=(bg[0].tilemap[12].tileset_index+1)%6;
   ///*
-    if(bg.tilemaps[0].tile_index[15]>13) {
-      bg.tilemaps[0].tile_index[15]=8;
+    if(bg[0].tilemap[15].tileset_index>13) {
+      bg[0].tilemap[15].tileset_index=8;
     }
     else {
-      bg.tilemaps[0].tile_index[15]++;
+      bg[0].tilemap[15].tileset_index++;
     }//*/
   ////*
-    if(bg.tilemaps[0].tile_index[18]>18) {
-      bg.tilemaps[0].tile_index[18]=17;
+    if(bg[0].tilemap[18].tileset_index>18) {
+      bg[0].tilemap[18].tileset_index=17;
     }
     else {
-      bg.tilemaps[0].tile_index[18]++;
+      bg[0].tilemap[18].tileset_index++;
     }
   //*/
-  fsp.oam[0]=(fsp.oam[0]&(~Mask_fsp_oam_index))|(((fsp.oam[0]&Mask_fsp_oam_index)+1)%6);
-  //fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_x_pos))|(((fsp.oam2[0]&Mask_fsp_oam2_x_pos)+1)%(layer_tile_number_x*full_tile_size));
+  fsp.oam[0].tileset_index=((fsp.oam[0].tileset_index)+1)%6;
+  //fsp.oam[0].x_pos=((fsp.oam[0].x_pos)+1)%(layer_tile_number_x*full_tile_size);
   }
 
   //background rendering
-  uint16_t yy_vp=0;
-  uint16_t xx_vp=0;
-  uint8_t twopixdata=0;
+  uint16_t yy_vp[bg_layer_count];
+  uint16_t xx_vp[bg_layer_count];
   uint16_t tilemap_index=0;
   uint16_t tileset_index=0;
-  for (uint16_t yy=0; yy<viewport.height; yy++, line+=stride) {
-    yy_vp=yy+viewport.y_origin-bg.offset_y[0];
-    for (uint16_t x2=0; x2<viewport.width; x2+=2) {
-      //process first pixel
-      xx_vp=x2+viewport.x_origin-bg.offset_x[0];
-      tilemap_index= ( (xx_vp/full_tile_size)%layer_tile_number_x + (yy_vp/full_tile_size)*layer_tile_number_x )
-                     %(layer_tile_number_x*layer_tile_number_y);
-      tilemap_index=bg.tilemaps[0].tile_index[tilemap_index];
-      tileset_index=tilemap_index&Mask_bgtm_index;
-      //todo: introduce tilemap palette data, rotation, flip, etc
-      twopixdata = bg.tilesets[0].tile[tileset_index]
-                     .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
-                                            %(full_tile_size*full_tile_size)];
-      if (xx_vp%2==0) {//verificamos si el pixel es par o impar
-        line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
-        line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
-      }//el caso impar es mas complicado, requiere tomar dos bytes distintos
-      else {
-        line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
-        xx_vp++;
-        if (xx_vp%16!=0) {//si el segundo pixel no es el inicio de un tile, es mas facil
-          twopixdata = bg.tilesets[0].tile[tileset_index]
-                         .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
-                                                %(full_tile_size*full_tile_size)];
-          line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
-        }
-        else {//si el segundo pixel es el inicio de un tile, hay que buscar el indice en el mapa
-          tilemap_index=( (xx_vp/full_tile_size)%layer_tile_number_x + (yy_vp/full_tile_size)*layer_tile_number_x )
-                       %(layer_tile_number_x*layer_tile_number_y);
-          tilemap_index=bg.tilemaps[0].tile_index[tilemap_index];
-          tileset_index=tilemap_index&Mask_bgtm_index;
-          //todo: introduce tilemap palette data, rotation, flip, etc
-          twopixdata = bg.tilesets[0]
-                         .tile[ tileset_index ]
-                         .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
-                                     %(full_tile_size*full_tile_size)];
-          line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
-        }
-      }
+  uint8_t layer_counter=0;
+  for (uint16_t yy=0; yy<viewport.height; yy++, line+=stride)
+  {
+    yy_vp[layer_counter]=yy+viewport.y_origin-bg[0].offset_y[yy];
+    for (uint16_t xx=0; xx<viewport.width; xx++)
+    {
+      xx_vp[layer_counter]=xx+viewport.x_origin-bg[0].offset_x[yy];
+      tilemap_index = ( (xx_vp[layer_counter]/full_tile_size)%layer_tile_number_x
+                      + (yy_vp[layer_counter]/full_tile_size)*layer_tile_number_x
+                      )%(layer_tile_number_x*layer_tile_number_y);
+      tileset_index=bg[layer_counter].tilemap[tilemap_index].tileset_index;
+      //TODO: transparency, rotation, h-flip, v-flip, double-size
+      uint8_t pal_i = bg[layer_counter].tilemap[tilemap_index].palette;
+      uint8_t col_i = bg[layer_counter].tileset[tileset_index]
+                                       .pixel_color_index[ ((yy_vp[layer_counter]%full_tile_size)*full_tile_size
+                                                            +(xx_vp[layer_counter]%full_tile_size))
+                                                           %(full_tile_size*full_tile_size) ];
+      line[xx] = bg[layer_counter].palette[pal_i].colors[col_i];
     }
   }
-  //draw_point(frame_buf, 3, 10, 0x7c00); //probando función draw_point
-  //draw_line(frame_buf, 104, 32, 135, 100, 0x7fff); //probando función draw_line
-  //draw_line(frame_buf, 135, 100, 10, 60, 0x7c00);
-  //draw_line(frame_buf, 10, 60, 104, 32,0x03e0);
-  //draw_line(frame_buf, 15, 200, 16, 160, 0x0c00);
 
   //full sprite rendering
   for(uint16_t sprite_counter = fsp.active_number ;
-               sprite_counter > 0 ; sprite_counter-- ) {
+               sprite_counter > 0 ; sprite_counter-- )
+  {
     uint16_t current_sprite=sprite_counter-1;
-    if(fsp.oam2[current_sprite]>=Mask_fsp_oam2_disable) continue;//skips disabled sprites
-    for (uint8_t jj=0; jj<full_tile_size; jj++ ) {//itera sobre renglones
-      uint16_t yy_pos=(fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos)>>16;
-      uint16_t yy_fsp=((uint16_t)(yy_pos+jj-viewport.y_origin+fsp.offset_y))%(full_tile_size*layer_tile_number_y);
-      if ( yy_fsp >= (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y)) continue;//discriminar los renglones visibles
+    if(fsp.oam[current_sprite].disable) continue;//skips disabled sprites
+    for(uint8_t jj=0; jj<full_tile_size; jj++)
+    {
+      uint16_t yy_pos=fsp.oam[current_sprite].y_pos;
+      uint16_t yy_fsp=((uint16_t)(yy_pos+jj-viewport.y_origin+fsp.offset_y))
+                      %(full_tile_size*layer_tile_number_y);
+      if(yy_fsp>=(full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y)) continue;//discriminate visible lines
       line=buf+yy_fsp*stride;
-      for (uint8_t ii=0;ii<full_tile_size;ii++) {//itera sobre pixeles
-        uint16_t xx_pos=fsp.oam2[current_sprite]&Mask_fsp_oam2_x_pos;
-        uint16_t xx_fsp=((uint16_t)(xx_pos+ii-viewport.x_origin+fsp.offset_x))%(full_tile_size*layer_tile_number_x);
-        if ( xx_fsp >= (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x) ) continue;//discriminar los pixeles visibles
-        uint8_t twopixdata=fsp.tile[fsp.oam[current_sprite]
-                                     &Mask_fsp_oam_index]
-                              .two_pixel_color_index
-                               [(jj*full_tile_size+ii)>>1];
-        if (ii%2==0) {
-        twopixdata=twopixdata>>4;
-        }
-        else {
-        twopixdata=twopixdata&0x0F;
-        }
-        if (twopixdata==0) continue;
-        uint8_t pal_id=(fsp.oam[current_sprite]&Mask_fsp_oam_palette)>>10;
-        line[xx_fsp] = fsp.palettes[pal_id].colors[twopixdata];
+      for(uint8_t ii=0; ii<full_tile_size; ii++)
+      {
+        uint16_t xx_pos=fsp.oam[current_sprite].x_pos;
+        uint16_t xx_fsp=((uint16_t)(xx_pos+ii-viewport.x_origin+fsp.offset_x))
+                        %(full_tile_size*layer_tile_number_x);
+        if(xx_fsp>=(full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x)) continue;//discriminate again
+        uint8_t color_index=fsp.tile[fsp.oam[current_sprite].tileset_index]
+                               .pixel_color_index[jj*full_tile_size+ii];
+        if(color_index==0) continue;//transparent pixels are skipped
+        //TODO: semitransparency, rotation, h-flip, v-flip, double-size
+        uint8_t palette_index=fsp.oam[current_sprite].palette;
+        line[xx_fsp]=fsp.palette[palette_index].colors[color_index];
       }
     }
   }
@@ -455,29 +404,22 @@ static void render_frame(void)
   for(uint16_t sprite_counter = hsp.active_number ;
                sprite_counter > 0 ; sprite_counter --) {
     uint16_t current_sprite=sprite_counter-1;
-    if(hsp.oam2[current_sprite]>=Mask_hsp_oam2_disable) continue;//skips disabled sprites
+    if(hsp.oam[current_sprite].disable) continue;//skips disabled sprites
     for (uint8_t jj=0; jj<half_tile_size; jj++) {
-      uint16_t yy_pos=(hsp.oam2[current_sprite]&Mask_hsp_oam2_y_pos)>>16;
+      uint16_t yy_pos=hsp.oam[current_sprite].y_pos;
       uint16_t yy_hsp=((uint16_t)(yy_pos+jj-viewport.y_origin+hsp.offset_y))%(full_tile_size*layer_tile_number_y);
       if ( yy_hsp >= (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y)) continue;//discriminar los renglones_visibles
       line=buf+yy_hsp*stride;
       for (uint8_t ii=0;ii<half_tile_size;ii++) {//itera sobre pixeles
-        uint16_t xx_pos = hsp.oam2[current_sprite]&Mask_hsp_oam2_x_pos;
+        uint16_t xx_pos = hsp.oam[current_sprite].x_pos;
         uint16_t xx_hsp = ((uint16_t)(xx_pos+ii-viewport.x_origin+hsp.offset_x))%(full_tile_size*layer_tile_number_x);
         if ( xx_hsp >= (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x) ) continue;//discriminar los pixeles visibles
-        uint8_t twopixdata=hsp.tile[hsp.oam[current_sprite]
-                                     &Mask_hsp_oam_index]
-                              .two_pixel_color_index
-                               [(jj*half_tile_size+ii)>>1];
-        if (ii%2==0) {
-        twopixdata=(twopixdata>>4)&Mask_half_sprite_index_1;
-        }
-        else {
-        twopixdata=twopixdata&Mask_half_sprite_index_1;
-        }
-        if (twopixdata==0) continue;
-        uint8_t pal_id=(hsp.oam[current_sprite]&Mask_hsp_oam_palette)>>10;
-        line[xx_hsp] = hsp.palettes[pal_id].colors[twopixdata];
+        uint8_t color_index=hsp.tile[hsp.oam[current_sprite].tileset_index]
+                                 .pixel_color_index[jj*half_tile_size+ii];
+        if (color_index==0) continue;
+        //TODO: semitransparency, rotation, h-flip, v-flip, double-size
+        uint8_t pal_id=hsp.oam[current_sprite].palette;
+        line[xx_hsp] = hsp.palette[pal_id].colors[color_index];
       }
     }
   }
