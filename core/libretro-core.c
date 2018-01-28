@@ -40,6 +40,10 @@ uint16_t scrolling_tilemap_index=0;
 //comment the following line to get nice pixel art in the debug console
 #define NUMERIC_DEBUG_OUTPUT
 
+// Audio variables
+static unsigned phase;
+static uint8_t makesound=0;
+
 void print_pixel_8(uint8_t value) {
   #ifdef NUMERIC_DEBUG_OUTPUT
     if      (value==0) fprintf(stdout, " ");
@@ -185,6 +189,7 @@ static void move_background(int8_t vel_x, int8_t vel_y) {
 static void update_input(void)
 {
   input_poll_cb();
+  makesound=0;
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
   {
     move_full_sprite(0, 0, -1);
@@ -204,24 +209,28 @@ static void update_input(void)
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
   {
     move_background(1, 0);
+    makesound = 1;
     //moving hud
     for (uint8_t i=0; i<6; i++) move_half_sprite(i, 1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B))
   {
     move_background(0, 1);
+    makesound = 2;
     //moving hud
     for (uint8_t i=0; i<6; i++) move_half_sprite(i, 0, 1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X))
   {
     move_background(0, -1);
+    makesound = 3;
     //moving hud
     for (uint8_t i=0; i<6; i++) move_half_sprite(i, 0, -1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y))
   {
     move_background(-1, 0);
+    makesound = 4;
     //moving hud
     for (uint8_t i=0; i<6; i++) move_half_sprite(i, -1, 0);
   }
@@ -496,7 +505,41 @@ static void check_variables(void)
 
 static void audio_callback(void)
 {
-   audio_cb(0, 0);
+  if (makesound==1) {
+    for (unsigned i = 0; i < 30000 / 60; i++, phase++)
+    {
+       int16_t val = 0x800 * sinf(2.0f * M_PI * phase * 300.0f / 30000.0f);
+       audio_cb(val, val);
+    }
+    phase %= 100;
+  }
+  else if (makesound==2){
+    for (unsigned i = 0; i < 30000 / 60; i++, phase++)
+    {
+       int16_t val = 0x800 * sinf(4.0f * M_PI * phase * 300.0f / 30000.0f);
+       audio_cb(val, val);
+    }
+    phase %= 100;
+  }
+  else if (makesound==3){
+    for (unsigned i = 0; i < 30000 / 60; i++, phase++)
+    {
+       int16_t val = 0x800 * sinf(8.0f * M_PI * phase * 300.0f / 30000.0f);
+       audio_cb(val, val);
+    }
+    phase %= 100;
+  }
+  else if (makesound==4){
+    for (unsigned i = 0; i < 30000 / 60; i++, phase++)
+    {
+       int16_t val = 0x800 * sinf(6.0f * M_PI * phase * 300.0f / 30000.0f);
+       audio_cb(val, val);
+    }
+    phase %= 100;
+  }
+  else {
+    audio_cb(0, 0);
+  }
 }
 
 void retro_run(void)
