@@ -39,33 +39,19 @@ uint16_t scrolling_tilemap_index=0;
 
 //comment the following line to get nice pixel art in the debug console
 #define NUMERIC_DEBUG_OUTPUT
+#ifdef NUMERIC_DEBUG_OUTPUT
+#else
+#endif
 
 // Audio variables
 static unsigned phase;
 static uint8_t makesound=0;
 
-void print_pixel_8(uint8_t value) {
-  #ifdef NUMERIC_DEBUG_OUTPUT
-    if      (value==0) fprintf(stdout, " ");
-    else               fprintf(stdout, "%u",value);
-  #else
-    if      (value==0) fprintf(stdout, " ");
-    else if (value==1) fprintf(stdout, ".");
-    else if (value==2) fprintf(stdout, "x");
-    else if (value==3) fprintf(stdout, "*");
-    else if (value==4) fprintf(stdout, "+");
-    else if (value==5) fprintf(stdout, "o");
-    else if (value==6) fprintf(stdout, "^");
-    else if (value==7) fprintf(stdout, "v");
-    else               fprintf(stdout, "~%u~",value);
-  #endif
-}
-
 void retro_init(void)
 {
+  initialize_viewport();
   initialize_bg();
   initialize_full_sprites();
-  initialize_viewport();
   initialize_half_sprites();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
   FILE* file = fopen("bg0.gfx","rb");
@@ -78,13 +64,14 @@ void retro_init(void)
   read_gfx_data(file,3);
   fclose(file);
 
+fprintf(stdout,"sssss=============================\n");
+fprintf(stdout,"%u ------\n",bg[0].tilemap[464]);
 char cwd[1024];
    if (getcwd(cwd, sizeof(cwd)) != NULL) fprintf(stdout, "Current working dir: %s\n", cwd);
 }
 
 void retro_deinit(void)
 {
-   //close(filehandler);
    free(frame_buf);
    frame_buf = NULL;
 }
@@ -117,8 +104,8 @@ static retro_input_state_t input_state_cb;
 
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
-   float aspect = 4.0f / 3.0f;
-   float sampling_rate = 30000.0f;
+   float aspect = (float)vp_tile_number_x / (float) vp_tile_number_y ;
+   float sampling_rate = 32000.0f;
 
    info->timing = (struct retro_system_timing) {
       .fps = 60.0,
@@ -301,12 +288,12 @@ static void update_game() {
   #define GREENBOT_ID 1
   int16_t met_x, met_y;
   int16_t bot_x, bot_y;
-  int16_t square_total;
-  met_x = fsp.oam2[METROID_ID]&Mask_fsp_oam2_x_pos;
-  met_y = (fsp.oam2[METROID_ID]&Mask_fsp_oam2_y_pos)>>16;
+  int32_t square_total=0;
+  met_y = fsp.oam2[METROID_ID]&Mask_fsp_oam2_y_pos;
+  met_x = fsp.oam3[METROID_ID]&Mask_fsp_oam3_x_pos;
   for (uint16_t bot_id = 1; bot_id <= 3; bot_id++) {
-    bot_x = fsp.oam2[bot_id]&Mask_fsp_oam2_x_pos;
-    bot_y = (fsp.oam2[bot_id]&Mask_fsp_oam2_y_pos)>>16;
+    bot_y = fsp.oam2[bot_id]&Mask_fsp_oam2_y_pos;
+    bot_x = fsp.oam3[bot_id]&Mask_fsp_oam3_x_pos;
     square_total =
       (met_x - bot_x) * (met_x - bot_x) +
       (met_y - bot_y) * (met_y - bot_y);
@@ -319,25 +306,15 @@ static void update_game() {
   for (uint8_t i=4; i<=7; i++) {
     fsp.oam[i]=(fsp.oam[i]&(~Mask_fsp_oam_index))|((((fsp.oam[i]&Mask_fsp_oam_index)+1)%3)+13 );
   }
-}
-
-/* Dibuja una frame del juego
-*/
-static void render_frame(void)
-{
-  uint16_t *buf    = frame_buf;
-  uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
-  uint16_t *line   = buf;
 
   //inicializando la linea de tiles a la derecha del viewport para scroll
   /*
   if ( ((viewport.x_origin-bg.offset_x[0])%full_tile_size==0) ) {
     if (scroll_has_updated_bgtm==0) {
       for(uint8_t jj=0; jj<vp_tile_number_y; jj++) {
-        bg.tilemaps[0].tile_index[ jj*layer_tile_number_y
-                                  + ( vp_tile_number_x  + (viewport.x_origin-bg.offset_x[0])/full_tile_size)
-                                    %layer_tile_number_x ]
-                                  =scrolling_tilemap_index;
+        bg[0].tile[ jj*layer_tile_number_y
+         + ( vp_tile_number_x  + (viewport.x_origin-bg.offset_x[0])/full_tile_size)%layer_tile_number_x ]
+         =scrolling_tilemap_index;
         //scrolling_tilemap_index=(scrolling_tilemap_index+7)%300;
         scrolling_tilemap_index=(scrolling_tilemap_index+1)%300;
         //TODO: do something with the palette of the newly added tiles... it seems a bit periodic, obviously
@@ -360,91 +337,112 @@ static void render_frame(void)
   }
 
   if(animation_frame_counter==0){
-  bg.tilemaps[0].tile_index[12]=(bg.tilemaps[0].tile_index[12]+1)%6;
-  ///*
-    if(bg.tilemaps[0].tile_index[15]>13) {
-      bg.tilemaps[0].tile_index[15]=8;
+    if((bg[0].tilemap[12]&Mask_bgtm_index)>5) {
+      bg[0].tilemap[12]=bg[0].tilemap[12]&(~Mask_bgtm_index);
     }
     else {
-      bg.tilemaps[0].tile_index[15]++;
+      bg[0].tilemap[12]++;
+    }
+  ///*
+    if((bg[0].tilemap[15]&Mask_bgtm_index)>13) {
+      bg[0].tilemap[15]=(bg[0].tilemap[15]&(~Mask_bgtm_index))|8;
+    }
+    else {
+      bg[0].tilemap[15]++;
     }//*/
   ////*
-    if(bg.tilemaps[0].tile_index[18]>18) {
-      bg.tilemaps[0].tile_index[18]=17;
+    if((bg[0].tilemap[18]&Mask_bgtm_index)>18) {
+      bg[0].tilemap[18]=(bg[0].tilemap[18]&(~Mask_bgtm_index))|17;
     }
     else {
-      bg.tilemaps[0].tile_index[18]++;
+      bg[0].tilemap[18]++;
     }
-  //*/
-  fsp.oam[0]=(fsp.oam[0]&(~Mask_fsp_oam_index))|(((fsp.oam[0]&Mask_fsp_oam_index)+1)%6);
-  //fsp.oam2[0]=(fsp.oam2[0]&(~Mask_fsp_oam2_x_pos))|(((fsp.oam2[0]&Mask_fsp_oam2_x_pos)+1)%(layer_tile_number_x*full_tile_size));
+    fsp.oam[0]=(fsp.oam[0]&(~Mask_fsp_oam_index))|(((fsp.oam[0]&Mask_fsp_oam_index)+1)%6);
+    //fsp.oam3[0]=(fsp.oam3[0]&(~Mask_fsp_oam3_x_pos))|(((fsp.oam3[0]&Mask_fsp_oam3_x_pos)+1)%(layer_tile_number_x*full_tile_size));
   }
 
+}
+
+/* Dibuja una frame del juego
+*/
+static void render_frame(void)
+{
+  uint16_t *buf    = frame_buf;
+  uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
+  uint16_t *line   = buf;
+
+
   //background rendering
-  uint16_t yy_vp=0;
-  uint16_t xx_vp=0;
-  uint8_t twopixdata=0;
+  uint16_t yy_vp[bg_layer_count];
+  uint16_t xx_vp[bg_layer_count];
+  uint8_t  twopixdata=0;
   uint16_t tilemap_index=0;
   uint16_t tileset_index=0;
+  uint8_t  palette_index=0;
+  uint8_t  layer_counter=0;
+
   for (uint16_t yy=0; yy<viewport.height; yy++, line+=stride) {
-    yy_vp=yy+viewport.y_origin-bg.offset_y[0];
+    yy_vp[layer_counter]=yy+viewport.y_origin-bg[layer_counter].offset_y[yy];
     for (uint16_t x2=0; x2<viewport.width; x2+=2) {
       //process first pixel
-      xx_vp=x2+viewport.x_origin-bg.offset_x[0];
-      tilemap_index= ( (xx_vp/full_tile_size)%layer_tile_number_x + (yy_vp/full_tile_size)*layer_tile_number_x )
+      xx_vp[layer_counter]=x2+viewport.x_origin-bg[layer_counter].offset_x[yy];
+      tilemap_index= ( (xx_vp[layer_counter]/full_tile_size)%layer_tile_number_x
+                     + (yy_vp[layer_counter]/full_tile_size)*layer_tile_number_x )
                      %(layer_tile_number_x*layer_tile_number_y);
-      tilemap_index=bg.tilemaps[0].tile_index[tilemap_index];
+      tileset_index=bg[layer_counter].tilemap[tilemap_index];
+      palette_index=(tileset_index&Mask_bgtm_palette)>>10;
       tileset_index=tilemap_index&Mask_bgtm_index;
+//fprintf(stdout,"%u %u xx\n",xx_vp[layer_counter], yy_vp[layer_counter]);
+//fprintf(stdout,"%u %u --\n",tilemap_index,tileset_index);
       //todo: introduce tilemap palette data, rotation, flip, etc
-      twopixdata = bg.tilesets[0].tile[tileset_index]
-                     .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
+      twopixdata = bg[layer_counter].tile[tileset_index]
+                     .two_pixel_color_index[(( (yy_vp[layer_counter]%full_tile_size)*full_tile_size
+                                              +(xx_vp[layer_counter]%full_tile_size))>>1)
                                             %(full_tile_size*full_tile_size)];
-      if (xx_vp%2==0) {//verificamos si el pixel es par o impar
-        line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
-        line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
+      if (xx_vp[layer_counter]%2==0) {//verificamos si el pixel es par o impar
+        line[x2]=bg[layer_counter].palette[palette_index].color[twopixdata>>4];
+        line[x2+1]=bg[layer_counter].palette[palette_index].color[twopixdata&0x0F];
       }//el caso impar es mas complicado, requiere tomar dos bytes distintos
       else {
-        line[x2]=bg.palette_sets[0].palettes[0].colors[twopixdata&0x0F];
-        xx_vp++;
-        if (xx_vp%16!=0) {//si el segundo pixel no es el inicio de un tile, es mas facil
-          twopixdata = bg.tilesets[0].tile[tileset_index]
-                         .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
+        line[x2]=bg[layer_counter].palette[palette_index].color[twopixdata&0x0F];
+        xx_vp[layer_counter]++;
+        if (xx_vp[layer_counter]%16!=0) {//si el segundo pixel no es el inicio de un tile, es mas facil
+          twopixdata = bg[layer_counter].tile[tileset_index]
+                         .two_pixel_color_index[(( (yy_vp[layer_counter]%full_tile_size)*full_tile_size
+                                                  +(xx_vp[layer_counter]%full_tile_size))>>1)
                                                 %(full_tile_size*full_tile_size)];
-          line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
+          line[x2+1]=bg[layer_counter].palette[palette_index].color[twopixdata>>4];
         }
         else {//si el segundo pixel es el inicio de un tile, hay que buscar el indice en el mapa
-          tilemap_index=( (xx_vp/full_tile_size)%layer_tile_number_x + (yy_vp/full_tile_size)*layer_tile_number_x )
+          tilemap_index=( (xx_vp[layer_counter]/full_tile_size)%layer_tile_number_x
+                        + (yy_vp[layer_counter]/full_tile_size)*layer_tile_number_x )
                        %(layer_tile_number_x*layer_tile_number_y);
-          tilemap_index=bg.tilemaps[0].tile_index[tilemap_index];
+          tileset_index=bg[layer_counter].tilemap[tilemap_index];
+          palette_index=(tileset_index&Mask_bgtm_palette)>>10;
           tileset_index=tilemap_index&Mask_bgtm_index;
           //todo: introduce tilemap palette data, rotation, flip, etc
-          twopixdata = bg.tilesets[0]
-                         .tile[ tileset_index ]
-                         .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size+(xx_vp%full_tile_size))>>1)
-                                     %(full_tile_size*full_tile_size)];
-          line[x2+1]=bg.palette_sets[0].palettes[0].colors[twopixdata>>4];
+          twopixdata = bg[layer_counter].tile[ tileset_index ]
+                         .two_pixel_color_index[(( (yy_vp[layer_counter]%full_tile_size)*full_tile_size
+                                                 + (xx_vp[layer_counter]%full_tile_size))>>1)
+                                                %(full_tile_size*full_tile_size)];
+          line[x2+1]=bg[layer_counter].palette[palette_index].color[twopixdata>>4];
         }
       }
     }
   }
-  //draw_point(frame_buf, 3, 10, 0x7c00); //probando función draw_point
-  //draw_line(frame_buf, 104, 32, 135, 100, 0x7fff); //probando función draw_line
-  //draw_line(frame_buf, 135, 100, 10, 60, 0x7c00);
-  //draw_line(frame_buf, 10, 60, 104, 32,0x03e0);
-  //draw_line(frame_buf, 15, 200, 16, 160, 0x0c00);
 
   //full sprite rendering
   for(uint16_t sprite_counter = fsp.active_number ;
                sprite_counter > 0 ; sprite_counter-- ) {
     uint16_t current_sprite=sprite_counter-1;
-    if(fsp.oam2[current_sprite]>=Mask_fsp_oam2_disable) continue;//skips disabled sprites
+    if(fsp.oam[current_sprite]>=Mask_fsp_oam_disable) continue;//skips disabled sprites
     for (uint8_t jj=0; jj<full_tile_size; jj++ ) {//itera sobre renglones
-      uint16_t yy_pos=(fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos)>>16;
+      uint16_t yy_pos=fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos;
       uint16_t yy_fsp=((uint16_t)(yy_pos+jj-viewport.y_origin+fsp.offset_y))%(full_tile_size*layer_tile_number_y);
       if ( yy_fsp >= (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y)) continue;//discriminar los renglones visibles
       line=buf+yy_fsp*stride;
       for (uint8_t ii=0;ii<full_tile_size;ii++) {//itera sobre pixeles
-        uint16_t xx_pos=fsp.oam2[current_sprite]&Mask_fsp_oam2_x_pos;
+        uint16_t xx_pos=fsp.oam3[current_sprite]&Mask_fsp_oam3_x_pos;
         uint16_t xx_fsp=((uint16_t)(xx_pos+ii-viewport.x_origin+fsp.offset_x))%(full_tile_size*layer_tile_number_x);
         if ( xx_fsp >= (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x) ) continue;//discriminar los pixeles visibles
         uint8_t twopixdata=fsp.tile[fsp.oam[current_sprite]
@@ -458,8 +456,8 @@ static void render_frame(void)
         twopixdata=twopixdata&0x0F;
         }
         if (twopixdata==0) continue;
-        uint8_t pal_id=(fsp.oam[current_sprite]&Mask_fsp_oam_palette)>>10;
-        line[xx_fsp] = fsp.palettes[pal_id].colors[twopixdata];
+        uint8_t pal_id=(fsp.oam[current_sprite]&Mask_fsp_oam_palette)>>10;//TODO: relocate this and test for semitransparency, etc
+        line[xx_fsp] = fsp.palette[pal_id].color[twopixdata];
       }
     }
   }
@@ -468,14 +466,14 @@ static void render_frame(void)
   for(uint16_t sprite_counter = hsp.active_number ;
                sprite_counter > 0 ; sprite_counter --) {
     uint16_t current_sprite=sprite_counter-1;
-    if(hsp.oam2[current_sprite]>=Mask_hsp_oam2_disable) continue;//skips disabled sprites
+    if(hsp.oam2[current_sprite]>=Mask_hsp_oam_disable) continue;//skips disabled sprites
     for (uint8_t jj=0; jj<half_tile_size; jj++) {
-      uint16_t yy_pos=(hsp.oam2[current_sprite]&Mask_hsp_oam2_y_pos)>>16;
+      uint16_t yy_pos=hsp.oam2[current_sprite]&Mask_hsp_oam2_y_pos;
       uint16_t yy_hsp=((uint16_t)(yy_pos+jj-viewport.y_origin+hsp.offset_y))%(full_tile_size*layer_tile_number_y);
       if ( yy_hsp >= (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y)) continue;//discriminar los renglones_visibles
       line=buf+yy_hsp*stride;
       for (uint8_t ii=0;ii<half_tile_size;ii++) {//itera sobre pixeles
-        uint16_t xx_pos = hsp.oam2[current_sprite]&Mask_hsp_oam2_x_pos;
+        uint16_t xx_pos = hsp.oam3[current_sprite]&Mask_hsp_oam3_x_pos;
         uint16_t xx_hsp = ((uint16_t)(xx_pos+ii-viewport.x_origin+hsp.offset_x))%(full_tile_size*layer_tile_number_x);
         if ( xx_hsp >= (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x) ) continue;//discriminar los pixeles visibles
         uint8_t twopixdata=hsp.tile[hsp.oam[current_sprite]
@@ -490,7 +488,7 @@ static void render_frame(void)
         }
         if (twopixdata==0) continue;
         uint8_t pal_id=(hsp.oam[current_sprite]&Mask_hsp_oam_palette)>>10;
-        line[xx_hsp] = hsp.palettes[pal_id].colors[twopixdata];
+        line[xx_hsp] = hsp.palette[pal_id].color[twopixdata];
       }
     }
   }
@@ -506,33 +504,33 @@ static void check_variables(void)
 static void audio_callback(void)
 {
   if (makesound==1) {
-    for (unsigned i = 0; i < 30000 / 60; i++, phase++)
+    for (unsigned i = 0; i < 532; i++, phase++) //532=32000/60 -1
     {
-       int16_t val = 0x800 * sinf(2.0f * M_PI * phase * 300.0f / 30000.0f);
+       int16_t val = 0x800 * sinf(2.0f * M_PI * phase * 320.0f / 32000.0f);
        audio_cb(val, val);
     }
     phase %= 100;
   }
   else if (makesound==2){
-    for (unsigned i = 0; i < 30000 / 60; i++, phase++)
+    for (unsigned i = 0; i < 532; i++, phase++)
     {
-       int16_t val = 0x800 * sinf(4.0f * M_PI * phase * 300.0f / 30000.0f);
+       int16_t val = 0x800 * sinf(4.0f * M_PI * phase * 320.0f / 32000.0f);
        audio_cb(val, val);
-    }
+   }
     phase %= 100;
   }
   else if (makesound==3){
-    for (unsigned i = 0; i < 30000 / 60; i++, phase++)
+    for (unsigned i = 0; i < 532; i++, phase++)
     {
-       int16_t val = 0x800 * sinf(8.0f * M_PI * phase * 300.0f / 30000.0f);
+       int16_t val = 0x800 * sinf(8.0f * M_PI * phase * 320.0f / 32000.0f);
        audio_cb(val, val);
     }
     phase %= 100;
   }
   else if (makesound==4){
-    for (unsigned i = 0; i < 30000 / 60; i++, phase++)
+    for (unsigned i = 0; i < 532; i++, phase++)
     {
-       int16_t val = 0x800 * sinf(6.0f * M_PI * phase * 300.0f / 30000.0f);
+       int16_t val = 0x800 * sinf(6.0f * M_PI * phase * 320.0f / 32000.0f);
        audio_cb(val, val);
     }
     phase %= 100;
