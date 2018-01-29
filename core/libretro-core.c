@@ -417,11 +417,11 @@ static void render_frame(void)
                        %(layer_tile_number_x*layer_tile_number_y);
           tileset_index=bg[layer_counter].tilemap[tilemap_index];
           palette_index=(tileset_index&Mask_bgtm_palette)>>10;
-          tileset_index=tilemap_index&Mask_bgtm_index;
+          tileset_index=tileset_index&Mask_bgtm_index;
           //todo: introduce tilemap palette data, rotation, flip, etc
           twopixdata = bg[layer_counter].tile[ tileset_index ]
                          .two_pixel_color_index[(( (yy_vp[layer_counter]%full_tile_size)*full_tile_size
-                                                 + (xx_vp[layer_counter]%full_tile_size))>>1)
+                                                 + (xx_vp[layer_counter]%full_tile_size))>>1 )
                                                 %(full_tile_size*full_tile_size)];
           line[x2+1]=bg[layer_counter].palette[palette_index].color[twopixdata>>4];
         }
