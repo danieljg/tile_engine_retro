@@ -105,7 +105,7 @@ static retro_input_state_t input_state_cb;
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
    float aspect = (float)vp_tile_number_x / (float) vp_tile_number_y ;
-   float sampling_rate = 32000.0f;
+   float sampling_rate = 30000.0f;
 
    info->timing = (struct retro_system_timing) {
       .fps = 60.0,
@@ -203,21 +203,21 @@ static void update_input(void)
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B))
   {
     move_background(0, 1);
-    makesound = 2;
+    //makesound = 2;
     //moving hud
     for (uint8_t i=0; i<6; i++) move_half_sprite(i, 0, 1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X))
   {
     move_background(0, -1);
-    makesound = 3;
+    //makesound = 3;
     //moving hud
     for (uint8_t i=0; i<6; i++) move_half_sprite(i, 0, -1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y))
   {
     move_background(-1, 0);
-    makesound = 4;
+    //makesound = 4;
     //moving hud
     for (uint8_t i=0; i<6; i++) move_half_sprite(i, -1, 0);
   }
@@ -391,9 +391,7 @@ static void render_frame(void)
                      %(layer_tile_number_x*layer_tile_number_y);
       tileset_index=bg[layer_counter].tilemap[tilemap_index];
       palette_index=(tileset_index&Mask_bgtm_palette)>>10;
-      tileset_index=tilemap_index&Mask_bgtm_index;
-//fprintf(stdout,"%u %u xx\n",xx_vp[layer_counter], yy_vp[layer_counter]);
-//fprintf(stdout,"%u %u --\n",tilemap_index,tileset_index);
+      tileset_index=tileset_index&Mask_bgtm_index;
       //todo: introduce tilemap palette data, rotation, flip, etc
       twopixdata = bg[layer_counter].tile[tileset_index]
                      .two_pixel_color_index[(( (yy_vp[layer_counter]%full_tile_size)*full_tile_size
@@ -503,41 +501,7 @@ static void check_variables(void)
 
 static void audio_callback(void)
 {
-  if (makesound==1) {
-    for (unsigned i = 0; i < 532; i++, phase++) //532=32000/60 -1
-    {
-       int16_t val = 0x800 * sinf(2.0f * M_PI * phase * 320.0f / 32000.0f);
-       audio_cb(val, val);
-    }
-    phase %= 100;
-  }
-  else if (makesound==2){
-    for (unsigned i = 0; i < 532; i++, phase++)
-    {
-       int16_t val = 0x800 * sinf(4.0f * M_PI * phase * 320.0f / 32000.0f);
-       audio_cb(val, val);
-   }
-    phase %= 100;
-  }
-  else if (makesound==3){
-    for (unsigned i = 0; i < 532; i++, phase++)
-    {
-       int16_t val = 0x800 * sinf(8.0f * M_PI * phase * 320.0f / 32000.0f);
-       audio_cb(val, val);
-    }
-    phase %= 100;
-  }
-  else if (makesound==4){
-    for (unsigned i = 0; i < 532; i++, phase++)
-    {
-       int16_t val = 0x800 * sinf(6.0f * M_PI * phase * 320.0f / 32000.0f);
-       audio_cb(val, val);
-    }
-    phase %= 100;
-  }
-  else {
     audio_cb(0, 0);
-  }
 }
 
 void retro_run(void)
