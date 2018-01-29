@@ -186,15 +186,17 @@ Esta función recibe 3 argumentos:
 El sprite es creado en el primer espacio disponible en la estructura de sprites. El contador de sprites es incrementado en 1
 */
 //TODO: ciclar las estructuras disponibles y colocarlo en el primero disponible
-void add_full_sprite(
+uint8_t add_full_sprite(
     uint16_t sp_index,
     uint8_t pal_index,
     uint16_t x_pos, uint16_t y_pos
   ) {
-  fsp.oam[fsp.active_number] = (pal_index<<10) | sp_index;
-  fsp.oam2[fsp.active_number] = y_pos;
-  fsp.oam3[fsp.active_number] = x_pos;
+  uint8_t new_id = fsp.active_number;
+  fsp.oam[new_id] = (pal_index<<10) | sp_index;
+  fsp.oam2[new_id] = y_pos;
+  fsp.oam3[new_id] = x_pos;
   fsp.active_number++;
+  return new_id;
 }
 
 void initialize_full_sprites()
