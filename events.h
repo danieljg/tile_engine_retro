@@ -1,5 +1,7 @@
 #define ENTITIES_MAX 256
 #define EVENTS_MAX 256
+#define PLAYERS_MAX 2
+
 
 #define ENT_GAMECONTROL 0
 #define ENT_PLAYER1 1
@@ -9,6 +11,9 @@
 #define ENT_ENEMY3 5
 #define ENT_ENEMY4 6
 #define ENT_ENEMY5 7
+
+#define IN_PLAYER1 0
+#define IN_PLAYER2 1
 
 static uint8_t entities_ids[ENTITIES_MAX];
 
@@ -28,6 +33,7 @@ typedef struct {
   game_entity entities[ENTITIES_MAX];
   uint8_t total_events;
   game_event events[EVENTS_MAX];
+  uint16_t input_state[PLAYERS_MAX];
 } game_struct;
 
 game_struct game;
@@ -67,6 +73,9 @@ void initialize_game() {
     game.events[i].entity_id = 0;
     game.events[i].event_type = 0;
   }
+  fprintf(stdout, "\t\t...done.\n");
+  fprintf(stdout, "\t- Initializing Input...\n");
+  for (uint8_t i=0; i<PLAYERS_MAX; i++) game.input_state[i] = 0x00;
   fprintf(stdout, "\t\t...done.\n");
   game_set();
   fprintf(stdout, "... Game Initialized.\n");
