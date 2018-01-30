@@ -20,17 +20,21 @@ color_16bit null_color=0x0000;
 #define layer_tile_number_y 32
 
 //The viewport size is an integer number of tiles
+#if defined(_3DS)
+#define vp_tile_number_x 25
+#else
 #define vp_tile_number_x 20
+#endif
 #define vp_tile_number_y 15
 //The (initial) origin of the viewport may be displaced
 #define vp_x_origin 0
 #define vp_y_origin 0
 
 typedef struct {
- uint16_t width;
- uint16_t height;
- uint16_t x_origin;
- uint16_t y_origin;
+ uint32_t width;
+ uint32_t height;
+ uint32_t x_origin;
+ uint32_t y_origin;
 } vp;
 
 vp viewport;
@@ -66,7 +70,7 @@ typedef struct {
 } bg_tile;
 
 //background tilemap masks
-#define Mask_bgtm_rotation	0x8000 //bit 16
+#define Mask_bgtm_disable	0x8000 //bit 16
 #define Mask_bgtm_v_flip	0x4000 //bit 15
 #define Mask_bgtm_h_flip	0x2000 //bit 14
 #define Mask_bgtm_reserved	0x1000 //bit 13
@@ -124,10 +128,6 @@ void initialize_bg_palettes()
  }
 }
 
-
-//TODO: Escribir funciones de inicialización restantes
-
-
 //La capa de sprites se divide en full sprites y half-sprites
 //la intencion es usar los full sprites para personajes
 //y half sprites para balas, score, etc
@@ -170,9 +170,9 @@ typedef struct {
  uint16_t oam[fsp_count];
  uint16_t oam2[fsp_count];
  uint16_t oam3[fsp_count];
- uint16_t offset_x;
- uint16_t offset_y;
- uint8_t active_number;
+ uint32_t offset_x;//TODO:Combine offsets into one 32 bit variable
+ uint32_t offset_y;
+ uint32_t active_number;
 } fsp_struct;
 
 fsp_struct fsp;
@@ -261,9 +261,9 @@ typedef struct {
  uint16_t oam[hsp_count];
  uint16_t oam2[hsp_count];
  uint16_t oam3[hsp_count];
- uint16_t offset_x;
- uint16_t offset_y;
- uint8_t active_number;
+ uint32_t offset_x;//TODO: combine offsets into one 32 bit qty
+ uint32_t offset_y;
+ uint32_t active_number;
 } hsp_struct;
 
 hsp_struct hsp;
@@ -276,6 +276,7 @@ Esta función recibe 3 argumentos:
 
 El sprite es creado en el primer espacio disponible en la estructura de sprites. El contador de sprites es incrementado en 1
 */
+//TODO: buscar el primer espacio disponible
 void add_half_sprite(
     uint16_t sp_index,
     uint8_t pal_index,
@@ -450,7 +451,7 @@ void read_gfx_data(FILE* file, int gfxtype) {
 El código comentado pertenece a una versión anterior que usaba un apuntador al
 frame buffer. Parece funcionar igual al usar el frame buffer directamente.
 */
-void draw_point(uint16_t *viewport_buff, int16_t x, int16_t y, int16_t color) {
+void inline draw_point(uint16_t *viewport_buff, int16_t x, int16_t y, int16_t color) {
  //uint16_t *line = frame_buf;
  //line[viewport.width * y + x] = color;
  viewport_buff[viewport.width * y + x] = color;

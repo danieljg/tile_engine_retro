@@ -28,15 +28,15 @@ static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 }
 
 // contadores de frames
-static uint8_t frame_counter=0;
-static uint8_t scroll_frame_counter=0;
-static uint8_t animation_frame_counter=0;
-static uint8_t scroll_has_updated_bgtm=0;
+static uint32_t frame_counter=0;
+static uint32_t scroll_frame_counter=0;
+static uint32_t animation_frame_counter=0;
+static uint32_t scroll_has_updated_bgtm=0;
 static uint16_t bg_scroll_per_step=1;
 static uint16_t bg_scroll_wait_frames=1<<1;
 static uint16_t animation_wait_frames=16;
 // contador de scroll
-uint16_t scrolling_tilemap_index=0;
+static uint32_t scrolling_tilemap_index=0;
 
 //comment the following line to get nice pixel art in the debug console
 #define NUMERIC_DEBUG_OUTPUT
@@ -106,7 +106,7 @@ static retro_input_state_t input_state_cb;
 
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
-   float aspect = (float)vp_tile_number_x / (float) vp_tile_number_y ;
+   float aspect = (float) vp_tile_number_x / (float) vp_tile_number_y ;
    float sampling_rate = 30000.0f;
 
    info->timing = (struct retro_system_timing) {
@@ -199,7 +199,7 @@ static void update_input(void)
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
   {
     move_background(1, 0);
-    makesound = 1;
+    //makesound = 1;
     //moving hud
     for (uint8_t i=0; i<6; i++) move_half_sprite(i, 1, 0);
   }
@@ -256,11 +256,11 @@ static void update_input(void)
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT))
   {
-    fprintf(stdout, "SELECT\t");
+    //fprintf(stdout, "SELECT\t");
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START))
   {
-    fprintf(stdout, "START\t");
+    //fprintf(stdout, "START\t");
   }
 
   // Analog test
@@ -386,11 +386,11 @@ static void render_frame(void)
 
 
   //background rendering
-  uint16_t yy_vp[bg_layer_count];
-  uint16_t xx_vp[bg_layer_count];
+  uint32_t yy_vp[bg_layer_count];
+  uint32_t xx_vp[bg_layer_count];
   uint8_t  twopixdata=0;
-  uint16_t tilemap_index=0;
-  uint16_t tileset_index=0;
+  uint32_t tilemap_index=0;
+  uint32_t tileset_index=0;
   uint8_t  palette_index=0;
   uint8_t  layer_counter=0;
 
@@ -404,6 +404,9 @@ static void render_frame(void)
                      %(layer_tile_number_x*layer_tile_number_y);
       tileset_index=bg[layer_counter].tilemap[tilemap_index];
       palette_index=(tileset_index&Mask_bgtm_palette)>>10;
+      if(palette_index==0){
+        //TODO: full transparency goes here ... everything would be easier with a rewrite
+      }
       tileset_index=tileset_index&Mask_bgtm_index;
       //todo: introduce tilemap palette data, rotation, flip, etc
       twopixdata = bg[layer_counter].tile[tileset_index]
@@ -435,7 +438,7 @@ static void render_frame(void)
         //TODO:semitranspancy goes here, too
         }
         xx_vp[layer_counter]++;
-        if (xx_vp[layer_counter]%16!=0) {//si el segundo pixel no es el inicio de un tile, es mas facil
+        if (xx_vp[layer_counter]%full_tile_size!=0) {//si el segundo pixel no es el inicio de un tile, es mas facil
           twopixdata = bg[layer_counter].tile[tileset_index]
                          .two_pixel_color_index[(( (yy_vp[layer_counter]%full_tile_size)*full_tile_size
                                                   +(xx_vp[layer_counter]%full_tile_size))>>1)
@@ -454,6 +457,9 @@ static void render_frame(void)
                        %(layer_tile_number_x*layer_tile_number_y);
           tileset_index=bg[layer_counter].tilemap[tilemap_index];
           palette_index=(tileset_index&Mask_bgtm_palette)>>10;
+          if(palette_index==0){
+           //TODO: full transparency goes here
+          }
           tileset_index=tileset_index&Mask_bgtm_index;
           //todo: introduce tilemap palette data, rotation, flip, etc
           twopixdata = bg[layer_counter].tile[ tileset_index ]
