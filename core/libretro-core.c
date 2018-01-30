@@ -398,18 +398,42 @@ static void render_frame(void)
                                               +(xx_vp[layer_counter]%full_tile_size))>>1)
                                             %(full_tile_size*full_tile_size)];
       if (xx_vp[layer_counter]%2==0) {//verificamos si el pixel es par o impar
-        line[x2]=bg[layer_counter].palette[palette_index].color[twopixdata>>4];
-        line[x2+1]=bg[layer_counter].palette[palette_index].color[twopixdata&0x0F];
+        color_16bit color_data=bg[layer_counter].palette[palette_index].color[twopixdata>>4];
+        if(color_data<0x8000){
+        line[x2]=color_data;
+        }
+        else{
+        //TODO:semitransparency goes here
+        }
+        color_data=bg[layer_counter].palette[palette_index].color[twopixdata&0x0F];
+        if(color_data<0x8000){
+        line[x2+1]=color_data;
+        }
+        else{
+        //TODO:semitransparency goes here, too
+        }
       }//el caso impar es mas complicado, requiere tomar dos bytes distintos
       else {
-        line[x2]=bg[layer_counter].palette[palette_index].color[twopixdata&0x0F];
+        color_16bit color_data=bg[layer_counter].palette[palette_index].color[twopixdata&0x0F];
+        if(color_data<0x8000){
+        line[x2]=color_data;
+        }
+        else{
+        //TODO:semitranspancy goes here, too
+        }
         xx_vp[layer_counter]++;
         if (xx_vp[layer_counter]%16!=0) {//si el segundo pixel no es el inicio de un tile, es mas facil
           twopixdata = bg[layer_counter].tile[tileset_index]
                          .two_pixel_color_index[(( (yy_vp[layer_counter]%full_tile_size)*full_tile_size
                                                   +(xx_vp[layer_counter]%full_tile_size))>>1)
                                                 %(full_tile_size*full_tile_size)];
-          line[x2+1]=bg[layer_counter].palette[palette_index].color[twopixdata>>4];
+          color_data = bg[layer_counter].palette[palette_index].color[twopixdata>>4];
+          if(color_data<0x8000){
+          line[x2+1] = color_data;
+          }
+          else{
+          //TODO:semitransparency goes here, too
+          }
         }
         else {//si el segundo pixel es el inicio de un tile, hay que buscar el indice en el mapa
           tilemap_index=( (xx_vp[layer_counter]/full_tile_size)%layer_tile_number_x
@@ -423,7 +447,13 @@ static void render_frame(void)
                          .two_pixel_color_index[(( (yy_vp[layer_counter]%full_tile_size)*full_tile_size
                                                  + (xx_vp[layer_counter]%full_tile_size))>>1 )
                                                 %(full_tile_size*full_tile_size)];
-          line[x2+1]=bg[layer_counter].palette[palette_index].color[twopixdata>>4];
+          color_data = bg[layer_counter].palette[palette_index].color[twopixdata>>4];
+          if(color_data<0x8000){
+          line[x2+1]=color_data;
+          }
+          else{
+          //TODO:semitransparency goes here, too
+          }
         }
       }
     }
