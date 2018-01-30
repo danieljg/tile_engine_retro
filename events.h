@@ -47,8 +47,8 @@ uint8_t add_entity(
 }
 
 void game_set() {
-  entities_ids[ENT_PLAYER1] = add_entity(12,3,64,80);
-  entities_ids[ENT_PLAYER2] = add_entity(12,2,96,80);
+  entities_ids[ENT_PLAYER1] = add_entity(12, 1, 96, 208);
+  entities_ids[ENT_PLAYER2] = add_entity(12, 2, 208, 208);
 }
 
 void initialize_game() {

@@ -211,14 +211,6 @@ void initialize_full_sprites()
  fsp.offset_x=0;
  fsp.offset_y=0;
  fsp.active_number=0;
- add_full_sprite(0,  0, 128, 128); // Metroid
- add_full_sprite(7,  0,  32, 32); // bot 1 (moves horizontally)
- add_full_sprite(8,  0,  48, 32); // bot 2 (moves diagonally)
- add_full_sprite(9,  0,  64, 32); // bot 3 (moves vertically)
- add_full_sprite(12, 1, 128, 32); // Red Spaceship (fsp2.pal)
- add_full_sprite(15, 2, 160, 32); // Blue Spaceship (fsp2.pal)
- add_full_sprite(13, 3, 128, 64); // Yellow Spaceship (fsp2.pal)
- add_full_sprite(14, 4, 160, 64); // Green Spaceship (fsp2.pal)
 }
 
 #define hsp_palette_number 16
