@@ -11,7 +11,7 @@ all: core/tile_engine_retro_libretro.so GFX
 run: core/tile_engine_retro_libretro.so GFX
 	cd core && retroarch -L ./tile_engine_retro_libretro.so
 
-core/tile_engine_retro_libretro.so: gfx_engine.h core/libretro.h core/libretro-core.c core/link.T
+core/tile_engine_retro_libretro.so: gfx_engine.h events.h core/libretro.h core/libretro-core.c core/link.T
 	cd core && make
 
 bmptogfx: bmp_to_gfx.c qdbmp.c

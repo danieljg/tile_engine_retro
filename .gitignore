@@ -1,0 +1,8 @@
+
+*.gfx
+
+core/libretro-core\.o
+
+core/tile_engine_retro_libretro\.so
+
+bmptogfx

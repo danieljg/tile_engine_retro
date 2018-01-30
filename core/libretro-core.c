@@ -9,6 +9,7 @@
 
 #include "libretro.h"
 #include "../gfx_engine.h"
+#include "../events.h"
 
 #if defined(_3DS)
 #endif
@@ -63,11 +64,12 @@ void retro_init(void)
   file = fopen("hsp.gfx","rb");
   read_gfx_data(file,3);
   fclose(file);
-
-fprintf(stdout,"sssss=============================\n");
-fprintf(stdout,"%u ------\n",bg[0].tilemap[464]);
-char cwd[1024];
-   if (getcwd(cwd, sizeof(cwd)) != NULL) fprintf(stdout, "Current working dir: %s\n", cwd);
+  fprintf(stdout,"=============================\n");
+  fprintf(stdout,"%u ------\n",bg[0].tilemap[464]);
+  char cwd[1024];
+  if (getcwd(cwd, sizeof(cwd)) != NULL)
+    fprintf(stdout, "Current working dir: %s\n", cwd);
+  initialize_game();
 }
 
 void retro_deinit(void)
@@ -177,6 +179,7 @@ static void update_input(void)
 {
   input_poll_cb();
   makesound=0;
+
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
   {
     move_full_sprite(0, 0, -1);
@@ -259,6 +262,14 @@ static void update_input(void)
   {
     fprintf(stdout, "START\t");
   }
+
+  // Analog test
+  // Left analog moves blue spaceship
+  game.entities[entities_ids[ENT_PLAYER1]].vel_x = input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 15000;
+  game.entities[entities_ids[ENT_PLAYER1]].vel_y= input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / -15000;
+  // Right analog moves yellow spaceship (axis are wrong but work)
+  game.entities[entities_ids[ENT_PLAYER2]].vel_x = input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / -15000;
+  game.entities[entities_ids[ENT_PLAYER2]].vel_y= input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / -15000;
 }
 
 
@@ -282,6 +293,8 @@ void update_coords(uint16_t x, uint16_t y) {
 /* Actualiza las mecánicas del juego.
 */
 static void update_game() {
+  update_entities();
+
   /* This block de code turns the green bots to yellow or red they get too close to the metroid.
   */
   #define METROID_ID 0
