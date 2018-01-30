@@ -179,31 +179,22 @@ static void update_input(void)
 {
   input_poll_cb();
   makesound=0;
-  game.objects[entities_ids[ENT_PLAYER1]].vel_x=0;
-  game.objects[entities_ids[ENT_PLAYER1]].vel_y=0;
+
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
   {
     move_full_sprite(0, 0, -1);
-    game.objects[entities_ids[ENT_PLAYER1]].vel_y=-2;
-
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
   {
     move_full_sprite(0, 0, 1);
-    game.objects[entities_ids[ENT_PLAYER1]].vel_y=2;
-
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
   {
     move_full_sprite(0, -1, 0);
-    game.objects[entities_ids[ENT_PLAYER1]].vel_x=-2;
-
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
   {
     move_full_sprite(0, 1, 0);
-    game.objects[entities_ids[ENT_PLAYER1]].vel_x=2;
-
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
   {
@@ -271,6 +262,14 @@ static void update_input(void)
   {
     fprintf(stdout, "START\t");
   }
+
+  // Analog test
+  // Left analog moves blue spaceship
+  game.entities[entities_ids[ENT_PLAYER1]].vel_x = input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 15000;
+  game.entities[entities_ids[ENT_PLAYER1]].vel_y= input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / -15000;
+  // Right analog moves yellow spaceship (axis are wrong but work)
+  game.entities[entities_ids[ENT_PLAYER2]].vel_x = input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / -15000;
+  game.entities[entities_ids[ENT_PLAYER2]].vel_y= input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / -15000;
 }
 
 
