@@ -81,8 +81,8 @@ typedef struct {
   bg_palette palette[bg_palettes_per_layer];
   bg_tile tile[bg_tileset_number];
   uint16_t tilemap[layer_tile_number_x*layer_tile_number_y];
-  uint16_t offset_x[full_tile_size*vp_tile_number_y];
-  uint16_t offset_y[full_tile_size*vp_tile_number_y];
+  uint32_t offset_x[full_tile_size*vp_tile_number_y];//TODO:Store two offsets per 32 bit value
+  uint32_t offset_y[full_tile_size*vp_tile_number_y];
 } bg_struct;
 
 bg_struct bg[bg_layer_count];
