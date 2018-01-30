@@ -28,15 +28,15 @@ static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 }
 
 // contadores de frames
-static uint8_t frame_counter=0;
-static uint8_t scroll_frame_counter=0;
-static uint8_t animation_frame_counter=0;
-static uint8_t scroll_has_updated_bgtm=0;
+static uint32_t frame_counter=0;
+static uint32_t scroll_frame_counter=0;
+static uint32_t animation_frame_counter=0;
+static uint32_t scroll_has_updated_bgtm=0;
 static uint16_t bg_scroll_per_step=1;
 static uint16_t bg_scroll_wait_frames=1<<1;
 static uint16_t animation_wait_frames=16;
 // contador de scroll
-uint16_t scrolling_tilemap_index=0;
+static uint32_t scrolling_tilemap_index=0;
 
 //comment the following line to get nice pixel art in the debug console
 #define NUMERIC_DEBUG_OUTPUT
@@ -106,7 +106,7 @@ static retro_input_state_t input_state_cb;
 
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
-   float aspect = (float)vp_tile_number_x / (float) vp_tile_number_y ;
+   float aspect = (float) vp_tile_number_x / (float) vp_tile_number_y ;
    float sampling_rate = 30000.0f;
 
    info->timing = (struct retro_system_timing) {
@@ -200,7 +200,10 @@ static void update_input(void)
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
   {
-    makesound = 1;
+    move_background(1, 0);
+    //makesound = 1;
+    //moving hud
+    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B))
   {
@@ -246,11 +249,11 @@ static void update_input(void)
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT))
   {
-    fprintf(stdout, "SELECT\t");
+    //fprintf(stdout, "SELECT\t");
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START))
   {
-    fprintf(stdout, "START\t");
+    //fprintf(stdout, "START\t");
   }
   /*
   // Analog test
@@ -379,61 +382,109 @@ static void render_frame(void)
 
 
   //background rendering
-  uint16_t yy_vp[bg_layer_count];
-  uint16_t xx_vp[bg_layer_count];
+  uint32_t yy_vp;
+  uint32_t xx_vp;
   uint8_t  twopixdata=0;
-  uint16_t tilemap_index=0;
-  uint16_t tileset_index=0;
+  uint32_t tilemap_index=0;
+  uint32_t tileset_index=0;
   uint8_t  palette_index=0;
   uint8_t  layer_counter=0;
+  color_16bit colordata;
 
-  for (uint16_t yy=0; yy<viewport.height; yy++, line+=stride) {
-    yy_vp[layer_counter]=yy+viewport.y_origin-bg[layer_counter].offset_y[yy];
-    for (uint16_t x2=0; x2<viewport.width; x2+=2) {
-      //process first pixel
-      xx_vp[layer_counter]=x2+viewport.x_origin-bg[layer_counter].offset_x[yy];
-      tilemap_index= ( (xx_vp[layer_counter]/full_tile_size)%layer_tile_number_x
-                     + (yy_vp[layer_counter]/full_tile_size)*layer_tile_number_x )
-                     %(layer_tile_number_x*layer_tile_number_y);
-      tileset_index=bg[layer_counter].tilemap[tilemap_index];
-      palette_index=(tileset_index&Mask_bgtm_palette)>>10;
-      tileset_index=tileset_index&Mask_bgtm_index;
-      //todo: introduce tilemap palette data, rotation, flip, etc
-      twopixdata = bg[layer_counter].tile[tileset_index]
-                     .two_pixel_color_index[(( (yy_vp[layer_counter]%full_tile_size)*full_tile_size
-                                              +(xx_vp[layer_counter]%full_tile_size))>>1)
-                                            %(full_tile_size*full_tile_size)];
-      if (xx_vp[layer_counter]%2==0) {//verificamos si el pixel es par o impar
-        line[x2]=bg[layer_counter].palette[palette_index].color[twopixdata>>4];
-        line[x2+1]=bg[layer_counter].palette[palette_index].color[twopixdata&0x0F];
-      }//el caso impar es mas complicado, requiere tomar dos bytes distintos
-      else {
-        line[x2]=bg[layer_counter].palette[palette_index].color[twopixdata&0x0F];
-        xx_vp[layer_counter]++;
-        if (xx_vp[layer_counter]%16!=0) {//si el segundo pixel no es el inicio de un tile, es mas facil
-          twopixdata = bg[layer_counter].tile[tileset_index]
-                         .two_pixel_color_index[(( (yy_vp[layer_counter]%full_tile_size)*full_tile_size
-                                                  +(xx_vp[layer_counter]%full_tile_size))>>1)
-                                                %(full_tile_size*full_tile_size)];
-          line[x2+1]=bg[layer_counter].palette[palette_index].color[twopixdata>>4];
+  ///*
+  for (uint32_t yy=0; yy<viewport.height; yy++, line+=stride) {
+    yy_vp=yy+viewport.y_origin-bg[layer_counter].offset_y[yy];
+    for (uint32_t xx=0; xx<viewport.width; xx++) {
+      xx_vp=xx+viewport.x_origin-bg[layer_counter].offset_x[yy];
+      tilemap_index = ( (xx_vp/full_tile_size)%layer_tile_number_x
+                      + (yy_vp/full_tile_size)*layer_tile_number_x )
+                      %(layer_tile_number_x*layer_tile_number_y);
+      tilemap_index = bg[layer_counter].tilemap[tilemap_index];
+      if(tilemap_index<Mask_bgtm_disable){
+        palette_index=(tilemap_index&Mask_bgtm_palette)>>10;
+        tileset_index=tilemap_index&Mask_bgtm_index;
+        twopixdata = bg[layer_counter].tile[tileset_index]
+                       .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size
+                                                +(xx_vp%full_tile_size))>>1)
+                                              %(full_tile_size*full_tile_size)];
+        if((xx_vp%2)==0){
+          twopixdata=twopixdata>>4;
         }
-        else {//si el segundo pixel es el inicio de un tile, hay que buscar el indice en el mapa
-          tilemap_index=( (xx_vp[layer_counter]/full_tile_size)%layer_tile_number_x
-                        + (yy_vp[layer_counter]/full_tile_size)*layer_tile_number_x )
-                       %(layer_tile_number_x*layer_tile_number_y);
-          tileset_index=bg[layer_counter].tilemap[tilemap_index];
-          palette_index=(tileset_index&Mask_bgtm_palette)>>10;
-          tileset_index=tileset_index&Mask_bgtm_index;
-          //todo: introduce tilemap palette data, rotation, flip, etc
-          twopixdata = bg[layer_counter].tile[ tileset_index ]
-                         .two_pixel_color_index[(( (yy_vp[layer_counter]%full_tile_size)*full_tile_size
-                                                 + (xx_vp[layer_counter]%full_tile_size))>>1 )
-                                                %(full_tile_size*full_tile_size)];
-          line[x2+1]=bg[layer_counter].palette[palette_index].color[twopixdata>>4];
+        else{
+          twopixdata=twopixdata&0x0F;
         }
+        if(twopixdata){
+          //pixel is not fully transparent
+          colordata=bg[layer_counter].palette[palette_index].color[twopixdata];
+          if(colordata<0x8000){
+            //pixel is not semitransparent
+            line[xx]=colordata;
+          }
+          else{
+            //pixel is semitransparent
+            yy_vp=yy+viewport.y_origin-bg[layer_counter+1].offset_y[yy];
+            xx_vp=xx+viewport.x_origin-bg[layer_counter+1].offset_y[yy];
+            tilemap_index = ( (xx_vp/full_tile_size)%layer_tile_number_x
+                            + (yy_vp/full_tile_size)*layer_tile_number_x )
+                            %(layer_tile_number_x*layer_tile_number_y);
+            tilemap_index = bg[layer_counter+1].tilemap[tilemap_index];
+            palette_index=(tilemap_index&Mask_bgtm_palette)>>10;
+            if(tilemap_index<Mask_bgtm_disable){
+              tileset_index=tilemap_index&Mask_bgtm_index;
+              twopixdata = bg[layer_counter+1].tile[tileset_index]
+                             .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size
+                                                      +(xx_vp%full_tile_size))>>1)
+                                                     %(full_tile_size*full_tile_size)];
+              if((xx_vp%2)==0){
+                twopixdata=twopixdata>>4;
+              }
+              else{
+                twopixdata=twopixdata&0x0F;
+              }
+              twopixdata=bg[layer_counter+1].palette[palette_index].color[twopixdata];
+              colordata=(colordata+twopixdata)>>1;
+              line[xx]=colordata;
+            }
+            else{
+              //when bg1 tile is disabled, we take the bg1 null for semitransparency
+              colordata=(colordata+bg[layer_counter+1].palette[palette_index].color[0])>>1;
+              line[xx]=colordata;
+            }
+          }
+          continue;//done with pixel rendering, onto next pixel
+        }
+      }
+      //bg0 tile is disabled or transparent, on to pure bg1 render
+      //if we're here, we haven't 'continued'
+      yy_vp=yy+viewport.y_origin-bg[layer_counter+1].offset_y[yy];
+      xx_vp=xx+viewport.x_origin-bg[layer_counter+1].offset_y[yy];
+      tilemap_index = ( (xx_vp/full_tile_size)%layer_tile_number_x
+                      + (yy_vp/full_tile_size)*layer_tile_number_x )
+                      %(layer_tile_number_x*layer_tile_number_y);
+      tilemap_index = bg[layer_counter+1].tilemap[tilemap_index];
+      palette_index=(tilemap_index&Mask_bgtm_palette)>>10;
+      if(tilemap_index<Mask_bgtm_disable){
+        tileset_index=tilemap_index&Mask_bgtm_index;
+        twopixdata = bg[layer_counter+1].tile[tileset_index]
+                       .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size
+                                                +(xx_vp%full_tile_size))>>1)
+                                               %(full_tile_size*full_tile_size)];
+        if((xx_vp%2)==0){
+          twopixdata=twopixdata>>4;
+        }
+        else{
+          twopixdata=twopixdata&0x0F;
+        }
+        colordata=bg[layer_counter+1].palette[palette_index].color[twopixdata];
+        line[xx]=colordata;
+      }
+      else{
+        line[xx]=bg[layer_counter+1].palette[palette_index].color[0];
       }
     }
   }
+  //*/
+
 
   //full sprite rendering
   for(uint16_t sprite_counter = fsp.active_number ;
