@@ -179,80 +179,70 @@ static void update_input(void)
 {
   input_poll_cb();
   makesound=0;
+  game.entities[entities_ids[ENT_PLAYER1]].vel_x = 0;
+  game.entities[entities_ids[ENT_PLAYER1]].vel_y = 0;
 
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
   {
-    move_full_sprite(0, 0, -1);
+    game.entities[entities_ids[ENT_PLAYER1]].vel_y = -2;
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
   {
-    move_full_sprite(0, 0, 1);
+    game.entities[entities_ids[ENT_PLAYER1]].vel_y = 2;
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
   {
-    move_full_sprite(0, -1, 0);
+    game.entities[entities_ids[ENT_PLAYER1]].vel_x = -2;
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
   {
-    move_full_sprite(0, 1, 0);
+    game.entities[entities_ids[ENT_PLAYER1]].vel_x = 2;
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
   {
-    move_background(1, 0);
     makesound = 1;
-    //moving hud
-    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B))
   {
-    move_background(0, 1);
     //makesound = 2;
-    //moving hud
-    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 0, 1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X))
   {
-    move_background(0, -1);
     //makesound = 3;
-    //moving hud
-    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 0, -1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y))
   {
-    move_background(-1, 0);
     //makesound = 4;
-    //moving hud
-    for (uint8_t i=0; i<6; i++) move_half_sprite(i, -1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L))
   {
-    //fprintf(stdout, "L\t");
-    move_full_sprite(1, -1, 0);
+    move_background(-1, 0);
+    //moving hud
+    for (uint8_t i=0; i<6; i++) move_half_sprite(i, -1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R))
   {
-    //fprintf(stdout, "R\t");
-    move_full_sprite(1, 1, 0);
+    move_background(1, 0);
+    // moving HUD
+    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2))
   {
-    //fprintf(stdout, "L2\t");
-    move_full_sprite(3, 0, -1);
+    move_background(0, 1);
+    //moving hud
+    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 0, 1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2))
   {
-    //fprintf(stdout, "R2\t");
-    move_full_sprite(3, 0, 1);
+    move_background(0, -1);
+    //moving hud
+    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 0, -1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3))
   {
-    //fprintf(stdout, "L3\t");
-    move_full_sprite(2, -1, -1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3))
   {
-    //fprintf(stdout, "R3\t");
-    move_full_sprite(2, 1, 1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT))
   {
@@ -262,7 +252,7 @@ static void update_input(void)
   {
     fprintf(stdout, "START\t");
   }
-
+  /*
   // Analog test
   // Left analog moves blue spaceship
   game.entities[entities_ids[ENT_PLAYER1]].vel_x = input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 15000;
@@ -270,6 +260,7 @@ static void update_input(void)
   // Right analog moves yellow spaceship (axis are wrong but work)
   game.entities[entities_ids[ENT_PLAYER2]].vel_x = input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / -15000;
   game.entities[entities_ids[ENT_PLAYER2]].vel_y= input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / -15000;
+  //*/
 }
 
 
@@ -301,9 +292,10 @@ static void update_game() {
   #define GREENBOT_ID 1
   int16_t met_x, met_y;
   int16_t bot_x, bot_y;
-  int32_t square_total=0;
   met_y = fsp.oam2[METROID_ID]&Mask_fsp_oam2_y_pos;
   met_x = fsp.oam3[METROID_ID]&Mask_fsp_oam3_x_pos;
+  /*
+  int32_t square_total=0;
   for (uint16_t bot_id = 1; bot_id <= 3; bot_id++) {
     bot_y = fsp.oam2[bot_id]&Mask_fsp_oam2_y_pos;
     bot_x = fsp.oam3[bot_id]&Mask_fsp_oam3_x_pos;
@@ -314,9 +306,10 @@ static void update_game() {
     else if (square_total > 1600) set_full_sprite(bot_id, 0x8); // Yellow bot
     else set_full_sprite(bot_id, 0x9); //Red bot
   }
+  */
   update_coords(met_x, met_y);
   // Animating spaceships
-  for (uint8_t i=4; i<=7; i++) {
+  for (uint8_t i=0; i<=4; i++) {
     fsp.oam[i]=(fsp.oam[i]&(~Mask_fsp_oam_index))|((((fsp.oam[i]&Mask_fsp_oam_index)+1)%3)+13 );
   }
 
@@ -370,7 +363,7 @@ static void update_game() {
     else {
       bg[0].tilemap[18]++;
     }
-    fsp.oam[0]=(fsp.oam[0]&(~Mask_fsp_oam_index))|(((fsp.oam[0]&Mask_fsp_oam_index)+1)%6);
+    //fsp.oam[0]=(fsp.oam[0]&(~Mask_fsp_oam_index))|(((fsp.oam[0]&Mask_fsp_oam_index)+1)%6);
     //fsp.oam3[0]=(fsp.oam3[0]&(~Mask_fsp_oam3_x_pos))|(((fsp.oam3[0]&Mask_fsp_oam3_x_pos)+1)%(layer_tile_number_x*full_tile_size));
   }
 
