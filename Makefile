@@ -18,10 +18,13 @@ bmptogfx: bmp_to_gfx.c qdbmp.c
 	gcc -o bmptogfx bmp_to_gfx.c qdbmp.c -lm
 
 # Generate GFX
-GFX: core/bg0.gfx core/fsp.gfx core/hsp.gfx
+GFX: core/bg0.gfx core/bg1.gfx core/fsp.gfx core/hsp.gfx
 
 core/bg0.gfx: bmptogfx bmp/bg0.bmp
 	./bmptogfx bmp/bg0.bmp core/bg0.gfx 0
+
+core/bg1.gfx: bmptogfx bmp/bg1.bmp
+	./bmptogfx bmp/bg1.bmp core/bg1.gfx 0
 
 core/fsp.gfx: bmptogfx $(fsp_input)
 	./bmptogfx $(fsp_input) core/fsp.gfx 1

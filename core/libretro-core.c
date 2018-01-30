@@ -58,6 +58,9 @@ void retro_init(void)
   FILE* file = fopen("bg0.gfx","rb");
   read_gfx_data(file, 0);
   fclose(file);
+  file = fopen("bg1.gfx","rb");
+  read_gfx_data(file, 1);
+  fclose(file);
   file = fopen("fsp.gfx","rb");//Remember to close
   read_gfx_data(file, 2);
   fclose(file);
