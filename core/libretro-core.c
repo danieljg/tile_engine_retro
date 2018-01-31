@@ -523,8 +523,15 @@ static void render_frame(void)
         twopixdata=twopixdata&0x0F;
         }
         if (twopixdata==0) continue;
-        uint8_t pal_id=(fsp.oam[current_sprite]&Mask_fsp_oam_palette)>>10;//TODO: relocate this and test for semitransparency, etc
-        line[xx_fsp] = fsp.palette[pal_id].color[twopixdata];
+        uint8_t pal_id=(fsp.oam[current_sprite]&Mask_fsp_oam_palette)>>10;
+        colordata = fsp.palette[pal_id].color[twopixdata];
+        if(colordata<0x8000){
+          line[xx_fsp]=colordata;//don't mask when it's not needed
+        }
+        else{
+          clearbuf = line[xx_fsp];
+          line[xx_fsp] = average_colors(colordata,clearbuf);
+        }
       }
     }
   }
@@ -555,7 +562,14 @@ static void render_frame(void)
         }
         if (twopixdata==0) continue;
         uint8_t pal_id=(hsp.oam[current_sprite]&Mask_hsp_oam_palette)>>10;
-        line[xx_hsp] = hsp.palette[pal_id].color[twopixdata];
+        colordata = hsp.palette[pal_id].color[twopixdata];
+        if(colordata<0x8000){
+          line[xx_hsp] = colordata;
+        }
+        else{
+          clearbuf = line[xx_hsp];
+          line[xx_hsp] = average_colors(colordata,clearbuf);
+        }
       }
     }
   }
