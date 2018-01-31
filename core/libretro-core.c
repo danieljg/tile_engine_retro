@@ -375,6 +375,13 @@ static void update_game() {
 
 }
 
+color_16bit inline average_colors(color_16bit color1, color_16bit color2) {
+  return ( ( ( (color1&Mask_red)   + (color2&Mask_red)   )>>1 )&Mask_red   ) |
+         ( ( ( (color1&Mask_green) + (color2&Mask_green) )>>1 )&Mask_green ) |
+         ( ( ( (color1&Mask_blue)  + (color2&Mask_blue)  )>>1 )&Mask_blue  );
+}
+
+
 /* Dibuja una frame del juego
 */
 static void render_frame(void)
@@ -393,6 +400,7 @@ static void render_frame(void)
   uint8_t  palette_index=0;
   uint8_t  layer_counter=0;
   color_16bit colordata;
+  color_16bit clearbuf;
 
   ///*
   for (uint32_t yy=0; yy<viewport.height; yy++, line+=stride) {
@@ -421,7 +429,7 @@ static void render_frame(void)
           colordata=bg[layer_counter].palette[palette_index].color[twopixdata];
           if(colordata<0x8000){
             //pixel is not semitransparent
-            line[xx]=colordata;
+            line[xx]=colordata;//don't mask alpha if it's not semitransparent
           }
           else{
             //pixel is semitransparent
@@ -444,14 +452,15 @@ static void render_frame(void)
               else{
                 twopixdata=twopixdata&0x0F;
               }
-              twopixdata=bg[layer_counter+1].palette[palette_index].color[twopixdata];
-              colordata=(colordata+twopixdata)>>1;
-              line[xx]=colordata;
+              clearbuf=bg[layer_counter+1].palette[palette_index].color[twopixdata];
+              colordata=average_colors(clearbuf,colordata);
+              line[xx]=colordata;//don't mask alpha after averaging colors
             }
             else{
               //when bg1 tile is disabled, we take the bg1 null for semitransparency
-              colordata=(colordata+bg[layer_counter+1].palette[palette_index].color[0])>>1;
-              line[xx]=colordata;
+              clearbuf=bg[layer_counter+1].palette[palette_index].color[0];
+              colordata=average_colors(clearbuf,colordata);
+              line[xx]=colordata;//don't mask alpha after averaging colors
             }
           }
           continue;//done with pixel rendering, onto next pixel
@@ -479,10 +488,10 @@ static void render_frame(void)
           twopixdata=twopixdata&0x0F;
         }
         colordata=bg[layer_counter+1].palette[palette_index].color[twopixdata];
-        line[xx]=colordata;
+        line[xx]=colordata&(~Mask_alpha);
       }
       else{
-        line[xx]=bg[layer_counter+1].palette[palette_index].color[0];
+        line[xx]=bg[layer_counter+1].palette[palette_index].color[0]&(~Mask_alpha);
       }
     }
   }
