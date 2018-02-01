@@ -89,6 +89,7 @@ bg_struct bg[bg_layer_count];
 
 void initialize_bg()
 {
+  uint16_t kk=0;
   for(uint8_t ll=0; ll<bg_layer_count; ll++) {
     // inicializando offset de backgrounds
     for(uint8_t jj=0; jj<full_tile_size*vp_tile_number_y; jj++){
@@ -102,11 +103,10 @@ void initialize_bg()
       }
     }
     ///*inicializando tilemap (region del viewport inicial)
-    uint16_t kk=0;
-    for(uint8_t jj=0; jj<vp_tile_number_y; jj++) {
-      for(uint8_t ii=0; ii<vp_tile_number_x; ii++) {
-        bg[ll].tilemap[jj*layer_tile_number_y+ii]=kk;
-        kk++;
+    for(uint8_t jj=0; jj<layer_tile_number_y; jj++) {
+      for(uint8_t ii=0; ii<layer_tile_number_x; ii++) {
+        bg[ll].tilemap[jj*layer_tile_number_y+ii]=kk%300;
+        kk=kk+7;
       }
     }
     //*/
@@ -280,7 +280,7 @@ void add_half_sprite(
   hsp.active_number++;
 }
 
-static void move_full_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
+static void inline move_full_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
   uint16_t oambuff;//using local variables may be faster
   oambuff=fsp.oam2[sp_id];
   fsp.oam2[sp_id]=(oambuff&(~Mask_fsp_oam2_y_pos))|(((oambuff&Mask_fsp_oam2_y_pos)+vel_y)%(layer_tile_number_y*full_tile_size));
@@ -288,13 +288,13 @@ static void move_full_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
   fsp.oam3[sp_id]=(oambuff&(~Mask_fsp_oam3_x_pos))|(((oambuff&Mask_fsp_oam3_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
 }
 
-static void set_full_sprite(int16_t sp_id, int16_t sp_index) {
+static void inline set_full_sprite(int16_t sp_id, int16_t sp_index) {
   uint16_t oambuff;
   oambuff=fsp.oam[sp_id];
   fsp.oam[sp_id] = (oambuff&(~Mask_fsp_oam_index))|sp_index;
 }
 
-static void move_half_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
+static void inline move_half_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
   uint16_t oambuff;
   oambuff=hsp.oam2[sp_id];
   hsp.oam2[sp_id]=(oambuff&(~Mask_hsp_oam2_y_pos))|(((oambuff&Mask_hsp_oam2_y_pos)+vel_y)%(layer_tile_number_y*full_tile_size));
@@ -302,7 +302,7 @@ static void move_half_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
   hsp.oam3[sp_id]=(oambuff&(~Mask_hsp_oam3_x_pos))|(((oambuff&Mask_hsp_oam3_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
 }
 
-static void set_half_sprite(int16_t sp_id, int16_t sp_index) {
+static void inline set_half_sprite(int16_t sp_id, int16_t sp_index) {
   uint16_t oambuff;
   oambuff=hsp.oam[sp_id];
   hsp.oam[sp_id] = (oambuff&(~Mask_hsp_oam_index))|sp_index;

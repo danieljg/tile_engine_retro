@@ -58,27 +58,25 @@ void game_set() {
 }
 
 void initialize_game() {
-  fprintf(stdout, "Initializing Game...\n");
+  //Initializing entities and events
   game.entities_count = 1; // Entity cero reserved
   game.total_events = 0;
-  fprintf(stdout, "\t- Initializing Game entities...\n");
+  //En mi opinion, los siguientes 3 ciclos pueden irse
+  //Initializing game entities
   for(uint16_t i=0; i<ENTITIES_MAX; i++) {
     game.entities[i].sprite_id = 0;
     game.entities[i].vel_x = 0;
     game.entities[i].vel_y = 0;
   }
-  fprintf(stdout, "\t\t...done.\n");
-  fprintf(stdout, "\t- Initializing Event Queque...\n");
+  //Initializing event queue
   for(uint16_t i=0; i<EVENTS_MAX; i++) {
     game.events[i].entity_id = 0;
     game.events[i].event_type = 0;
   }
-  fprintf(stdout, "\t\t...done.\n");
-  fprintf(stdout, "\t- Initializing Input...\n");
+  //Initializing input
   for (uint8_t i=0; i<PLAYERS_MAX; i++) game.input_state[i] = 0x00;
-  fprintf(stdout, "\t\t...done.\n");
+  //initializing game
   game_set();
-  fprintf(stdout, "... Game Initialized.\n");
 }
 
 

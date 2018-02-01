@@ -33,7 +33,7 @@ static uint32_t scroll_frame_counter=0;
 static uint32_t animation_frame_counter=0;
 static uint32_t scroll_has_updated_bgtm=0;
 static uint16_t bg_scroll_per_step=1;
-static uint16_t bg_scroll_wait_frames=1<<1;
+static uint16_t bg_scroll_wait_frames=2;
 static uint16_t animation_wait_frames=16;
 // contador de scroll
 static uint32_t scrolling_tilemap_index=0;
@@ -55,7 +55,7 @@ void retro_init(void)
   initialize_full_sprites();
   initialize_half_sprites();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
-  FILE* file = fopen("bg0.gfx","rb");
+  FILE* file = fopen("bg1.gfx","rb");
   read_gfx_data(file, 0);
   fclose(file);
   file = fopen("bg1.gfx","rb");
@@ -173,7 +173,7 @@ void retro_reset(void)
    y_coord = 0;
 }
 
-static void move_background(int8_t vel_x, int8_t vel_y) {
+static void move_viewport(int8_t vel_x, int8_t vel_y) {
   viewport.x_origin=(viewport.x_origin+vel_x*bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
   viewport.y_origin=(viewport.y_origin+vel_y*bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
 }
@@ -203,10 +203,7 @@ static void update_input(void)
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
   {
-    move_background(1, 0);
     //makesound = 1;
-    //moving hud
-    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B))
   {
@@ -222,27 +219,15 @@ static void update_input(void)
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L))
   {
-    move_background(-1, 0);
-    //moving hud
-    for (uint8_t i=0; i<6; i++) move_half_sprite(i, -1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R))
   {
-    move_background(1, 0);
-    // moving HUD
-    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 1, 0);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2))
   {
-    move_background(0, 1);
-    //moving hud
-    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 0, 1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2))
   {
-    move_background(0, -1);
-    //moving hud
-    for (uint8_t i=0; i<6; i++) move_half_sprite(i, 0, -1);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3))
   {
@@ -252,25 +237,14 @@ static void update_input(void)
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT))
   {
-    //fprintf(stdout, "SELECT\t");
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START))
   {
-    //fprintf(stdout, "START\t");
   }
-  /*
-  // Analog test
-  // Left analog moves blue spaceship
-  game.entities[entities_ids[ENT_PLAYER1]].vel_x = input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X) / 15000;
-  game.entities[entities_ids[ENT_PLAYER1]].vel_y= input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y) / -15000;
-  // Right analog moves yellow spaceship (axis are wrong but work)
-  game.entities[entities_ids[ENT_PLAYER2]].vel_x = input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_Y) / -15000;
-  game.entities[entities_ids[ENT_PLAYER2]].vel_y= input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_RIGHT, RETRO_DEVICE_ID_ANALOG_X) / -15000;
-  //*/
 }
 
 
-/*Actualiza los primeros 8 HALF SPRITES (0 - 7) con las coordenadas del Metroid */
+/*Actualiza los primeros 8 HALF SPRITES (0 - 7) con las coordenadas de entrada */
 void update_coords(uint16_t x, uint16_t y) {
   #define ASCII0 48
   char digits[6];
@@ -284,7 +258,6 @@ void update_coords(uint16_t x, uint16_t y) {
   }
   for (uint8_t i=0; i<6; i++) {
     set_half_sprite(i, digits[i]);
-    //hsp.oam[i]=(hsp.oam[i]&(~Mask_hsp_oam_index))|digits[i];
   }
 }
 /* Actualiza las mecánicas del juego.
@@ -294,81 +267,54 @@ static void update_game() {
 
   /* This block de code turns the green bots to yellow or red they get too close to the metroid.
   */
-  #define METROID_ID 0
-  #define GREENBOT_ID 1
+  #define SHIP_ID 0
   int16_t met_x, met_y;
-  int16_t bot_x, bot_y;
-  met_y = fsp.oam2[METROID_ID]&Mask_fsp_oam2_y_pos;
-  met_x = fsp.oam3[METROID_ID]&Mask_fsp_oam3_x_pos;
-  /*
-  int32_t square_total=0;
-  for (uint16_t bot_id = 1; bot_id <= 3; bot_id++) {
-    bot_y = fsp.oam2[bot_id]&Mask_fsp_oam2_y_pos;
-    bot_x = fsp.oam3[bot_id]&Mask_fsp_oam3_x_pos;
-    square_total =
-      (met_x - bot_x) * (met_x - bot_x) +
-      (met_y - bot_y) * (met_y - bot_y);
-    if (square_total > 8100) set_full_sprite(bot_id, 0x7); // Green bot
-    else if (square_total > 1600) set_full_sprite(bot_id, 0x8); // Yellow bot
-    else set_full_sprite(bot_id, 0x9); //Red bot
-  }
-  */
-  update_coords(met_x, met_y);
-  // Animating spaceships
-  for (uint8_t i=0; i<=4; i++) {
-    fsp.oam[i]=(fsp.oam[i]&(~Mask_fsp_oam_index))|((((fsp.oam[i]&Mask_fsp_oam_index)+1)%3)+13 );
-  }
-
-  //inicializando la linea de tiles a la derecha del viewport para scroll
-  /*
-  if ( ((viewport.x_origin-bg.offset_x[0])%full_tile_size==0) ) {
-    if (scroll_has_updated_bgtm==0) {
-      for(uint8_t jj=0; jj<vp_tile_number_y; jj++) {
-        bg[0].tile[ jj*layer_tile_number_y
-         + ( vp_tile_number_x  + (viewport.x_origin-bg.offset_x[0])/full_tile_size)%layer_tile_number_x ]
-         =scrolling_tilemap_index;
-        //scrolling_tilemap_index=(scrolling_tilemap_index+7)%300;
-        scrolling_tilemap_index=(scrolling_tilemap_index+1)%300;
-        //TODO: do something with the palette of the newly added tiles... it seems a bit periodic, obviously
-      }
-      scroll_has_updated_bgtm=1;
-    }
-  }
-  else {
-    scroll_has_updated_bgtm=0;
-  }
-  //*/
+  met_y = fsp.oam2[SHIP_ID]&Mask_fsp_oam2_y_pos;
+  met_x = fsp.oam3[SHIP_ID]&Mask_fsp_oam3_x_pos;
+  update_coords(met_x,met_y);
 
   frame_counter++;
   scroll_frame_counter=frame_counter%bg_scroll_wait_frames;
   animation_frame_counter=frame_counter%animation_wait_frames;
 
   if(scroll_frame_counter==0){
+    for(uint32_t yy=0;yy<(vp_tile_number_y*full_tile_size);yy++){
+      bg[0].offset_x[yy]--;
+      if(yy%3==0){
+      bg[1].offset_x[yy]-=2;
+      }
+      else{
+      bg[1].offset_x[yy]-=(yy%3)+1;
+      }
+    }
     //viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
     //viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
   }
 
   if(animation_frame_counter==0){
+    // Animating spaceships
+    for (uint8_t i=0; i<2; i++) {
+      fsp.oam[i]=(fsp.oam[i]&(~Mask_fsp_oam_index))|((((fsp.oam[i]&Mask_fsp_oam_index)+1)%3)+13);
+    }
+    /*
     if((bg[0].tilemap[12]&Mask_bgtm_index)>5) {
       bg[0].tilemap[12]=bg[0].tilemap[12]&(~Mask_bgtm_index);
     }
     else {
       bg[0].tilemap[12]++;
     }
-  ///*
     if((bg[0].tilemap[15]&Mask_bgtm_index)>13) {
       bg[0].tilemap[15]=(bg[0].tilemap[15]&(~Mask_bgtm_index))|8;
     }
     else {
       bg[0].tilemap[15]++;
-    }//*/
-  ////*
+    }
     if((bg[0].tilemap[18]&Mask_bgtm_index)>18) {
       bg[0].tilemap[18]=(bg[0].tilemap[18]&(~Mask_bgtm_index))|17;
     }
     else {
       bg[0].tilemap[18]++;
-    }
+    }//*/
     //fsp.oam[0]=(fsp.oam[0]&(~Mask_fsp_oam_index))|(((fsp.oam[0]&Mask_fsp_oam_index)+1)%6);
     //fsp.oam3[0]=(fsp.oam3[0]&(~Mask_fsp_oam3_x_pos))|(((fsp.oam3[0]&Mask_fsp_oam3_x_pos)+1)%(layer_tile_number_x*full_tile_size));
   }
@@ -434,7 +380,7 @@ static void render_frame(void)
           else{
             //pixel is semitransparent
             yy_vp=yy+viewport.y_origin-bg[layer_counter+1].offset_y[yy];
-            xx_vp=xx+viewport.x_origin-bg[layer_counter+1].offset_y[yy];
+            xx_vp=xx+viewport.x_origin-bg[layer_counter+1].offset_x[yy];
             tilemap_index = ( (xx_vp/full_tile_size)%layer_tile_number_x
                             + (yy_vp/full_tile_size)*layer_tile_number_x )
                             %(layer_tile_number_x*layer_tile_number_y);
@@ -469,7 +415,7 @@ static void render_frame(void)
       //bg0 tile is disabled or transparent, on to pure bg1 render
       //if we're here, we haven't 'continued'
       yy_vp=yy+viewport.y_origin-bg[layer_counter+1].offset_y[yy];
-      xx_vp=xx+viewport.x_origin-bg[layer_counter+1].offset_y[yy];
+      xx_vp=xx+viewport.x_origin-bg[layer_counter+1].offset_x[yy];
       tilemap_index = ( (xx_vp/full_tile_size)%layer_tile_number_x
                       + (yy_vp/full_tile_size)*layer_tile_number_x )
                       %(layer_tile_number_x*layer_tile_number_y);
