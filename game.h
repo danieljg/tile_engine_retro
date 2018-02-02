@@ -3,19 +3,28 @@
 #define MAX_PROJECTILES 64
 #define MAX_POWERUPS 4
 
+#define MASK_PB_XDATA_OFFSET 0xFF000000
+#define MASK_PB_XDATA_VEL    0x00FFF000
+#define MASK_PB_XDATA_POS    0x00000FFF
+
+#define MASK_PB_YDATA_OFFSET 0xFF000000
+#define MASK_PB_YDATA_VEL    0x00FFF000
+#define MASK_PB_YDATA_POS    0x00000FFF
+
+#define MASK_PB_DIMENSIONS_WIDTH  0xFF00
+#define MASK_PB_DIMENSIONS_HEIGHT 0x00FF
+
 typedef struct {
-  uint16_t pos_x; // 12 bits
-  uint16_t pos_y; // 12 bits
-  uint8_t vel_x;
-  uint8_t vel_y;
-  uint8_t width; // hitbox widht
-  uint8_t height; // hitbox height
+  uint32_t xdata;
+  uint32_t ydata;
+  uint16_t dimensions;
 } physics_body;
 
 typedef struct {
+  uint8_t is_full_sprite; // 1 bit
   uint8_t sprite_id; // 5 bits
-  uint8_t anim_frame; // 8 bits
   uint16_t sprite_tile_start; // 10 bits
+  uint8_t current_frame; // 4 bits
   uint8_t total_frames; // 4 bits
 } sprite_animation;
 
@@ -56,6 +65,7 @@ typedef struct {
   weapon_state weapon_A;
   weapon_state weapon_B;
   sprite_animation animation;
+//TODO:ADD 3 bits for player lives
 } player;
 
 typedef struct {
