@@ -2,6 +2,7 @@
 #define MAX_ENEMIES 8
 #define MAX_PROJECTILES 64
 #define MAX_POWERUPS 4
+#define TOP_SCORES_COUNT 10
 
 #define MASK_PB_XDATA_OFFSET 0xFF000000
 #define MASK_PB_XDATA_VEL    0x00FFF000
@@ -58,6 +59,14 @@ typedef struct {
 } weapon_state;
 
 typedef struct {
+  uint8_t speed;
+  uint8_t weapon_type_id_A;
+  uint8_t weapon_type_id_B;
+  sprite_animation animation;
+  uint8_t animation_data;
+} player_type;
+
+typedef struct {
   uint8_t state; // spawning, live, dead, exploding 2 bits
   uint8_t input_state; //4 direction buttons, 3 action buttons, 1 Start button.
   physics_body body;
@@ -67,6 +76,13 @@ typedef struct {
   sprite_animation animation;
 //TODO:ADD 3 bits for player lives
 } player;
+
+typedef struct {
+  uint8_t total_hitpoints; // (0 to 64) 6 bits
+  uint8_t speed;
+  uint8_t animation_data;
+  uint8_t weapon_type_id;
+} enemy_type;
 
 typedef struct {
   uint8_t state; // live, dead, exploding 2 bits
@@ -83,4 +99,14 @@ typedef struct {
   projectile projectiles[MAX_PROJECTILES];
   power_up power_ups[MAX_POWERUPS];
   uint8_t game_state;
+  uint16_t scoreboard[TOP_SCORES_COUNT];
 } game_control;
+
+game_control game_ctrl;
+
+void initialize_game2() {
+  game_ctrl.game_state = 0x00;
+  for (uint8_t i; i<TOP_SCORES_COUNT; i++) {
+    game_ctrl.scoreboard[TOP_SCORES_COUNT] = 0;
+  }
+}
