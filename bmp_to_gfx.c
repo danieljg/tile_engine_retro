@@ -112,7 +112,7 @@ int main( int argc, char* argv[] )
         char* clr=".clr";
         strcat(buf,clr);
         clrfile[ii]=fopen(buf,"r");
-//if(clrfile[ii]==NULL)printf("Oh dear! %s\n", strerror(errno));
+if(clrfile[ii]==NULL)printf("Oh dear! %s\n", strerror(errno));
       }
       }
     }
