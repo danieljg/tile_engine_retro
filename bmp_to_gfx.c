@@ -107,9 +107,9 @@ int main( int argc, char* argv[] )
       {
       if(number_of_tiles[ii]==0)
       {
-        char* buf;
-        buf=strdup(argv[ii+1]);
-        char* clr=".clr";
+        char buf[1024];
+        strcpy(buf,argv[ii+1]);
+        char clr[1024]=".clr";
         strcat(buf,clr);
         clrfile[ii]=fopen(buf,"r");
 if(clrfile[ii]==NULL)printf("Oh dear! %s\n", strerror(errno));
@@ -131,7 +131,7 @@ if(clrfile[ii]==NULL)printf("Oh dear! %s\n", strerror(errno));
    for (uint8_t ii=0; ii < number_of_inputs; ii++)
    {
 fprintf(stdout,"ddd1\n");
-     fprintf(stdout, "Processing input file:\t%s...",argv[ii+1]);
+     fprintf(stdout,"Processing input file:\t%s...",argv[ii+1]);
      //check if this is a palette file
      if( (number_of_tiles[ii]==0) || ( (number_of_inputs==1) ) )
      {
@@ -141,7 +141,7 @@ fprintf(stdout,"ddd1\n");
          //in the case of a pure palette file, we check the .clr file to set transparency
          if(number_of_tiles[ii]==0)
          {
-           char* str;
+           char str[1024];
            fgets(str,1,clrfile[ii]);
            if(str=="1")
            {
