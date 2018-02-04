@@ -70,11 +70,11 @@ typedef struct {
   uint8_t state; // spawning, live, dead, exploding 2 bits
   uint8_t input_state; //4 direction buttons, 3 action buttons, 1 Start button.
   physics_body body;
+  uint8_t lives; //(0-8) 3 bits
   uint16_t score; // player total score 16 bits
   weapon_state weapon_A;
   weapon_state weapon_B;
   sprite_animation animation;
-//TODO:ADD 3 bits for player lives
 } player;
 
 typedef struct {
@@ -94,9 +94,13 @@ typedef struct {
 } enemy;
 
 typedef struct {
+  uint8_t player_count;
   player players[MAX_PLAYERS];
+  uint8_t enemy_count;
   enemy enemies[MAX_ENEMIES];
+  uint8_t projectile_count;
   projectile projectiles[MAX_PROJECTILES];
+  uint8_t powerup_count;
   power_up power_ups[MAX_POWERUPS];
   uint8_t game_state;
   uint16_t scoreboard[TOP_SCORES_COUNT];
@@ -104,9 +108,92 @@ typedef struct {
 
 game_control game_ctrl;
 
+add_projectile() {
+  uint8_t new_id = game_ctrl.projectile_count;
+  if (new_id < MAX_PROJECTILES) {
+    game_ctrl.projectiles[new_id].state = 0x01;
+    game_ctrl.projectiles[new_id].body.xdata = 0x00;
+    game_ctrl.projectiles[new_id].body.ydata = 0x00;
+    game_ctrl.projectiles[new_id].body.dimensions = 0x00;
+    game_ctrl.projectiles[new_id].damage = 5;
+    game_ctrl.projectiles[new_id].is_enemy = 0;
+    game_ctrl.projectiles[new_id].animation.is_full_sprite = 0x01;
+    game_ctrl.projectiles[new_id].animation.sprite_id = 1;
+    game_ctrl.projectiles[new_id].animation.sprite_tile_start = 13;
+    game_ctrl.projectiles[new_id].animation.current_frame = 0;
+    game_ctrl.projectiles[new_id].animation.total_frames = 6;
+  }
+}
+
+
 void initialize_game2() {
+  game_ctrl.player_count = 0;
+  for (uint8_t i; i<MAX_PLAYERS; i++) {
+    game_ctrl.players[i].state = 0;
+    game_ctrl.players[i].input_state = 0;
+    game_ctrl.players[i].body.xdata = 0x00;
+    game_ctrl.players[i].body.ydata = 0x00;
+    game_ctrl.players[i].body.dimensions = 0x00;
+    game_ctrl.players[i].lives = 0;
+    game_ctrl.players[i].score = 0;
+    game_ctrl.players[i].weapon_A.type_id = 0;
+    game_ctrl.players[i].weapon_A.delay_counter = 0;
+    game_ctrl.players[i].weapon_A.is_charging = 0;
+    game_ctrl.players[i].weapon_B.type_id = 0;
+    game_ctrl.players[i].weapon_B.delay_counter = 0;
+    game_ctrl.players[i].weapon_B.is_charging = 0;
+    game_ctrl.players[i].animation.is_full_sprite = 0x00;
+    game_ctrl.players[i].animation.sprite_id = 0;
+    game_ctrl.players[i].animation.sprite_tile_start = 0;
+    game_ctrl.players[i].animation.current_frame = 0;
+    game_ctrl.players[i].animation.total_frames = 0;
+  }
+  game_ctrl.enemy_count = 0;
+  for (uint8_t i; i<MAX_ENEMIES; i++) {
+    game_ctrl.enemies[i].state = 0;
+    game_ctrl.enemies[i].ai_state = 0;
+    game_ctrl.enemies[i].body.xdata = 0x00;
+    game_ctrl.enemies[i].body.ydata = 0x00;
+    game_ctrl.enemies[i].body.dimensions = 0x00;
+    game_ctrl.enemies[i].hitpoints = 0;
+    game_ctrl.enemies[i].weapon.type_id = 0;
+    game_ctrl.enemies[i].weapon.delay_counter = 0;
+    game_ctrl.enemies[i].weapon.is_charging = 0;
+    game_ctrl.enemies[i].animation.is_full_sprite = 0x00;
+    game_ctrl.enemies[i].animation.sprite_id = 0;
+    game_ctrl.enemies[i].animation.sprite_tile_start = 0;
+    game_ctrl.enemies[i].animation.current_frame = 0;
+    game_ctrl.enemies[i].animation.total_frames = 0;
+  }
+  game_ctrl.projectile_count = 0;
+  for (uint8_t i; i<MAX_PROJECTILES; i++) {
+    game_ctrl.projectiles[i].state = 0;
+    game_ctrl.projectiles[i].body.xdata = 0x00;
+    game_ctrl.projectiles[i].body.ydata = 0x00;
+    game_ctrl.projectiles[i].body.dimensions = 0x00;
+    game_ctrl.projectiles[i].damage = 0;
+    game_ctrl.projectiles[i].is_enemy = 0;
+    game_ctrl.projectiles[i].animation.is_full_sprite = 0x00;
+    game_ctrl.projectiles[i].animation.sprite_id = 0;
+    game_ctrl.projectiles[i].animation.sprite_tile_start = 0;
+    game_ctrl.projectiles[i].animation.current_frame = 0;
+    game_ctrl.projectiles[i].animation.total_frames = 0;
+  }
+  game_ctrl.powerup_count = 0;
+  for (uint8_t i; i<MAX_POWERUPS; i++) {
+    game_ctrl.power_ups[i].state = 0;
+    game_ctrl.power_ups[i].body.xdata = 0x00;
+    game_ctrl.power_ups[i].body.ydata = 0x00;
+    game_ctrl.power_ups[i].body.dimensions = 0x00;
+    game_ctrl.power_ups[i].type = 0;
+    game_ctrl.power_ups[i].animation.is_full_sprite = 0x00;
+    game_ctrl.power_ups[i].animation.sprite_id = 0;
+    game_ctrl.power_ups[i].animation.sprite_tile_start = 0;
+    game_ctrl.power_ups[i].animation.current_frame = 0;
+    game_ctrl.power_ups[i].animation.total_frames = 0;
+  }
   game_ctrl.game_state = 0x00;
   for (uint8_t i; i<TOP_SCORES_COUNT; i++) {
-    game_ctrl.scoreboard[TOP_SCORES_COUNT] = 0;
+    game_ctrl.scoreboard[i] = 0;
   }
 }
