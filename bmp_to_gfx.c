@@ -145,7 +145,7 @@ if(clrfile[ii]==NULL)printf("Oh dear! %s\n", strerror(errno));
          {
            char str[1024];
            fgets(str,1,clrfile[ii]);
-           if(str=="1")
+           if(str[0]=="1")
            {
              argb_color=0x8000;
            }
