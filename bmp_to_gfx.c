@@ -39,9 +39,12 @@ int main( int argc, char* argv[] )
 
     for (uint8_t ii=0;ii<16;ii++){
       clrfile[ii]=NULL;
+      number_of_tiles[ii]=0;
+      width[ii]=0;
+      height[ii]=0;
     }
 
-    char help_msg[] = "Usage: %s <input files> <output file> gfx_type\n\t<input files>: One or more input files\n\tgfx_type: 0:Background, 1:Full_Sprites, 2:Half-Sprites\n\tNote: for every input.pal file there's an input.pal.clr text file\n";
+    char help_msg[] = "Usage: %s <input files> <output file> gfx_type\n\t<input files>: One or more input files\n\tgfx_type: 0:Background, 1:Full_Sprites, 2:Half-Sprites\n";
 
     if ( argc < 4 )
     {
