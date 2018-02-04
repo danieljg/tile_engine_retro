@@ -161,6 +161,7 @@ if(clrfile[ii]==NULL)printf("Oh dear! %s\n", strerror(errno));
      {
        fprintf(stdout,"\tnot a palette file...\n");
      }
+fprintf(stdout,"debug\n");
    }
 
    //closing clearfiles
