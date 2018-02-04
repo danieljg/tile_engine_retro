@@ -130,6 +130,7 @@ if(clrfile[ii]==NULL)printf("Oh dear! %s\n", strerror(errno));
    //cycle again through input files
    for (uint8_t ii=0; ii < number_of_inputs; ii++)
    {
+fprintf(stdout,"ddd1\n");
      fprintf(stdout, "Processing input file:\t%s...",argv[ii+1]);
      //check if this is a palette file
      if( (number_of_tiles[ii]==0) || ( (number_of_inputs==1) ) )
