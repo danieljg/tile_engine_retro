@@ -144,9 +144,8 @@ if(clrfile[ii]==NULL)printf("Oh dear! %s\n", strerror(errno));
          if(number_of_tiles[ii]==0)
          {
            char str[1024];
-           fgets(str,2,clrfile[ii]);
-//fprintf(stdout,"%s",str);
-           if(strcmp(str,"1")==0)
+           fgets(str,4,clrfile[ii]);
+           if(strcmp(str,"1\n")==0)
            {
              argb_color=0x8000;
            }
