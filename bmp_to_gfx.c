@@ -9,6 +9,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 
 static uint8_t mylog2 (uint8_t val) {
     if (val == 0) return 0;
@@ -24,6 +26,7 @@ static uint8_t mylog2 (uint8_t val) {
 int main( int argc, char* argv[] )
 {
     BMP*	bmp[16];
+    FILE*       clrfile[16];
     uint8_t	index, buff;
     uint8_t     number_of_inputs;
     uint8_t	r, g, b;
@@ -34,7 +37,11 @@ int main( int argc, char* argv[] )
     uint8_t     target_argument_index = argc-2;
     uint8_t     type_argument_index = argc-1;
 
-    char help_msg[] = "Usage: %s <input files2> <output file> gfx_type\n\tinput file: One or more input files\n\tgfx_type: 0:Background, 1:Full_Sprites, 2:Half-Sprites\n";
+    for (uint8_t ii=0;ii<16;ii++){
+      clrfile[ii]=NULL;
+    }
+
+    char help_msg[] = "Usage: %s <input files> <output file> gfx_type\n\t<input files>: One or more input files\n\tgfx_type: 0:Background, 1:Full_Sprites, 2:Half-Sprites\n\tNote: for every input.pal file there's an input.pal.clr text file\n";
 
     if ( argc < 4 )
     {
@@ -91,7 +98,24 @@ int main( int argc, char* argv[] )
       tiles_number=tiles_number+number_of_tiles[ii];
       }
     }
-    if(palette_number==0)palette_number=1;
+    if(palette_number==0){
+      palette_number=1;
+    }
+    else{
+      //gotta open the *.clr files
+      for(uint8_t ii=0;ii<number_of_inputs;ii++)
+      {
+      if(number_of_tiles[ii]==0)
+      {
+        char* buf;
+        buf=strdup(argv[ii+1]);
+        char* clr=".clr";
+        strcat(buf,clr);
+        clrfile[ii]=fopen(buf,"r");
+//if(clrfile[ii]==NULL)printf("Oh dear! %s\n", strerror(errno));
+      }
+      }
+    }
 
     fprintf(stdout, "Done with preprocessing\n");
 
@@ -106,19 +130,19 @@ int main( int argc, char* argv[] )
    //cycle again through input files
    for (uint8_t ii=0; ii < number_of_inputs; ii++)
    {
-     fprintf(stdout, "Processing input file: ");
-     fprintf(stdout, "\t%s...",argv[ii+1]);
+     fprintf(stdout, "Processing input file:\t%s...",argv[ii+1]);
      //check if this is a palette file
      if( (number_of_tiles[ii]==0) || ( (number_of_inputs==1) ) )
      {
        for ( uint8_t jj=0 ; jj<16 ; jj++ )
        {
          uint16_t argb_color=0x0000;
-         //here we test the pure palette files to set transparency
+         //in the case of a pure palette file, we check the .clr file to set transparency
          if(number_of_tiles[ii]==0)
          {
-           BMP_GetPixelIndex( bmp[ii], jj%4, jj>>2, &index);
-           if (index)
+           char* str;
+           fgets(str,1,clrfile[ii]);
+           if(str=="1")
            {
              argb_color=0x8000;
            }
@@ -136,6 +160,13 @@ int main( int argc, char* argv[] )
      else
      {
        fprintf(stdout,"\tnot a palette file...\n");
+     }
+   }
+
+   //closing clearfiles
+   for (uint8_t ii=0; ii<16;ii++){
+     if(!(clrfile[ii]==NULL)){
+       fclose(clrfile[ii]);
      }
    }
 
