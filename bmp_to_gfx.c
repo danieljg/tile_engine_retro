@@ -165,9 +165,12 @@ if(clrfile[ii]==NULL)printf("Oh dear! %s\n", strerror(errno));
 
    //closing clearfiles
    for (uint8_t ii=0; ii<16;ii++){
+fprintf(stdout,"d1..");
      if(!(clrfile[ii]==NULL)){
        fclose(clrfile[ii]);
+fprintf(stdout,"\n..\n");
      }
+fprintf(stdout,"d2\n");
    }
 
    fprintf(stdout, "Done with processing palettes... on to tilesets\n");
