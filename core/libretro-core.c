@@ -10,6 +10,7 @@
 #include "libretro.h"
 #include "../gfx_engine.h"
 #include "../events.h"
+#include "../game.h"
 
 #if defined(_3DS)
 #endif
@@ -73,6 +74,8 @@ void retro_init(void)
   if (getcwd(cwd, sizeof(cwd)) != NULL)
     fprintf(stdout, "Current working dir: %s\n", cwd);
   initialize_game();
+  initialize_game2();
+  default_scores();
 }
 
 void retro_deinit(void)
@@ -245,33 +248,12 @@ static void update_input(void)
 
 
 /*Actualiza los primeros 8 HALF SPRITES (0 - 7) con las coordenadas de entrada */
-void update_coords(uint16_t x, uint16_t y) {
-  #define ASCII0 48
-  char digits[6];
-  for (uint8_t i=0; i<3; i++) {
-    digits[2-i] = ASCII0 + x%10;
-    x=x/10;
-  }
-  for (uint8_t i=0; i<3; i++) {
-    digits[5-i] = ASCII0 + y%10;
-    y=y/10;
-  }
-  for (uint8_t i=0; i<6; i++) {
-    set_half_sprite(i, digits[i]);
-  }
-}
+
 /* Actualiza las mecánicas del juego.
 */
 static void update_game() {
   update_entities();
-
-  /* This block de code turns the green bots to yellow or red they get too close to the metroid.
-  */
-  #define SHIP_ID 0
-  int16_t met_x, met_y;
-  met_y = fsp.oam2[SHIP_ID]&Mask_fsp_oam2_y_pos;
-  met_x = fsp.oam3[SHIP_ID]&Mask_fsp_oam3_x_pos;
-  update_coords(met_x,met_y);
+  update_hud();
 
   frame_counter++;
   scroll_frame_counter=frame_counter%bg_scroll_wait_frames;
@@ -292,10 +274,7 @@ static void update_game() {
   }
 
   if(animation_frame_counter==0){
-    // Animating spaceships
-    for (uint8_t i=0; i<2; i++) {
-      fsp.oam[i]=(fsp.oam[i]&(~Mask_fsp_oam_index))|((((fsp.oam[i]&Mask_fsp_oam_index)+1)%3)+13);
-    }
+    update_animations();
     /*
     if((bg[0].tilemap[12]&Mask_bgtm_index)>5) {
       bg[0].tilemap[12]=bg[0].tilemap[12]&(~Mask_bgtm_index);

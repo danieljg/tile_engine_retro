@@ -331,11 +331,11 @@ void initialize_half_sprites()
   hsp.offset_y=0;
   hsp.active_number=0;
 
-  for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 294+ii*8, 230);
-  for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 262+ii*8, 230);
-  draw_text("Now with support for...", 8, 168, 0);
-  draw_text("...multi-palette sprites! :D", 8, 184, 1);
-  draw_text("Nice! #$%&*", 8, 122, 2);
+  //for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 294+ii*8, 230);
+  //for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 262+ii*8, 230);
+  //draw_text("Now with support for...", 8, 168, 0);
+  //draw_text("...multi-palette sprites! :D", 8, 184, 1);
+  //draw_text("Nice! #$%&*", 8, 122, 2);
 }
 
 /* Reads graphics data from a gfx file.

@@ -4,6 +4,8 @@
 #define MAX_POWERUPS 4
 #define TOP_SCORES_COUNT 10
 
+#define START_LIVES 3
+
 #define MASK_PB_XDATA_OFFSET 0xFF000000
 #define MASK_PB_XDATA_VEL    0x00FFF000
 #define MASK_PB_XDATA_POS    0x00000FFF
@@ -19,7 +21,8 @@ typedef struct {
   uint32_t xdata;
   uint32_t ydata;
   uint16_t dimensions;
-} physics_body;
+}
+physics_body;
 
 typedef struct {
   uint8_t is_full_sprite; // 1 bit
@@ -27,7 +30,8 @@ typedef struct {
   uint16_t sprite_tile_start; // 10 bits
   uint8_t current_frame; // 4 bits
   uint8_t total_frames; // 4 bits
-} sprite_animation;
+}
+sprite_animation;
 
 typedef struct {
   uint8_t state; // live, dead, exploding 2 bits
@@ -35,14 +39,16 @@ typedef struct {
   uint8_t damage; // (0-15) 4 bits
   uint8_t is_enemy; // is enemy or player projectile? 1 bit
   sprite_animation animation;
-} projectile;
+}
+projectile;
 
 typedef struct {
   uint8_t state; // live, using, used
   physics_body body;
   uint8_t type; // 8 power_up types // 3 bits
   sprite_animation animation;
-} power_up;
+}
+power_up;
 
 typedef struct {
   uint8_t projectile_type; // 4 projectile types 2 bits
@@ -50,13 +56,15 @@ typedef struct {
   uint8_t sprite_palette_id; // 4 bits
   uint8_t min_delay_time; // min delay between shots in frames 8 bits
   uint8_t is_chargeable; // 1 bit
-} weapon_type;
+}
+weapon_type;
 
 typedef struct {
   uint8_t type_id; // 8 weapon types 3 bits
   uint8_t delay_counter; // frames left to shot again 8 bits
   uint8_t is_charging; // 1 bit
-} weapon_state;
+}
+weapon_state;
 
 typedef struct {
   uint8_t speed;
@@ -64,7 +72,8 @@ typedef struct {
   uint8_t weapon_type_id_B;
   sprite_animation animation;
   uint8_t animation_data;
-} player_type;
+}
+player_type;
 
 typedef struct {
   uint8_t state; // spawning, live, dead, exploding 2 bits
@@ -75,14 +84,16 @@ typedef struct {
   weapon_state weapon_A;
   weapon_state weapon_B;
   sprite_animation animation;
-} player;
+}
+player;
 
 typedef struct {
   uint8_t total_hitpoints; // (0 to 64) 6 bits
   uint8_t speed;
   uint8_t animation_data;
   uint8_t weapon_type_id;
-} enemy_type;
+}
+enemy_type;
 
 typedef struct {
   uint8_t state; // live, dead, exploding 2 bits
@@ -91,7 +102,14 @@ typedef struct {
   uint8_t hitpoints; // (0 to 64) 6 bits
   weapon_state weapon;
   sprite_animation animation;
-} enemy;
+}
+enemy;
+
+typedef struct {
+  uint32_t initials; // 3 letters in ASCII (24 bits)
+  uint32_t score;
+}
+hi_score;
 
 typedef struct {
   uint8_t player_count;
@@ -103,12 +121,61 @@ typedef struct {
   uint8_t powerup_count;
   power_up power_ups[MAX_POWERUPS];
   uint8_t game_state;
-  uint16_t scoreboard[TOP_SCORES_COUNT];
-} game_control;
+  hi_score top_scores[TOP_SCORES_COUNT];
+}
+game_control;
 
 game_control game_ctrl;
 
-add_projectile() {
+void add_hud() {
+  for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 294+ii*8, 230);
+  for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 262+ii*8, 230);
+  //hi-score digits (indexes 6 to 11)
+  for (uint8_t ii=0; ii<6; ii++) add_half_sprite('0', 0, 84+ii*8, 5);
+  draw_text("Hi-Score", 4, 4, 2);
+}
+
+void update_hud() {
+  #define SHIP_ID 0
+  int16_t met_x, met_y;
+  met_y = fsp.oam2[SHIP_ID]&Mask_fsp_oam2_y_pos;
+  met_x = fsp.oam3[SHIP_ID]&Mask_fsp_oam3_x_pos;
+  update_coords(met_x,met_y);
+  //fprintf(stdout, "Score:%u\n", game_ctrl.top_scores[0].score);
+  update_hiscore(game_ctrl.top_scores[0].score);
+}
+
+void update_hiscore(uint32_t score) {
+  #define ASCII0 48
+  char digits[6];
+  // Codifing Score to ASCII
+  for (uint8_t i=0; i<6; i++) {
+    digits[5-i] = ASCII0 + score%10;
+    score=score/10;
+  }
+  // Updating sprites with indexes 6 to 11 (reserved for hi-score)
+  for (uint8_t i=0; i<6; i++) {
+    set_half_sprite(i+6, digits[i]);
+  }
+}
+
+void update_coords(uint16_t x, uint16_t y) {
+  #define ASCII0 48
+  char digits[6];
+  for (uint8_t i=0; i<3; i++) {
+    digits[2-i] = ASCII0 + x%10;
+    x=x/10;
+  }
+  for (uint8_t i=0; i<3; i++) {
+    digits[5-i] = ASCII0 + y%10;
+    y=y/10;
+  }
+  for (uint8_t i=0; i<6; i++) {
+    set_half_sprite(i, digits[i]);
+  }
+}
+
+void add_projectile() {
   uint8_t new_id = game_ctrl.projectile_count;
   if (new_id < MAX_PROJECTILES) {
     game_ctrl.projectiles[new_id].state = 0x01;
@@ -125,8 +192,18 @@ add_projectile() {
   }
 }
 
+uint8_t add_player() {
+  if (game_ctrl.player_count < MAX_PLAYERS) {
+    uint8_t new_id = game_ctrl.player_count;
+    game_ctrl.players[new_id].lives = START_LIVES;
+    game_ctrl.player_count++;
+    return 1;
+  }
+  else return 0;
+}
 
 void initialize_game2() {
+  fprintf(stdout, "Iniciando juego\n");
   game_ctrl.player_count = 0;
   for (uint8_t i; i<MAX_PLAYERS; i++) {
     game_ctrl.players[i].state = 0;
@@ -194,6 +271,34 @@ void initialize_game2() {
   }
   game_ctrl.game_state = 0x00;
   for (uint8_t i; i<TOP_SCORES_COUNT; i++) {
-    game_ctrl.scoreboard[i] = 0;
+    game_ctrl.top_scores[i].initials = 0x00;
+    game_ctrl.top_scores[i].score = 0;
   }
+  add_hud();
+}
+
+void update_animations() {
+  // Animating spaceships
+  for (uint8_t i=0; i<2; i++) {
+    fsp.oam[i]=(fsp.oam[i]&(~Mask_fsp_oam_index))|((((fsp.oam[i]&Mask_fsp_oam_index)+1)%3)+13);
+  }
+}
+
+void default_scores() {
+  game_ctrl.top_scores[0].initials = (' '<<24)|('A'<<16)|('B'<<8)|'C';
+  game_ctrl.top_scores[0].score = 450000;
+  game_ctrl.top_scores[1].initials = (' '<<24)|('D'<<16)|('E'<<8)|'F';;
+  game_ctrl.top_scores[1].score = 350000;
+  game_ctrl.top_scores[2].initials = " GHI";
+  game_ctrl.top_scores[2].score = 100000;
+  game_ctrl.top_scores[3].initials = " JKL";
+  game_ctrl.top_scores[3].score = 50000;
+  game_ctrl.top_scores[4].initials = " MNO";
+  game_ctrl.top_scores[4].score = 25000;
+  game_ctrl.top_scores[5].initials = " PQR";
+  game_ctrl.top_scores[5].score = 10000;
+  game_ctrl.top_scores[6].initials = " STU";
+  game_ctrl.top_scores[6].score = 5000;
+  game_ctrl.top_scores[7].initials = " VWX";
+  game_ctrl.top_scores[7].score = 2500;
 }
