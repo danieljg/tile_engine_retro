@@ -187,22 +187,27 @@ static void update_input(void)
   makesound=0;
   //game.entities[entities_ids[ENT_PLAYER1]].vel_x = 0;
   //game.entities[entities_ids[ENT_PLAYER1]].vel_y = 0;
-
+  pbody_set_vel_x(&game_ctrl.players[0].body, 0);
+  pbody_set_vel_y(&game_ctrl.players[0].body, 0);
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
   {
     //game.entities[entities_ids[ENT_PLAYER1]].vel_y = -2;
+    pbody_set_vel_y(&game_ctrl.players[0].body, -8);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
   {
     //game.entities[entities_ids[ENT_PLAYER1]].vel_y = 2;
+    pbody_set_vel_y(&game_ctrl.players[0].body, 8);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
   {
     //game.entities[entities_ids[ENT_PLAYER1]].vel_x = -2;
+    pbody_set_vel_x(&game_ctrl.players[0].body, -8);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
   {
     //game.entities[entities_ids[ENT_PLAYER1]].vel_x = 2;
+    pbody_set_vel_x(&game_ctrl.players[0].body, 8);
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
   {
@@ -253,6 +258,9 @@ static void update_input(void)
 */
 static void update_game() {
   //update_entities();
+  for (uint8_t i=0; i<game_ctrl.player_count; i++) {
+    update_player(&game_ctrl.players[i]);
+  }
   update_hud();
 
   frame_counter++;
