@@ -185,51 +185,51 @@ static void update_input(void)
 {
   input_poll_cb();
   // Cleaning players' input states
-  for (uint8_t player_id=0; player_id < game_ctrl.player_count; player_id++){
-    game_ctrl.players[player_id].input_state = 0x00;
+  for (uint8_t player_id=0; player_id < game.player_count; player_id++){
+    game.players[player_id].input_state = 0x00;
   }
   // Checking START button for al players (including idle players)
   for (uint8_t player_id=0; player_id < MAX_PLAYERS; player_id++) {
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START)) {
-      game_ctrl.players[player_id].input_state = MASK_INPUT_START;
+      game.players[player_id].input_state = MASK_INPUT_START;
     }
   }
   // Updating other buttons for all active players
-  for (uint8_t player_id=0; player_id < game_ctrl.player_count; player_id++){
+  for (uint8_t player_id=0; player_id < game.player_count; player_id++){
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
     {
-      game_ctrl.players[player_id].input_state =
-        game_ctrl.players[player_id].input_state | MASK_INPUT_UP;
+      game.players[player_id].input_state =
+        game.players[player_id].input_state | MASK_INPUT_UP;
     }
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
     {
-      game_ctrl.players[player_id].input_state =
-        game_ctrl.players[player_id].input_state | MASK_INPUT_DOWN;
+      game.players[player_id].input_state =
+        game.players[player_id].input_state | MASK_INPUT_DOWN;
     }
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
     {
-      game_ctrl.players[player_id].input_state =
-        game_ctrl.players[player_id].input_state | MASK_INPUT_LEFT;
+      game.players[player_id].input_state =
+        game.players[player_id].input_state | MASK_INPUT_LEFT;
     }
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
     {
-      game_ctrl.players[player_id].input_state =
-        game_ctrl.players[player_id].input_state | MASK_INPUT_RIGHT;
+      game.players[player_id].input_state =
+        game.players[player_id].input_state | MASK_INPUT_RIGHT;
     }
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
     {
-      game_ctrl.players[player_id].input_state =
-        game_ctrl.players[player_id].input_state | MASK_INPUT_A;
+      game.players[player_id].input_state =
+        game.players[player_id].input_state | MASK_INPUT_A;
     }
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B))
     {
-      game_ctrl.players[player_id].input_state =
-        game_ctrl.players[player_id].input_state | MASK_INPUT_B;
+      game.players[player_id].input_state =
+        game.players[player_id].input_state | MASK_INPUT_B;
     }
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X))
     {
-      game_ctrl.players[player_id].input_state =
-        game_ctrl.players[player_id].input_state | MASK_INPUT_C;
+      game.players[player_id].input_state =
+        game.players[player_id].input_state | MASK_INPUT_C;
     }
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y))
     {
@@ -245,8 +245,8 @@ static void update_input(void)
 */
 static void update_game() {
   //update_entities();
-  for (uint8_t i=0; i<game_ctrl.player_count; i++) {
-    update_player(&game_ctrl.players[i]);
+  for (uint8_t i=0; i<game.player_count; i++) {
+    update_player(&game.players[i]);
   }
   update_hud();
 
