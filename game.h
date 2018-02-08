@@ -108,6 +108,7 @@ animation_set_pos(
       set_pos_fsp(animation->sprite_id, pos_x, pos_y);
     }
     else {
+      set_pos_hsp(animation->sprite_id, pos_x, pos_y);
     }
 }
 

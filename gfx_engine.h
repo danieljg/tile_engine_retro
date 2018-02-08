@@ -353,6 +353,14 @@ static void inline move_hsp(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
   hsp.oam3[sp_id]=(oambuff&(~Mask_hsp_oam3_x_pos))|(((oambuff&Mask_hsp_oam3_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
 }
 
+static void inline set_pos_hsp(int16_t sp_id, int16_t pos_x, int16_t pos_y) {
+  uint16_t oambuff;//using local variables may be faster
+  oambuff=hsp.oam2[sp_id];
+  hsp.oam2[sp_id]=(oambuff&(~Mask_hsp_oam2_y_pos))|(pos_y%(layer_tile_number_y*full_tile_size));
+  oambuff=hsp.oam3[sp_id];
+  hsp.oam3[sp_id]=(oambuff&(~Mask_hsp_oam3_x_pos))|(pos_x%(layer_tile_number_x*full_tile_size));
+}
+
 static void inline set_hsp(int16_t sp_id, int16_t sp_index) {
   uint16_t oambuff;
   oambuff=hsp.oam[sp_id];
