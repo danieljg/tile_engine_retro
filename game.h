@@ -379,10 +379,11 @@ void initialize_game() {
     game.top_scores[i].score = 0;
   }
   add_hud();
-  add_player(23<<3,134<<3);
-  add_player(134<<3,23<<3);
-  add_player(23<<3,23<<3);
-  add_player(134<<3,134<<3);
+
+  add_player(20<<3,200<<3);
+  add_player(60<<3,200<<3);
+  add_player(100<<3,200<<3);
+  add_player(140<<3,200<<3);
 
   uint16_t pos_x = pbody_get_x(&game.players[0].body);
   uint16_t pos_y = pbody_get_y(&game.players[0].body);
