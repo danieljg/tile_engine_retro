@@ -17,12 +17,43 @@
 #define MASK_PB_DIMENSIONS_WIDTH  0xFF00
 #define MASK_PB_DIMENSIONS_HEIGHT 0x00FF
 
+/* physics_body
+*/
 typedef struct {
   uint32_t xdata;
   uint32_t ydata;
   uint16_t dimensions;
 }
 physics_body;
+void pbody_set_x(physics_body *pbody, uint16_t pos_x) {
+  pbody->xdata=(pbody->xdata&(~MASK_PB_XDATA_POS))|(pos_x&MASK_PB_XDATA_POS);
+}
+uint16_t pbody_get_x(physics_body *pbody) {
+  return pbody->xdata&MASK_PB_XDATA_POS;
+}
+void pbody_set_y(physics_body *pbody, uint16_t pos_y) {
+  pbody->ydata=(pbody->ydata&(~MASK_PB_YDATA_POS))|(pos_y&MASK_PB_YDATA_POS);
+}
+uint16_t pbody_get_y(physics_body *pbody) {
+  return pbody->ydata&MASK_PB_YDATA_POS;
+}
+void pbody_set_vel_x(physics_body *pbody, uint16_t vel_x) {
+  pbody->xdata=(pbody->xdata&(~MASK_PB_XDATA_VEL))|((vel_x&MASK_PB_XDATA_POS)<<12);
+}
+uint16_t pbody_get_vel_x(physics_body *pbody) {
+  return (pbody->xdata&MASK_PB_XDATA_VEL)>>12;
+}
+void pbody_set_vel_y(physics_body *pbody, uint16_t vel_y) {
+  pbody->ydata=(pbody->ydata&(~MASK_PB_YDATA_VEL))|((vel_y&MASK_PB_YDATA_POS)<<12);
+}
+uint16_t pbody_get_vel_y(physics_body *pbody) {
+  return (pbody->ydata&MASK_PB_YDATA_VEL)>>12;
+}
+void pbody_update(physics_body *pbody) {
+  pbody_set_x(pbody, pbody_get_x(pbody)+pbody_get_vel_x(pbody));
+  pbody_set_y(pbody, pbody_get_y(pbody)+pbody_get_vel_y(pbody));
+}
+
 
 typedef struct {
   uint8_t is_full_sprite; // 1 bit
@@ -87,6 +118,10 @@ typedef struct {
 }
 player;
 
+void update_player(player *plyr) {
+  pbody_update(&(plyr->body));
+}
+
 typedef struct {
   uint8_t total_hitpoints; // (0 to 64) 6 bits
   uint8_t speed;
@@ -126,6 +161,18 @@ typedef struct {
 game_control;
 
 game_control game_ctrl;
+
+uint8_t add_player(uint16_t pos_x, uint16_t pos_y) {
+  if (game_ctrl.player_count < MAX_PLAYERS) {
+    uint8_t new_id = game_ctrl.player_count;
+    game_ctrl.players[new_id].lives = START_LIVES;
+    pbody_set_x(&game_ctrl.players[new_id].body, pos_x);
+    pbody_set_y(&game_ctrl.players[new_id].body, pos_y);
+    game_ctrl.player_count++;
+    return 1;
+  }
+  else return 0;
+}
 
 void add_hud() {
   for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 294+ii*8, 230);
@@ -190,16 +237,6 @@ void add_projectile() {
     game_ctrl.projectiles[new_id].animation.current_frame = 0;
     game_ctrl.projectiles[new_id].animation.total_frames = 6;
   }
-}
-
-uint8_t add_player() {
-  if (game_ctrl.player_count < MAX_PLAYERS) {
-    uint8_t new_id = game_ctrl.player_count;
-    game_ctrl.players[new_id].lives = START_LIVES;
-    game_ctrl.player_count++;
-    return 1;
-  }
-  else return 0;
 }
 
 void initialize_game2() {
@@ -275,6 +312,10 @@ void initialize_game2() {
     game_ctrl.top_scores[i].score = 0;
   }
   add_hud();
+  add_player(23<<3,134<<3);
+  uint16_t pos_x = pbody_get_x(&game_ctrl.players[0].body);
+  uint16_t pos_y = pbody_get_y(&game_ctrl.players[0].body);
+  fprintf(stdout, "Pos X: %u Pos Y: %u\n", pos_x>>3, pos_y>>3);
 }
 
 void update_animations() {
