@@ -94,7 +94,7 @@ animation_update(sprite_animation *animation) {
     );
   }
   else {
-    set_half_sprite(
+    set_hsp(
       animation->sprite_id,
       animation->sprite_tile_start + animation->current_frame
     );
@@ -250,10 +250,10 @@ uint8_t add_player(uint16_t pos_x, uint16_t pos_y) {
 }
 
 void add_hud() {
-  for (uint8_t ii=0; ii<5; ii++) add_half_sprite('0', 0, 204+ii*8, 230);
-  for (uint8_t ii=0; ii<5; ii++) add_half_sprite('0', 0, 252+ii*8, 230);
+  for (uint8_t ii=0; ii<5; ii++) add_hsp('0', 0, 204+ii*8, 230);
+  for (uint8_t ii=0; ii<5; ii++) add_hsp('0', 0, 252+ii*8, 230);
   //hi-score digits (indexes 6 to 11)
-  for (uint8_t ii=0; ii<6; ii++) add_half_sprite('0', 0, 84+ii*8, 5);
+  for (uint8_t ii=0; ii<6; ii++) add_hsp('0', 0, 84+ii*8, 5);
   draw_text("Hi-Score", 4, 4, 2);
 }
 
@@ -279,7 +279,7 @@ void update_hiscore(uint32_t score) {
   }
   // Updating sprites with indexes 6 to 11 (reserved for hi-score)
   for (uint8_t i=0; i<6; i++) {
-    set_half_sprite(i+10, digits[i]);
+    set_hsp(i+10, digits[i]);
   }
 }
 
@@ -295,7 +295,7 @@ void update_coords(uint16_t x, uint16_t y) {
     y=y/10;
   }
   for (uint8_t i=0; i<10; i++) {
-    set_half_sprite(i, digits[i]);
+    set_hsp(i, digits[i]);
   }
 }
 

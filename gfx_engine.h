@@ -242,8 +242,7 @@ static void inline set_fsp(int16_t sp_id, int16_t sp_index) {
   fsp.oam[sp_id] = (oambuff&(~Mask_fsp_oam_index))|sp_index;
 }
 
-void initialize_full_sprites()
-{
+void initialize_full_sprites() {
  for(uint8_t ii=0;ii<fsp_palette_number;ii++)
  {
   for(uint8_t jj=0;jj<fsp_palette_color_count;jj++)
@@ -312,7 +311,7 @@ Esta función recibe 3 argumentos:
 El sprite es creado en el primer espacio disponible en la estructura de sprites. El contador de sprites es incrementado en 1
 */
 //TODO: buscar el primer espacio disponible
-uint8_t add_half_sprite(
+uint8_t add_hsp(
     uint16_t sp_index,
     uint8_t pal_index,
     uint16_t x_pos, uint16_t y_pos
@@ -335,7 +334,7 @@ uint8_t add_half_sprite(
   return hsp_count;
 }
 
-void delete_half_sprite(uint8_t sp_id) {
+void delete_hsp(uint8_t sp_id) {
   hsp.oam[sp_id] = 0x00;
   hsp.oam2[sp_id] = 0x00;
   hsp.oam3[sp_id] = 0x00;
@@ -346,7 +345,7 @@ void delete_half_sprite(uint8_t sp_id) {
   }
 }
 
-static void inline move_half_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
+static void inline move_hsp(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
   uint16_t oambuff;
   oambuff=hsp.oam2[sp_id];
   hsp.oam2[sp_id]=(oambuff&(~Mask_hsp_oam2_y_pos))|(((oambuff&Mask_hsp_oam2_y_pos)+vel_y)%(layer_tile_number_y*full_tile_size));
@@ -354,7 +353,7 @@ static void inline move_half_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
   hsp.oam3[sp_id]=(oambuff&(~Mask_hsp_oam3_x_pos))|(((oambuff&Mask_hsp_oam3_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
 }
 
-static void inline set_half_sprite(int16_t sp_id, int16_t sp_index) {
+static void inline set_hsp(int16_t sp_id, int16_t sp_index) {
   uint16_t oambuff;
   oambuff=hsp.oam[sp_id];
   hsp.oam[sp_id] = (oambuff&(~Mask_hsp_oam_index))|sp_index;
@@ -367,7 +366,7 @@ void draw_text( char label[],
   int8_t len = strlen(label);
   for (uint8_t i = 0; i < len; i++) {
     x_tile = x_pos + i * 8;
-    if (label[i] != 32) add_half_sprite(label[i], pal_index, x_tile, y_pos);
+    if (label[i] != 32) add_hsp(label[i], pal_index, x_tile, y_pos);
   }
 }
 
@@ -382,9 +381,6 @@ void initialize_half_sprites()
   hsp.offset_x=0;
   hsp.offset_y=0;
   hsp.active_number=0;
-
-  //for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 294+ii*8, 230);
-  //for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 262+ii*8, 230);
   //draw_text("Now with support for...", 8, 168, 0);
   //draw_text("...multi-palette sprites! :D", 8, 184, 1);
   //draw_text("Nice! #$%&*", 8, 122, 2);
