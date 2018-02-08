@@ -88,7 +88,7 @@ animation_update(sprite_animation *animation) {
     animation->current_frame = 0;
   // updating sprite
   if (animation->is_full_sprite) {
-    set_full_sprite(
+    set_fsp(
       animation->sprite_id,
       animation->sprite_tile_start + animation->current_frame
     );
@@ -105,7 +105,7 @@ animation_set_pos(
   uint16_t pos_x, uint16_t pos_y
   ){
     if (animation->is_full_sprite) {
-      full_sprite_set_pos(animation->sprite_id, pos_x, pos_y);
+      set_pos_fsp(animation->sprite_id, pos_x, pos_y);
     }
     else {
     }
@@ -238,7 +238,7 @@ uint8_t add_player(uint16_t pos_x, uint16_t pos_y) {
     pbody_set_x(&game.players[new_id].body, pos_x);
     pbody_set_y(&game.players[new_id].body, pos_y);
     game.players[new_id].animation.is_full_sprite = 1;
-    uint8_t new_sprite_id = add_full_sprite(12, 1+new_id, pos_x, pos_y);
+    uint8_t new_sprite_id = add_fsp(12, 1+new_id, pos_x, pos_y);
     game.players[new_id].animation.sprite_id = new_sprite_id;
     game.players[new_id].animation.sprite_tile_start = 12;
     game.players[new_id].animation.current_frame = 0;

@@ -186,7 +186,7 @@ Esta función recibe 3 argumentos:
 El sprite es creado en el primer espacio disponible en la estructura de sprites. El contador de sprites es incrementado en 1
 */
 //TODO: ciclar las estructuras disponibles y colocarlo en el primero disponible
-uint8_t add_full_sprite(
+uint8_t add_fsp(
     uint16_t sp_index,
     uint8_t pal_index,
     uint16_t x_pos, uint16_t y_pos
@@ -209,7 +209,7 @@ uint8_t add_full_sprite(
   return fsp_count;
 }
 
-void delete_full_sprite(uint8_t sp_id) {
+void delete_fsp(uint8_t sp_id) {
   fsp.oam[sp_id] = 0x00;
   fsp.oam2[sp_id] = 0x00;
   fsp.oam3[sp_id] = 0x00;
@@ -218,6 +218,28 @@ void delete_full_sprite(uint8_t sp_id) {
       fsp.active_number--;
     } while (Mask_fsp_oam_in_use & (~fsp.oam[fsp.active_number-1]));
   }
+}
+
+static void inline move_fsp(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
+  uint16_t oambuff;//using local variables may be faster
+  oambuff=fsp.oam2[sp_id];
+  fsp.oam2[sp_id]=(oambuff&(~Mask_fsp_oam2_y_pos))|(((oambuff&Mask_fsp_oam2_y_pos)+vel_y)%(layer_tile_number_y*full_tile_size));
+  oambuff=fsp.oam3[sp_id];
+  fsp.oam3[sp_id]=(oambuff&(~Mask_fsp_oam3_x_pos))|(((oambuff&Mask_fsp_oam3_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
+}
+
+static void inline set_pos_fsp(int16_t sp_id, int16_t pos_x, int16_t pos_y) {
+  uint16_t oambuff;//using local variables may be faster
+  oambuff=fsp.oam2[sp_id];
+  fsp.oam2[sp_id]=(oambuff&(~Mask_fsp_oam2_y_pos))|(pos_y%(layer_tile_number_y*full_tile_size));
+  oambuff=fsp.oam3[sp_id];
+  fsp.oam3[sp_id]=(oambuff&(~Mask_fsp_oam3_x_pos))|(pos_x%(layer_tile_number_x*full_tile_size));
+}
+
+static void inline set_fsp(int16_t sp_id, int16_t sp_index) {
+  uint16_t oambuff;
+  oambuff=fsp.oam[sp_id];
+  fsp.oam[sp_id] = (oambuff&(~Mask_fsp_oam_index))|sp_index;
 }
 
 void initialize_full_sprites()
@@ -322,28 +344,6 @@ void delete_half_sprite(uint8_t sp_id) {
       hsp.active_number--;
     } while (Mask_hsp_oam_in_use & (~hsp.oam[hsp.active_number-1]));
   }
-}
-
-static void inline move_full_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
-  uint16_t oambuff;//using local variables may be faster
-  oambuff=fsp.oam2[sp_id];
-  fsp.oam2[sp_id]=(oambuff&(~Mask_fsp_oam2_y_pos))|(((oambuff&Mask_fsp_oam2_y_pos)+vel_y)%(layer_tile_number_y*full_tile_size));
-  oambuff=fsp.oam3[sp_id];
-  fsp.oam3[sp_id]=(oambuff&(~Mask_fsp_oam3_x_pos))|(((oambuff&Mask_fsp_oam3_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
-}
-
-static void inline full_sprite_set_pos(int16_t sp_id, int16_t pos_x, int16_t pos_y) {
-  uint16_t oambuff;//using local variables may be faster
-  oambuff=fsp.oam2[sp_id];
-  fsp.oam2[sp_id]=(oambuff&(~Mask_fsp_oam2_y_pos))|(pos_y%(layer_tile_number_y*full_tile_size));
-  oambuff=fsp.oam3[sp_id];
-  fsp.oam3[sp_id]=(oambuff&(~Mask_fsp_oam3_x_pos))|(pos_x%(layer_tile_number_x*full_tile_size));
-}
-
-static void inline set_full_sprite(int16_t sp_id, int16_t sp_index) {
-  uint16_t oambuff;
-  oambuff=fsp.oam[sp_id];
-  fsp.oam[sp_id] = (oambuff&(~Mask_fsp_oam_index))|sp_index;
 }
 
 static void inline move_half_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
