@@ -63,6 +63,36 @@ typedef struct {
   uint8_t total_frames; // 4 bits
 }
 sprite_animation;
+animation_update(sprite_animation *animation) {
+  // updating relative frame
+  if (animation->current_frame < (animation->total_frames-1))
+    animation->current_frame++;
+  else
+    animation->current_frame = 0;
+  // updating sprite
+  if (animation->is_full_sprite) {
+    set_full_sprite(
+      animation->sprite_id,
+      animation->sprite_tile_start + animation->current_frame
+    );
+  }
+  else {
+    set_half_sprite(
+      animation->sprite_id,
+      animation->sprite_tile_start + animation->current_frame
+    );
+  }
+}
+animation_set_pos(
+  sprite_animation *animation,
+  uint16_t pos_x, uint16_t pos_y
+  ){
+    if (animation->is_full_sprite) {
+      full_sprite_set_pos(animation->sprite_id, pos_x, pos_y);
+    }
+    else {
+    }
+}
 
 typedef struct {
   uint8_t state; // live, dead, exploding 2 bits
@@ -120,6 +150,9 @@ player;
 
 void update_player(player *plyr) {
   pbody_update(&(plyr->body));
+  animation_set_pos(&(plyr->animation),
+    pbody_get_x(&(plyr->body))>>3, pbody_get_y(&(plyr->body))>>3);
+  animation_update(&(plyr->animation));
 }
 
 typedef struct {
