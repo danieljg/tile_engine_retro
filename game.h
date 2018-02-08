@@ -6,6 +6,15 @@
 
 #define START_LIVES 3
 
+#define MASK_INPUT_START 0x80
+#define MASK_INPUT_A     0x40
+#define MASK_INPUT_B     0x20
+#define MASK_INPUT_C     0x10
+#define MASK_INPUT_UP    0x08
+#define MASK_INPUT_DOWN  0x04
+#define MASK_INPUT_LEFT  0x02
+#define MASK_INPUT_RIGHT 0x01
+
 #define MASK_PB_XDATA_OFFSET 0xFF000000
 #define MASK_PB_XDATA_DIR    0x00800000
 #define MASK_PB_XDATA_RES    0x00700000
