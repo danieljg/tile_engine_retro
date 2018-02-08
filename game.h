@@ -166,6 +166,16 @@ typedef struct {
 player;
 
 void update_player(player *plyr) {
+  // reading input state
+  uint8_t state = plyr->input_state;
+  // updating horizontal and vertical velocity
+  if (state & MASK_INPUT_UP) pbody_set_vel_y(&(plyr->body), -8);
+  else if (state & MASK_INPUT_DOWN) pbody_set_vel_y(&(plyr->body), 8);
+  else pbody_set_vel_y(&(plyr->body), 0);
+  if (state & MASK_INPUT_LEFT) pbody_set_vel_x(&(plyr->body), -8);
+  else if (state & MASK_INPUT_RIGHT) pbody_set_vel_x(&(plyr->body), 8);
+  else pbody_set_vel_x(&(plyr->body), 0);
+  // updating position
   pbody_update(&(plyr->body)); // updating pbody position
   animation_set_pos(&(plyr->animation), //updating sprite position
     pbody_get_x(&(plyr->body))>>3, pbody_get_y(&(plyr->body))>>3);

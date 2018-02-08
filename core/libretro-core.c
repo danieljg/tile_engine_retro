@@ -184,70 +184,57 @@ static void move_viewport(int8_t vel_x, int8_t vel_y) {
 static void update_input(void)
 {
   input_poll_cb();
-  makesound=0;
-  //game.entities[entities_ids[ENT_PLAYER1]].vel_x = 0;
-  //game.entities[entities_ids[ENT_PLAYER1]].vel_y = 0;
-  pbody_set_vel_x(&game_ctrl.players[0].body, 0);
-  pbody_set_vel_y(&game_ctrl.players[0].body, 0);
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
-  {
-    //game.entities[entities_ids[ENT_PLAYER1]].vel_y = -2;
-    pbody_set_vel_y(&game_ctrl.players[0].body, -8);
+  // Cleaning players' input states
+  for (uint8_t player_id=0; player_id < game_ctrl.player_count; player_id++){
+    game_ctrl.players[player_id].input_state = 0x00;
   }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
-  {
-    //game.entities[entities_ids[ENT_PLAYER1]].vel_y = 2;
-    pbody_set_vel_y(&game_ctrl.players[0].body, 8);
+  // Checking START button for al players (including idle players)
+  for (uint8_t player_id=0; player_id < MAX_PLAYERS; player_id++) {
+    if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START)) {
+      game_ctrl.players[player_id].input_state = MASK_INPUT_START;
+    }
   }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
-  {
-    //game.entities[entities_ids[ENT_PLAYER1]].vel_x = -2;
-    pbody_set_vel_x(&game_ctrl.players[0].body, -8);
-  }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
-  {
-    //game.entities[entities_ids[ENT_PLAYER1]].vel_x = 2;
-    pbody_set_vel_x(&game_ctrl.players[0].body, 8);
-  }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
-  {
-    //makesound = 1;
-  }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B))
-  {
-    //makesound = 2;
-  }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X))
-  {
-    //makesound = 3;
-  }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y))
-  {
-    //makesound = 4;
-  }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L))
-  {
-  }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R))
-  {
-  }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L2))
-  {
-  }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R2))
-  {
-  }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_L3))
-  {
-  }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_R3))
-  {
-  }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT))
-  {
-  }
-  if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START))
-  {
+  // Updating other buttons for all active players
+  for (uint8_t player_id=0; player_id < game_ctrl.player_count; player_id++){
+    if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
+    {
+      game_ctrl.players[player_id].input_state =
+        game_ctrl.players[player_id].input_state | MASK_INPUT_UP;
+    }
+    if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
+    {
+      game_ctrl.players[player_id].input_state =
+        game_ctrl.players[player_id].input_state | MASK_INPUT_DOWN;
+    }
+    if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
+    {
+      game_ctrl.players[player_id].input_state =
+        game_ctrl.players[player_id].input_state | MASK_INPUT_LEFT;
+    }
+    if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
+    {
+      game_ctrl.players[player_id].input_state =
+        game_ctrl.players[player_id].input_state | MASK_INPUT_RIGHT;
+    }
+    if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
+    {
+      game_ctrl.players[player_id].input_state =
+        game_ctrl.players[player_id].input_state | MASK_INPUT_A;
+    }
+    if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B))
+    {
+      game_ctrl.players[player_id].input_state =
+        game_ctrl.players[player_id].input_state | MASK_INPUT_B;
+    }
+    if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X))
+    {
+      game_ctrl.players[player_id].input_state =
+        game_ctrl.players[player_id].input_state | MASK_INPUT_C;
+    }
+    if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y))
+    {
+
+    }
   }
 }
 
