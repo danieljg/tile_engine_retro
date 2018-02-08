@@ -318,13 +318,6 @@ void initialize_game2() {
   fprintf(stdout, "Pos X: %u Pos Y: %u\n", pos_x>>3, pos_y>>3);
 }
 
-void update_animations() {
-  // Animating spaceships
-  for (uint8_t i=0; i<2; i++) {
-    fsp.oam[i]=(fsp.oam[i]&(~Mask_fsp_oam_index))|((((fsp.oam[i]&Mask_fsp_oam_index)+1)%3)+13);
-  }
-}
-
 void default_scores() {
   game_ctrl.top_scores[0].initials = (' '<<24)|('A'<<16)|('B'<<8)|'C';
   game_ctrl.top_scores[0].score = 450000;
