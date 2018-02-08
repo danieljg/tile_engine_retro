@@ -278,7 +278,7 @@ void add_projectile() {
   }
 }
 
-void initialize_game2() {
+void initialize_game() {
   fprintf(stdout, "Iniciando juego\n");
   game_ctrl.player_count = 0;
   for (uint8_t i; i<MAX_PLAYERS; i++) {

@@ -548,7 +548,7 @@ void draw_line(uint16_t *viewport_buff, int16_t x1, int16_t y1, int16_t x2, int1
  draw_point(viewport_buff, x2, y2, color);
 }
 
-void update_animations() {
+void update_animations2() {
   // Animating spaceships
   for (uint8_t i=0; i<2; i++) {
     fsp.oam[i]=(fsp.oam[i]&(~Mask_fsp_oam_index))|((((fsp.oam[i]&Mask_fsp_oam_index)+1)%3)+13);

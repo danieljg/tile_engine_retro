@@ -1,3 +1,5 @@
+core_source = \
+	gfx_engine.h game.h core/libretro.h core/libretro-core.c core/link.T
 bg0_input =	bmp/bg0.bmp	bmp/bg0.pal
 bg1_input =	bmp/bg1.bmp	bmp/bg1.pal
 fsp_input = \
@@ -12,7 +14,7 @@ all: core/tile_engine_retro_libretro.so GFX
 run: core/tile_engine_retro_libretro.so GFX
 	cd core && retroarch -L ./tile_engine_retro_libretro.so
 
-core/tile_engine_retro_libretro.so: gfx_engine.h events.h core/libretro.h core/libretro-core.c core/link.T
+core/tile_engine_retro_libretro.so: $(core_source)
 	cd core && make
 
 bmptogfx: bmp_to_gfx.c qdbmp.c

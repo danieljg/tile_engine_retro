@@ -9,7 +9,7 @@
 
 #include "libretro.h"
 #include "../gfx_engine.h"
-#include "../events.h"
+//#include "../events.h"
 #include "../game.h"
 
 #if defined(_3DS)
@@ -73,8 +73,8 @@ void retro_init(void)
   char cwd[1024];
   if (getcwd(cwd, sizeof(cwd)) != NULL)
     fprintf(stdout, "Current working dir: %s\n", cwd);
+  //initialize_game();
   initialize_game();
-  initialize_game2();
   default_scores();
 }
 
@@ -185,24 +185,24 @@ static void update_input(void)
 {
   input_poll_cb();
   makesound=0;
-  game.entities[entities_ids[ENT_PLAYER1]].vel_x = 0;
-  game.entities[entities_ids[ENT_PLAYER1]].vel_y = 0;
+  //game.entities[entities_ids[ENT_PLAYER1]].vel_x = 0;
+  //game.entities[entities_ids[ENT_PLAYER1]].vel_y = 0;
 
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
   {
-    game.entities[entities_ids[ENT_PLAYER1]].vel_y = -2;
+    //game.entities[entities_ids[ENT_PLAYER1]].vel_y = -2;
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
   {
-    game.entities[entities_ids[ENT_PLAYER1]].vel_y = 2;
+    //game.entities[entities_ids[ENT_PLAYER1]].vel_y = 2;
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
   {
-    game.entities[entities_ids[ENT_PLAYER1]].vel_x = -2;
+    //game.entities[entities_ids[ENT_PLAYER1]].vel_x = -2;
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
   {
-    game.entities[entities_ids[ENT_PLAYER1]].vel_x = 2;
+    //game.entities[entities_ids[ENT_PLAYER1]].vel_x = 2;
   }
   if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
   {
@@ -252,7 +252,7 @@ static void update_input(void)
 /* Actualiza las mecánicas del juego.
 */
 static void update_game() {
-  update_entities();
+  //update_entities();
   update_hud();
 
   frame_counter++;
