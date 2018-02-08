@@ -168,12 +168,22 @@ player;
 void update_player(player *plyr) {
   // reading input state
   uint8_t state = plyr->input_state;
+
+
   // updating horizontal and vertical velocity
-  if (state & MASK_INPUT_UP) pbody_set_vel_y(&(plyr->body), -8);
-  else if (state & MASK_INPUT_DOWN) pbody_set_vel_y(&(plyr->body), 8);
+  #define ORT_SPD 24
+  #define DIA_SPD 16
+  uint8_t speed;
+  if ((state & MASK_INPUT_UP || state & MASK_INPUT_DOWN)&&(state & MASK_INPUT_LEFT || state & MASK_INPUT_RIGHT)) {
+    speed = DIA_SPD;
+  }
+  else speed = ORT_SPD;
+
+  if (state & MASK_INPUT_UP) pbody_set_vel_y(&(plyr->body), -1*speed);
+  else if (state & MASK_INPUT_DOWN) pbody_set_vel_y(&(plyr->body), speed);
   else pbody_set_vel_y(&(plyr->body), 0);
-  if (state & MASK_INPUT_LEFT) pbody_set_vel_x(&(plyr->body), -8);
-  else if (state & MASK_INPUT_RIGHT) pbody_set_vel_x(&(plyr->body), 8);
+  if (state & MASK_INPUT_LEFT) pbody_set_vel_x(&(plyr->body), -1*speed);
+  else if (state & MASK_INPUT_RIGHT) pbody_set_vel_x(&(plyr->body), speed);
   else pbody_set_vel_x(&(plyr->body), 0);
   // updating position
   pbody_update(&(plyr->body)); // updating pbody position
