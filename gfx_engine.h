@@ -209,6 +209,17 @@ uint8_t add_full_sprite(
   return fsp_count;
 }
 
+void delete_full_sprite(uint8_t sp_id) {
+  fsp.oam[sp_id] = 0x00;
+  fsp.oam2[sp_id] = 0x00;
+  fsp.oam3[sp_id] = 0x00;
+  if ((sp_id+1)==fsp.active_number) { // if is the last active sprite
+    do { //recorrer fsp.active_number hasta encontrar sprites en uso.
+      fsp.active_number--;
+    } while (Mask_fsp_oam_in_use & (~fsp.oam[fsp.active_number-1]));
+  }
+}
+
 void initialize_full_sprites()
 {
  for(uint8_t ii=0;ii<fsp_palette_number;ii++)
