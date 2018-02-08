@@ -332,7 +332,7 @@ static void inline move_full_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
   fsp.oam3[sp_id]=(oambuff&(~Mask_fsp_oam3_x_pos))|(((oambuff&Mask_fsp_oam3_x_pos)+vel_x)%(layer_tile_number_x*full_tile_size));
 }
 
-static void inline full_sprite_set_pos(int16_t sp_id, int8_t pos_x, int8_t pos_y) {
+static void inline full_sprite_set_pos(int16_t sp_id, int16_t pos_x, int16_t pos_y) {
   uint16_t oambuff;//using local variables may be faster
   oambuff=fsp.oam2[sp_id];
   fsp.oam2[sp_id]=(oambuff&(~Mask_fsp_oam2_y_pos))|(pos_y%(layer_tile_number_y*full_tile_size));
