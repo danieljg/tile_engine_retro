@@ -16,15 +16,13 @@
 #define MASK_INPUT_RIGHT 0x01
 
 #define MASK_PB_XDATA_OFFSET 0xFF000000
-#define MASK_PB_XDATA_DIR    0x00800000
-#define MASK_PB_XDATA_RES    0x00700000
-#define MASK_PB_XDATA_SPD    0x000FF000
+#define MASK_PB_XDATA_RES    0x00F00000
+#define MASK_PB_XDATA_VEL    0x000FF000
 #define MASK_PB_XDATA_POS    0x00000FFF
 
 #define MASK_PB_YDATA_OFFSET 0xFF000000
-#define MASK_PB_YDATA_DIR    0x00800000
-#define MASK_PB_YDATA_RES    0x00700000
-#define MASK_PB_YDATA_SPD    0x000FF000
+#define MASK_PB_YDATA_RES    0x00F00000
+#define MASK_PB_YDATA_VEL    0x000FF000
 #define MASK_PB_YDATA_POS    0x00000FFF
 
 #define MASK_PB_DIMENSIONS_WIDTH  0xFF00
@@ -38,6 +36,7 @@ typedef struct {
   uint16_t dimensions;
 }
 physics_body;
+// Position
 void pbody_set_x(physics_body *pbody, uint16_t pos_x) {
   pbody->xdata=(pbody->xdata&(~MASK_PB_XDATA_POS))|(pos_x&MASK_PB_XDATA_POS);
 }
@@ -50,20 +49,23 @@ void pbody_set_y(physics_body *pbody, uint16_t pos_y) {
 uint16_t pbody_get_y(physics_body *pbody) {
   return pbody->ydata&MASK_PB_YDATA_POS;
 }
-void pbody_set_vel_x(physics_body *pbody, int16_t vel_x) {
+// Speed and direction (velocity)
+void pbody_set_vel_x(physics_body *pbody, int8_t vel) {
   pbody->xdata =
-    (pbody->xdata&(~MASK_PB_XDATA_SPD))|((vel_x<<12)&MASK_PB_XDATA_SPD);
+    (pbody->xdata&(~MASK_PB_XDATA_VEL))|(vel<<12);
 }
-int16_t pbody_get_vel_x(physics_body *pbody) {
-  return (pbody->xdata&MASK_PB_XDATA_SPD)>>12;
+int8_t pbody_get_vel_x(physics_body *pbody) {
+  return (pbody->xdata&MASK_PB_XDATA_VEL)>>12;
 }
-void pbody_set_vel_y(physics_body *pbody, int16_t vel_y) {
+void pbody_set_vel_y(physics_body *pbody, int8_t vel) {
   pbody->ydata =
-    (pbody->ydata&(~MASK_PB_YDATA_SPD))|((vel_y<<12)&MASK_PB_YDATA_SPD);
+    (pbody->ydata&(~MASK_PB_YDATA_VEL))|(vel<<12);
 }
-int16_t pbody_get_vel_y(physics_body *pbody) {
-  return (pbody->ydata&MASK_PB_YDATA_SPD)>>12;
+int8_t pbody_get_vel_y(physics_body *pbody) {
+  return (pbody->ydata&MASK_PB_YDATA_VEL)>>12;
 }
+
+
 void pbody_update(physics_body *pbody) {
   pbody_set_x(pbody, pbody_get_x(pbody)+pbody_get_vel_x(pbody));
   pbody_set_y(pbody, pbody_get_y(pbody)+pbody_get_vel_y(pbody));
