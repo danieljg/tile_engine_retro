@@ -150,7 +150,7 @@ typedef struct {
 
 //Full sprite Object Attribute Memory bitmasks
 #define Mask_fsp_oam_in_use   0x8000 //signals if slot is occupied
-#define Mask_fsp_oam_disable  0x4000 //disable rendering of sprite
+#define Mask_fsp_oam_enable  0x4000 //enable rendering of sprite
 #define Mask_fsp_oam_effects  0x2000 //enable rendering of sprite effects
 #define Mask_fsp_oam_palette  0x1C00 //select among 8 palettes
 #define Mask_fsp_oam_index    0x03FF //10 bits for tileset index
@@ -191,12 +191,22 @@ uint8_t add_full_sprite(
     uint8_t pal_index,
     uint16_t x_pos, uint16_t y_pos
   ) {
-  uint8_t new_id = fsp.active_number;
-  fsp.oam[new_id] = (pal_index<<10) | sp_index;
-  fsp.oam2[new_id] = y_pos;
-  fsp.oam3[new_id] = x_pos;
-  fsp.active_number++;
-  return new_id;
+  uint8_t i = 0;
+  while (i < fsp_count) {
+    if (Mask_fsp_oam_in_use & (~fsp.oam[i])) {
+      fsp.oam[i] =
+        Mask_fsp_oam_in_use |
+        Mask_fsp_oam_enable |
+        (pal_index<<10) |
+        (sp_index & Mask_fsp_oam_index);
+      fsp.oam2[i] = y_pos;
+      fsp.oam3[i] = x_pos;
+      if (i == fsp.active_number) fsp.active_number++;
+      return i;
+    }
+    i++;
+  }
+  return fsp_count;
 }
 
 void initialize_full_sprites()

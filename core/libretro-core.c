@@ -427,7 +427,7 @@ static void render_frame(void)
   for(uint16_t sprite_counter = fsp.active_number ;
                sprite_counter > 0 ; sprite_counter-- ) {
     uint16_t current_sprite=sprite_counter-1;
-    if(fsp.oam[current_sprite]>=Mask_fsp_oam_disable) continue;//skips disabled sprites
+    if(Mask_fsp_oam_enable & (~fsp.oam[current_sprite])) continue;//skips disabled sprites
     for (uint8_t jj=0; jj<full_tile_size; jj++ ) {//itera sobre renglones
       uint16_t yy_pos=fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos;
       uint16_t yy_fsp=((uint16_t)(yy_pos+jj-viewport.y_origin+fsp.offset_y))%(full_tile_size*layer_tile_number_y);
