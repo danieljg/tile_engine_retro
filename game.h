@@ -37,16 +37,16 @@ void pbody_set_y(physics_body *pbody, uint16_t pos_y) {
 uint16_t pbody_get_y(physics_body *pbody) {
   return pbody->ydata&MASK_PB_YDATA_POS;
 }
-void pbody_set_vel_x(physics_body *pbody, uint16_t vel_x) {
-  pbody->xdata=(pbody->xdata&(~MASK_PB_XDATA_VEL))|((vel_x&MASK_PB_XDATA_POS)<<12);
+void pbody_set_vel_x(physics_body *pbody, int16_t vel_x) {
+  pbody->xdata=(pbody->xdata&(~MASK_PB_XDATA_VEL))|((vel_x<<12)&MASK_PB_XDATA_VEL);
 }
-uint16_t pbody_get_vel_x(physics_body *pbody) {
+int16_t pbody_get_vel_x(physics_body *pbody) {
   return (pbody->xdata&MASK_PB_XDATA_VEL)>>12;
 }
-void pbody_set_vel_y(physics_body *pbody, uint16_t vel_y) {
-  pbody->ydata=(pbody->ydata&(~MASK_PB_YDATA_VEL))|((vel_y&MASK_PB_YDATA_POS)<<12);
+void pbody_set_vel_y(physics_body *pbody, int16_t vel_y) {
+  pbody->ydata=(pbody->ydata&(~MASK_PB_YDATA_VEL))|((vel_y<<12)&MASK_PB_YDATA_VEL);
 }
-uint16_t pbody_get_vel_y(physics_body *pbody) {
+int16_t pbody_get_vel_y(physics_body *pbody) {
   return (pbody->ydata&MASK_PB_YDATA_VEL)>>12;
 }
 void pbody_update(physics_body *pbody) {
