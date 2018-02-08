@@ -313,6 +313,17 @@ uint8_t add_half_sprite(
   return hsp_count;
 }
 
+void delete_half_sprite(uint8_t sp_id) {
+  hsp.oam[sp_id] = 0x00;
+  hsp.oam2[sp_id] = 0x00;
+  hsp.oam3[sp_id] = 0x00;
+  if ((sp_id+1)==hsp.active_number) { // if is the last active sprite
+    do { //recorrer fsp.active_number hasta encontrar sprites en uso.
+      hsp.active_number--;
+    } while (Mask_hsp_oam_in_use & (~hsp.oam[hsp.active_number-1]));
+  }
+}
+
 static void inline move_full_sprite(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
   uint16_t oambuff;//using local variables may be faster
   oambuff=fsp.oam2[sp_id];
