@@ -229,8 +229,8 @@ uint8_t add_player(uint16_t pos_x, uint16_t pos_y) {
 }
 
 void add_hud() {
-  for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 294+ii*8, 230);
-  for (uint8_t ii=0; ii<3; ii++) add_half_sprite('0', 0, 262+ii*8, 230);
+  for (uint8_t ii=0; ii<5; ii++) add_half_sprite('0', 0, 204+ii*8, 230);
+  for (uint8_t ii=0; ii<5; ii++) add_half_sprite('0', 0, 252+ii*8, 230);
   //hi-score digits (indexes 6 to 11)
   for (uint8_t ii=0; ii<6; ii++) add_half_sprite('0', 0, 84+ii*8, 5);
   draw_text("Hi-Score", 4, 4, 2);
@@ -238,10 +238,12 @@ void add_hud() {
 
 void update_hud() {
   #define SHIP_ID 0
-  int16_t met_x, met_y;
-  met_y = fsp.oam2[SHIP_ID]&Mask_fsp_oam2_y_pos;
-  met_x = fsp.oam3[SHIP_ID]&Mask_fsp_oam3_x_pos;
-  update_coords(met_x,met_y);
+  int16_t ship_x, ship_y;
+  //ship_y = fsp.oam2[SHIP_ID]&Mask_fsp_oam2_y_pos;
+  //ship_x = fsp.oam3[SHIP_ID]&Mask_fsp_oam3_x_pos;
+  ship_x = pbody_get_x(&game_ctrl.players[0].body);
+  ship_y = pbody_get_y(&game_ctrl.players[0].body);
+  update_coords(ship_x, ship_y);
   //fprintf(stdout, "Score:%u\n", game_ctrl.top_scores[0].score);
   update_hiscore(game_ctrl.top_scores[0].score);
 }
@@ -256,22 +258,22 @@ void update_hiscore(uint32_t score) {
   }
   // Updating sprites with indexes 6 to 11 (reserved for hi-score)
   for (uint8_t i=0; i<6; i++) {
-    set_half_sprite(i+6, digits[i]);
+    set_half_sprite(i+10, digits[i]);
   }
 }
 
 void update_coords(uint16_t x, uint16_t y) {
   #define ASCII0 48
-  char digits[6];
-  for (uint8_t i=0; i<3; i++) {
-    digits[2-i] = ASCII0 + x%10;
+  char digits[10];
+  for (uint8_t i=0; i<5; i++) {
+    digits[4-i] = ASCII0 + x%10;
     x=x/10;
   }
-  for (uint8_t i=0; i<3; i++) {
-    digits[5-i] = ASCII0 + y%10;
+  for (uint8_t i=0; i<5; i++) {
+    digits[9-i] = ASCII0 + y%10;
     y=y/10;
   }
-  for (uint8_t i=0; i<6; i++) {
+  for (uint8_t i=0; i<10; i++) {
     set_half_sprite(i, digits[i]);
   }
 }
