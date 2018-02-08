@@ -201,6 +201,12 @@ uint8_t add_player(uint16_t pos_x, uint16_t pos_y) {
     game_ctrl.players[new_id].lives = START_LIVES;
     pbody_set_x(&game_ctrl.players[new_id].body, pos_x);
     pbody_set_y(&game_ctrl.players[new_id].body, pos_y);
+    game_ctrl.players[new_id].animation.is_full_sprite = 1;
+    uint8_t new_sprite_id = add_full_sprite(12, 1+new_id, pos_x, pos_y);
+    game_ctrl.players[new_id].animation.sprite_id = new_sprite_id;
+    game_ctrl.players[new_id].animation.sprite_tile_start = 12;
+    game_ctrl.players[new_id].animation.current_frame = 0;
+    game_ctrl.players[new_id].animation.total_frames = 3;
     game_ctrl.player_count++;
     return 1;
   }
@@ -346,6 +352,10 @@ void initialize_game2() {
   }
   add_hud();
   add_player(23<<3,134<<3);
+  add_player(134<<3,23<<3);
+  add_player(23<<3,23<<3);
+  add_player(134<<3,134<<3);
+
   uint16_t pos_x = pbody_get_x(&game_ctrl.players[0].body);
   uint16_t pos_y = pbody_get_y(&game_ctrl.players[0].body);
   fprintf(stdout, "Pos X: %u Pos Y: %u\n", pos_x>>3, pos_y>>3);
