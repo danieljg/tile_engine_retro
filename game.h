@@ -379,3 +379,15 @@ void default_scores() {
   game_ctrl.top_scores[7].initials = " VWX";
   game_ctrl.top_scores[7].score = 2500;
 }
+
+void update_animations() {
+  for (uint8_t plyr_id=0; plyr_id<game_ctrl.player_count; plyr_id++) {
+    animation_update(&game_ctrl.players[plyr_id].animation);
+  }
+  /*
+  // Animating spaceships
+  for (uint8_t i=0; i<2; i++) {
+    fsp.oam[i]=(fsp.oam[i]&(~Mask_fsp_oam_index))|((((fsp.oam[i]&Mask_fsp_oam_index)+1)%3)+13);
+  }
+  */
+}
