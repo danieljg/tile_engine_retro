@@ -166,10 +166,9 @@ typedef struct {
 player;
 
 void update_player(player *plyr) {
-  pbody_update(&(plyr->body));
-  animation_set_pos(&(plyr->animation),
+  pbody_update(&(plyr->body)); // updating pbody position
+  animation_set_pos(&(plyr->animation), //updating sprite position
     pbody_get_x(&(plyr->body))>>3, pbody_get_y(&(plyr->body))>>3);
-  animation_update(&(plyr->animation));
 }
 
 typedef struct {
