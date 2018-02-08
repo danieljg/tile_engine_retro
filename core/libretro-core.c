@@ -465,7 +465,7 @@ static void render_frame(void)
   for(uint16_t sprite_counter = hsp.active_number ;
                sprite_counter > 0 ; sprite_counter --) {
     uint16_t current_sprite=sprite_counter-1;
-    if(hsp.oam2[current_sprite]>=Mask_hsp_oam_disable) continue;//skips disabled sprites
+    if(Mask_hsp_oam_enable & (~hsp.oam[current_sprite])) continue;//skips disabled sprites
     for (uint8_t jj=0; jj<half_tile_size; jj++) {
       uint16_t yy_pos=hsp.oam2[current_sprite]&Mask_hsp_oam2_y_pos;
       uint16_t yy_hsp=((uint16_t)(yy_pos+jj-viewport.y_origin+hsp.offset_y))%(full_tile_size*layer_tile_number_y);
