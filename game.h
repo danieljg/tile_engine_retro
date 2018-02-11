@@ -78,45 +78,62 @@ static void inline pbody_update(physics_body *pbody) {
   pbody_set_y(pbody, pbody_get_y(pbody)+pbody_get_vel_y(pbody));
 }
 
+#define MASK_FSPANIM_TOTLFRM 0xF0000000
+#define MASK_FSPANIM_CURRFRM 0x0F000000
+#define MASK_FSPANIM_RES2    0x00FC0000
+#define MASK_FSPANIM_TLESTRT 0x0003FF00
+#define MASK_FSPANIM_RES1    0x000000E0
+#define MASK_FSPANIM_SPINDEX 0x0000001F
 
 typedef struct {
-  uint8_t is_full_sprite; // 1 bit
-  uint8_t sprite_id; // 5 bits
-  uint16_t sprite_tile_start; // 10 bits
-  uint8_t current_frame; // 4 bits
-  uint8_t total_frames; // 4 bits
-}
-sprite_animation;
-animation_update(sprite_animation *animation) {
-  // updating relative frame
-  if (animation->current_frame < (animation->total_frames-1))
-    animation->current_frame++;
+  uint32_t data;
+} fsp_animation;
+
+#define MASK_HSPANIM_TOTLFRM 0xF0000000
+#define MASK_HSPANIM_CURRFRM 0x0F000000
+#define MASK_HSPANIM_RES2    0x00FC0000
+#define MASK_HSPANIM_TLESTRT 0x0003FF00
+#define MASK_HSPANIM_RES1    0x000000E0
+#define MASK_HSPANIM_SPINDEX 0x0000001F
+
+typedef struct {
+  uint32_t data;
+} hsp_animation;
+
+static void inline fsp_animation_update(fsp_animation *animation) {
+  if( (animation->data&MASK_FSPANIM_CURRFRM>>24) < ((animation->data&MASK_FSPANIM_TOTLFRM>>28)-1))
+    animation->data = ((animation->data&MASK_FSPANIM_CURRFRM+0x01000000)&MASK_FSPANIM_CURRFRM)
+                    | (animation->data&(~MASK_FSPANIM_CURRFRM));
   else
-    animation->current_frame = 0;
-  // updating sprite
-  if (animation->is_full_sprite) {
-    set_fsp(
-      animation->sprite_id,
-      animation->sprite_tile_start + animation->current_frame
-    );
-  }
-  else {
-    set_hsp(
-      animation->sprite_id,
-      animation->sprite_tile_start + animation->current_frame
-    );
-  }
+    animation->data = (0x00000000|(animation->data&(~MASK_FSPANIM_CURRFRM)));
+  set_fsp(animation->data&MASK_FSPANIM_SPINDEX,
+           (animation->data&MASK_FSPANIM_TLESTRT>>8) 
+          +(animation->data&MASK_FSPANIM_CURRFRM>>24) );
+  
 }
-animation_set_pos(
-  sprite_animation *animation,
-  uint16_t pos_x, uint16_t pos_y
-  ){
-    if (animation->is_full_sprite) {
-      set_pos_fsp(animation->sprite_id, pos_x, pos_y);
-    }
-    else {
-      set_pos_hsp(animation->sprite_id, pos_x, pos_y);
-    }
+
+static void inline hsp_animation_update(hsp_animation *animation) {
+  if( (animation->data&MASK_HSPANIM_CURRFRM) < (animation->data&MASK_HSPANIM_TOTLFRM-1))
+    animation->data = ((animation->data&MASK_HSPANIM_CURRFRM+0x01000000)&MASK_HSPANIM_CURRFRM)
+                    | (animation->data&(~MASK_HSPANIM_CURRFRM));
+  else
+    animation->data = (0x00000000|(animation->data&(~MASK_HSPANIM_CURRFRM)));
+  set_hsp(animation->data&MASK_HSPANIM_SPINDEX,
+           (animation->data&MASK_HSPANIM_TLESTRT>>8) 
+          +(animation->data&MASK_HSPANIM_CURRFRM>>24) );
+  
+}
+
+static void inline hsp_animation_set_pos( hsp_animation *animation, 
+                                          uint16_t pos_x, uint16_t pos_y) {
+  set_pos_hsp(animation->data&MASK_HSPANIM_SPINDEX,pos_x,pos_y);
+  return;
+}
+
+static void inline fsp_animation_set_pos( fsp_animation *animation,
+                                          uint16_t pos_x, uint16_t pos_y) {
+  set_pos_fsp(animation->data&MASK_FSPANIM_SPINDEX,pos_x,pos_y);
+  return;
 }
 
 typedef struct {
@@ -124,7 +141,7 @@ typedef struct {
   physics_body body;
   uint8_t damage; // (0-15) 4 bits
   uint8_t is_enemy; // is enemy or player projectile? 1 bit
-  sprite_animation animation;
+  hsp_animation animation;
 }
 projectile;
 
@@ -132,7 +149,7 @@ typedef struct {
   uint8_t state; // live, using, used
   physics_body body;
   uint8_t type; // 8 power_up types // 3 bits
-  sprite_animation animation;
+  hsp_animation animation;
 }
 power_up;
 
@@ -156,7 +173,7 @@ typedef struct {
   uint8_t speed;
   uint8_t weapon_type_id_A;
   uint8_t weapon_type_id_B;
-  sprite_animation animation;
+  fsp_animation animation;
   uint8_t animation_data;
 }
 player_type;
@@ -169,7 +186,7 @@ typedef struct {
   uint16_t score; // player total score 16 bits
   weapon_state weapon_A;
   weapon_state weapon_B;
-  sprite_animation animation;
+  fsp_animation animation;
 }
 player;
 
@@ -195,7 +212,7 @@ static void update_player(player *plyr) {
   else pbody_set_vel_x(&(plyr->body), 0);
   // updating position
   pbody_update(&(plyr->body)); // updating pbody position
-  animation_set_pos(&(plyr->animation), //updating sprite position
+  fsp_animation_set_pos(&(plyr->animation), //updating sprite position
     (pbody_get_x(&(plyr->body))+4)>>3, (pbody_get_y(&(plyr->body))+4)>>3);
 }
 
@@ -213,7 +230,7 @@ typedef struct {
   physics_body body;
   uint8_t hitpoints; // (0 to 64) 6 bits
   weapon_state weapon;
-  sprite_animation animation;
+  fsp_animation animation;
 }
 enemy;
 
@@ -245,12 +262,8 @@ static uint8_t add_player(uint16_t pos_x, uint16_t pos_y) {
     game.players[new_id].lives = START_LIVES;
     pbody_set_x(&game.players[new_id].body, pos_x);
     pbody_set_y(&game.players[new_id].body, pos_y);
-    game.players[new_id].animation.is_full_sprite = 1;
     uint8_t new_sprite_id = add_fsp(12, 1+new_id, pos_x, pos_y);
-    game.players[new_id].animation.sprite_id = new_sprite_id;
-    game.players[new_id].animation.sprite_tile_start = 12;
-    game.players[new_id].animation.current_frame = 0;
-    game.players[new_id].animation.total_frames = 3;
+    game.players[new_id].animation.data = ( new_sprite_id | 12 << 8 | 3 << 28 );
     game.player_count++;
     return 1;
   }
@@ -263,32 +276,6 @@ static void inline add_hud() {
   //hi-score digits (indexes 6 to 11)
   for (uint8_t ii=0; ii<6; ii++) add_hsp('0', 0, 84+ii*8, 5);
   draw_text("Hi-Score", 4, 4, 2);
-}
-
-static void inline update_hud() {
-  #define SHIP_ID 0
-  int16_t ship_x, ship_y;
-  //ship_y = fsp.oam2[SHIP_ID]&Mask_fsp_oam2_y_pos;
-  //ship_x = fsp.oam3[SHIP_ID]&Mask_fsp_oam3_x_pos;
-  ship_x = pbody_get_x(&game.players[0].body);
-  ship_y = pbody_get_y(&game.players[0].body);
-  update_coords(ship_x, ship_y);
-  //fprintf(stdout, "Score:%u\n", game.top_scores[0].score);
-  update_hiscore(game.top_scores[0].score);
-}
-
-static void inline update_hiscore(uint32_t score) {
-  #define ASCII0 48
-  char digits[6];
-  // Codifing Score to ASCII
-  for (uint8_t i=0; i<6; i++) {
-    digits[5-i] = ASCII0 + score%10;
-    score=score/10;
-  }
-  // Updating sprites with indexes 6 to 11 (reserved for hi-score)
-  for (uint8_t i=0; i<6; i++) {
-    set_hsp(i+10, digits[i]);
-  }
 }
 
 static void inline update_coords(uint16_t x, uint16_t y) {
@@ -307,6 +294,32 @@ static void inline update_coords(uint16_t x, uint16_t y) {
   }
 }
 
+static void inline update_hiscore(uint32_t score) {
+  #define ASCII0 48
+  char digits[6];
+  // Codifing Score to ASCII
+  for (uint8_t i=0; i<6; i++) {
+    digits[5-i] = ASCII0 + score%10;
+    score=score/10;
+  }
+  // Updating sprites with indexes 6 to 11 (reserved for hi-score)
+  for (uint8_t i=0; i<6; i++) {
+    set_hsp(i+10, digits[i]);
+  }
+}
+
+static void inline update_hud() {
+  #define SHIP_ID 0
+  int16_t ship_x, ship_y;
+  //ship_y = fsp.oam2[SHIP_ID]&Mask_fsp_oam2_y_pos;
+  //ship_x = fsp.oam3[SHIP_ID]&Mask_fsp_oam3_x_pos;
+  ship_x = pbody_get_x(&game.players[0].body);
+  ship_y = pbody_get_y(&game.players[0].body);
+  update_coords(ship_x, ship_y);
+  //fprintf(stdout, "Score:%u\n", game.top_scores[0].score);
+  update_hiscore(game.top_scores[0].score);
+}
+
 static void add_projectile() {
   uint8_t new_id = game.projectile_count;
   if (new_id < MAX_PROJECTILES) {
@@ -316,11 +329,7 @@ static void add_projectile() {
     game.projectiles[new_id].body.dimensions = 0x00;
     game.projectiles[new_id].damage = 5;
     game.projectiles[new_id].is_enemy = 0;
-    game.projectiles[new_id].animation.is_full_sprite = 0x01;
-    game.projectiles[new_id].animation.sprite_id = 1;
-    game.projectiles[new_id].animation.sprite_tile_start = 13;
-    game.projectiles[new_id].animation.current_frame = 0;
-    game.projectiles[new_id].animation.total_frames = 6;
+    game.projectiles[new_id].animation.data = 0x60000D01;//( 1 )| ( 13 <<8 ) | ( 6 << 28);
   }
 }
 
@@ -341,11 +350,7 @@ static void initialize_game() {
     game.players[i].weapon_B.type_id = 0;
     game.players[i].weapon_B.delay_counter = 0;
     game.players[i].weapon_B.is_charging = 0;
-    game.players[i].animation.is_full_sprite = 0x00;
-    game.players[i].animation.sprite_id = 0;
-    game.players[i].animation.sprite_tile_start = 0;
-    game.players[i].animation.current_frame = 0;
-    game.players[i].animation.total_frames = 0;
+    game.players[i].animation.data = 0x00000000;
   }
   game.enemy_count = 0;
   for (uint8_t i; i<MAX_ENEMIES; i++) {
@@ -358,11 +363,7 @@ static void initialize_game() {
     game.enemies[i].weapon.type_id = 0;
     game.enemies[i].weapon.delay_counter = 0;
     game.enemies[i].weapon.is_charging = 0;
-    game.enemies[i].animation.is_full_sprite = 0x00;
-    game.enemies[i].animation.sprite_id = 0;
-    game.enemies[i].animation.sprite_tile_start = 0;
-    game.enemies[i].animation.current_frame = 0;
-    game.enemies[i].animation.total_frames = 0;
+    game.enemies[i].animation.data = 0x00000000;
   }
   game.projectile_count = 0;
   for (uint8_t i; i<MAX_PROJECTILES; i++) {
@@ -372,11 +373,7 @@ static void initialize_game() {
     game.projectiles[i].body.dimensions = 0x00;
     game.projectiles[i].damage = 0;
     game.projectiles[i].is_enemy = 0;
-    game.projectiles[i].animation.is_full_sprite = 0x00;
-    game.projectiles[i].animation.sprite_id = 0;
-    game.projectiles[i].animation.sprite_tile_start = 0;
-    game.projectiles[i].animation.current_frame = 0;
-    game.projectiles[i].animation.total_frames = 0;
+    game.projectiles[i].animation.data = 0x00000000;
   }
   game.powerup_count = 0;
   for (uint8_t i; i<MAX_POWERUPS; i++) {
@@ -385,11 +382,7 @@ static void initialize_game() {
     game.power_ups[i].body.ydata = 0x00;
     game.power_ups[i].body.dimensions = 0x00;
     game.power_ups[i].type = 0;
-    game.power_ups[i].animation.is_full_sprite = 0x00;
-    game.power_ups[i].animation.sprite_id = 0;
-    game.power_ups[i].animation.sprite_tile_start = 0;
-    game.power_ups[i].animation.current_frame = 0;
-    game.power_ups[i].animation.total_frames = 0;
+    game.power_ups[i].animation.data = 0x00000000;
   }
   game.game_state = 0x00;
   for (uint8_t i; i<TOP_SCORES_COUNT; i++) {
@@ -429,7 +422,8 @@ void default_scores() {
 
 static void inline update_animations() {
   for (uint8_t plyr_id=0; plyr_id<game.player_count; plyr_id++) {
-    animation_update(&game.players[plyr_id].animation);
+    fsp_animation_update
+(&game.players[plyr_id].animation);
   }
   /*
   // Animating spaceships
