@@ -36,37 +36,44 @@ typedef struct {
   uint16_t dimensions;
 }
 physics_body;
+
 // Position
-void inline pbody_set_x(physics_body *pbody, uint16_t pos_x) {
+static void inline pbody_set_x(physics_body *pbody, uint16_t pos_x) {
   pbody->xdata=(pbody->xdata&(~MASK_PB_XDATA_POS))|(pos_x&MASK_PB_XDATA_POS);
 }
-uint16_t inline pbody_get_x(physics_body *pbody) {
+
+static uint16_t inline pbody_get_x(physics_body *pbody) {
   return pbody->xdata&MASK_PB_XDATA_POS;
 }
-void inline pbody_set_y(physics_body *pbody, uint16_t pos_y) {
+
+static void inline pbody_set_y(physics_body *pbody, uint16_t pos_y) {
   pbody->ydata=(pbody->ydata&(~MASK_PB_YDATA_POS))|(pos_y&MASK_PB_YDATA_POS);
 }
-uint16_t inline pbody_get_y(physics_body *pbody) {
+
+static uint16_t inline pbody_get_y(physics_body *pbody) {
   return pbody->ydata&MASK_PB_YDATA_POS;
 }
+
 // Speed and direction (velocity)
-void inline pbody_set_vel_x(physics_body *pbody, int8_t vel) {
+static void inline pbody_set_vel_x(physics_body *pbody, int8_t vel) {
   pbody->xdata =
     (pbody->xdata&(~MASK_PB_XDATA_VEL))|(vel<<12);
 }
-int8_t inline pbody_get_vel_x(physics_body *pbody) {
+
+static int8_t inline pbody_get_vel_x(physics_body *pbody) {
   return (pbody->xdata&MASK_PB_XDATA_VEL)>>12;
 }
-void inline pbody_set_vel_y(physics_body *pbody, int8_t vel) {
+
+static void inline pbody_set_vel_y(physics_body *pbody, int8_t vel) {
   pbody->ydata =
     (pbody->ydata&(~MASK_PB_YDATA_VEL))|(vel<<12);
 }
-int8_t inline pbody_get_vel_y(physics_body *pbody) {
+
+static int8_t inline pbody_get_vel_y(physics_body *pbody) {
   return (pbody->ydata&MASK_PB_YDATA_VEL)>>12;
 }
 
-
-void pbody_update(physics_body *pbody) {
+static void inline pbody_update(physics_body *pbody) {
   pbody_set_x(pbody, pbody_get_x(pbody)+pbody_get_vel_x(pbody));
   pbody_set_y(pbody, pbody_get_y(pbody)+pbody_get_vel_y(pbody));
 }
@@ -166,7 +173,7 @@ typedef struct {
 }
 player;
 
-void update_player(player *plyr) {
+static void update_player(player *plyr) {
   // reading input state
   uint8_t state = plyr->input_state;
 
@@ -232,7 +239,7 @@ game_control;
 
 game_control game;
 
-uint8_t add_player(uint16_t pos_x, uint16_t pos_y) {
+static uint8_t add_player(uint16_t pos_x, uint16_t pos_y) {
   if (game.player_count < MAX_PLAYERS) {
     uint8_t new_id = game.player_count;
     game.players[new_id].lives = START_LIVES;
@@ -250,7 +257,7 @@ uint8_t add_player(uint16_t pos_x, uint16_t pos_y) {
   else return 0;
 }
 
-void add_hud() {
+static void inline add_hud() {
   for (uint8_t ii=0; ii<5; ii++) add_hsp('0', 0, 204+ii*8, 230);
   for (uint8_t ii=0; ii<5; ii++) add_hsp('0', 0, 252+ii*8, 230);
   //hi-score digits (indexes 6 to 11)
@@ -258,7 +265,7 @@ void add_hud() {
   draw_text("Hi-Score", 4, 4, 2);
 }
 
-void update_hud() {
+static void inline update_hud() {
   #define SHIP_ID 0
   int16_t ship_x, ship_y;
   //ship_y = fsp.oam2[SHIP_ID]&Mask_fsp_oam2_y_pos;
@@ -270,7 +277,7 @@ void update_hud() {
   update_hiscore(game.top_scores[0].score);
 }
 
-void update_hiscore(uint32_t score) {
+static void inline update_hiscore(uint32_t score) {
   #define ASCII0 48
   char digits[6];
   // Codifing Score to ASCII
@@ -284,7 +291,7 @@ void update_hiscore(uint32_t score) {
   }
 }
 
-void update_coords(uint16_t x, uint16_t y) {
+static void inline update_coords(uint16_t x, uint16_t y) {
   #define ASCII0 48
   char digits[10];
   for (uint8_t i=0; i<5; i++) {
@@ -300,7 +307,7 @@ void update_coords(uint16_t x, uint16_t y) {
   }
 }
 
-void add_projectile() {
+static void add_projectile() {
   uint8_t new_id = game.projectile_count;
   if (new_id < MAX_PROJECTILES) {
     game.projectiles[new_id].state = 0x01;
@@ -317,7 +324,7 @@ void add_projectile() {
   }
 }
 
-void initialize_game() {
+static void initialize_game() {
   fprintf(stdout, "Iniciando juego\n");
   game.player_count = 0;
   for (uint8_t i; i<MAX_PLAYERS; i++) {
@@ -420,7 +427,7 @@ void default_scores() {
   game.top_scores[7].score = 2500;
 }
 
-void update_animations() {
+static void inline update_animations() {
   for (uint8_t plyr_id=0; plyr_id<game.player_count; plyr_id++) {
     animation_update(&game.players[plyr_id].animation);
   }
