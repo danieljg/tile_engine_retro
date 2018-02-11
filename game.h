@@ -37,31 +37,31 @@ typedef struct {
 }
 physics_body;
 // Position
-void pbody_set_x(physics_body *pbody, uint16_t pos_x) {
+void inline pbody_set_x(physics_body *pbody, uint16_t pos_x) {
   pbody->xdata=(pbody->xdata&(~MASK_PB_XDATA_POS))|(pos_x&MASK_PB_XDATA_POS);
 }
-uint16_t pbody_get_x(physics_body *pbody) {
+uint16_t inline pbody_get_x(physics_body *pbody) {
   return pbody->xdata&MASK_PB_XDATA_POS;
 }
-void pbody_set_y(physics_body *pbody, uint16_t pos_y) {
+void inline pbody_set_y(physics_body *pbody, uint16_t pos_y) {
   pbody->ydata=(pbody->ydata&(~MASK_PB_YDATA_POS))|(pos_y&MASK_PB_YDATA_POS);
 }
-uint16_t pbody_get_y(physics_body *pbody) {
+uint16_t inline pbody_get_y(physics_body *pbody) {
   return pbody->ydata&MASK_PB_YDATA_POS;
 }
 // Speed and direction (velocity)
-void pbody_set_vel_x(physics_body *pbody, int8_t vel) {
+void inline pbody_set_vel_x(physics_body *pbody, int8_t vel) {
   pbody->xdata =
     (pbody->xdata&(~MASK_PB_XDATA_VEL))|(vel<<12);
 }
-int8_t pbody_get_vel_x(physics_body *pbody) {
+int8_t inline pbody_get_vel_x(physics_body *pbody) {
   return (pbody->xdata&MASK_PB_XDATA_VEL)>>12;
 }
-void pbody_set_vel_y(physics_body *pbody, int8_t vel) {
+void inline pbody_set_vel_y(physics_body *pbody, int8_t vel) {
   pbody->ydata =
     (pbody->ydata&(~MASK_PB_YDATA_VEL))|(vel<<12);
 }
-int8_t pbody_get_vel_y(physics_body *pbody) {
+int8_t inline pbody_get_vel_y(physics_body *pbody) {
   return (pbody->ydata&MASK_PB_YDATA_VEL)>>12;
 }
 
@@ -172,8 +172,8 @@ void update_player(player *plyr) {
 
 
   // updating horizontal and vertical velocity
-  #define ORT_SPD 24
-  #define DIA_SPD 16
+  #define ORT_SPD 12
+  #define DIA_SPD 12
   uint8_t speed;
   if ((state & MASK_INPUT_UP || state & MASK_INPUT_DOWN)&&(state & MASK_INPUT_LEFT || state & MASK_INPUT_RIGHT)) {
     speed = DIA_SPD;
@@ -189,7 +189,7 @@ void update_player(player *plyr) {
   // updating position
   pbody_update(&(plyr->body)); // updating pbody position
   animation_set_pos(&(plyr->animation), //updating sprite position
-    pbody_get_x(&(plyr->body))>>3, pbody_get_y(&(plyr->body))>>3);
+    (pbody_get_x(&(plyr->body))+4)>>3, (pbody_get_y(&(plyr->body))+4)>>3);
 }
 
 typedef struct {
