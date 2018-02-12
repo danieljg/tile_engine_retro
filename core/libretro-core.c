@@ -295,7 +295,7 @@ static void update_game() {
 
 }
 
-color_16bit inline average_colors(color_16bit color1, color_16bit color2) {
+static color_16bit inline average_colors(color_16bit color1, color_16bit color2) {
   return ( ( ( (color1&Mask_red)   + (color2&Mask_red)   )>>1 )&Mask_red   ) |
          ( ( ( (color1&Mask_green) + (color2&Mask_green) )>>1 )&Mask_green ) |
          ( ( ( (color1&Mask_blue)  + (color2&Mask_blue)  )>>1 )&Mask_blue  );
@@ -314,104 +314,90 @@ static void render_frame(void)
   //background rendering
   uint32_t yy_vp;
   uint32_t xx_vp;
-  uint8_t  twopixdata=0;
+  uint32_t eightpixdata=0;
   uint32_t tilemap_index=0;
   uint32_t tileset_index=0;
   uint8_t  palette_index=0;
-  uint8_t  layer_counter=0;
   color_16bit colordata;
   color_16bit clearbuf;
 
   ///*
   for (uint32_t yy=0; yy<viewport.height; yy++, line+=stride) {
-    yy_vp=yy+viewport.y_origin-bg[layer_counter].offset_y[yy];
+    yy_vp=yy+viewport.y_origin-bg[0].offset_y[yy];
     for (uint32_t xx=0; xx<viewport.width; xx++) {
-      xx_vp=xx+viewport.x_origin-bg[layer_counter].offset_x[yy];
+      xx_vp=xx+viewport.x_origin-bg[0].offset_x[yy];
       tilemap_index = ( (xx_vp/full_tile_size)%layer_tile_number_x
                       + (yy_vp/full_tile_size)*layer_tile_number_x )
                       %(layer_tile_number_x*layer_tile_number_y);
-      tilemap_index = bg[layer_counter].tilemap[tilemap_index];
+      tilemap_index = bg[0].tilemap[tilemap_index];
       if(tilemap_index<Mask_bgtm_disable){
         palette_index=(tilemap_index&Mask_bgtm_palette)>>10;
         tileset_index=tilemap_index&Mask_bgtm_index;
-        twopixdata = bg[layer_counter].tile[tileset_index]
-                       .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size
-                                                +(xx_vp%full_tile_size))>>1)
+        eightpixdata = bg[0].tile[tileset_index]
+                       .eight_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size
+                                                +(xx_vp%full_tile_size))>>3)
                                               %(full_tile_size*full_tile_size)];
-        if((xx_vp%2)==0){
-          twopixdata=twopixdata>>4;
-        }
-        else{
-          twopixdata=twopixdata&0x0F;
-        }
-        if(twopixdata){
-          //pixel is not fully transparent
-          colordata=bg[layer_counter].palette[palette_index].color[twopixdata];
+        uint8_t pixdata = (uint8_t) (eightpixdata>>(4*(7-(xx_vp%8))));//mmmhmm...
+        pixdata = pixdata & 0x0F;
+        if(pixdata){//check if palette index is not null, if so we gotta render BG0
+          colordata=bg[0].palette[palette_index].color[pixdata];
           if(colordata<0x8000){
-            //pixel is not semitransparent
-            line[xx]=colordata;//don't mask alpha if it's not semitransparent
+            //pixel is opaque
+            line[xx]=colordata;
           }
           else{
-            //pixel is semitransparent
-            yy_vp=yy+viewport.y_origin-bg[layer_counter+1].offset_y[yy];
-            xx_vp=xx+viewport.x_origin-bg[layer_counter+1].offset_x[yy];
+            //pixel is semitransparent, render BG1
+            yy_vp=yy+viewport.y_origin-bg[1].offset_y[yy];
+            xx_vp=xx+viewport.x_origin-bg[1].offset_x[yy];
             tilemap_index = ( (xx_vp/full_tile_size)%layer_tile_number_x
                             + (yy_vp/full_tile_size)*layer_tile_number_x )
                             %(layer_tile_number_x*layer_tile_number_y);
-            tilemap_index = bg[layer_counter+1].tilemap[tilemap_index];
+            tilemap_index = bg[1].tilemap[tilemap_index];
             palette_index=(tilemap_index&Mask_bgtm_palette)>>10;
             if(tilemap_index<Mask_bgtm_disable){
               tileset_index=tilemap_index&Mask_bgtm_index;
-              twopixdata = bg[layer_counter+1].tile[tileset_index]
-                             .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size
-                                                      +(xx_vp%full_tile_size))>>1)
-                                                     %(full_tile_size*full_tile_size)];
-              if((xx_vp%2)==0){
-                twopixdata=twopixdata>>4;
-              }
-              else{
-                twopixdata=twopixdata&0x0F;
-              }
-              clearbuf=bg[layer_counter+1].palette[palette_index].color[twopixdata];
+              eightpixdata = bg[1].tile[tileset_index]
+                             .eight_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size
+                                                      +(xx_vp%full_tile_size))>>3)
+                                                      %(full_tile_size*full_tile_size)];
+              pixdata = (uint8_t) (eightpixdata>>(4*(7-(xx_vp%8))));//mmmhmm...
+              pixdata = pixdata & 0x0F;
+              clearbuf=bg[1].palette[palette_index].color[pixdata];
               colordata=average_colors(clearbuf,colordata);
               line[xx]=colordata;//don't mask alpha after averaging colors
             }
             else{
               //when bg1 tile is disabled, we take the bg1 null for semitransparency
-              clearbuf=bg[layer_counter+1].palette[palette_index].color[0];
+              clearbuf=bg[1].palette[palette_index].color[0];
               colordata=average_colors(clearbuf,colordata);
               line[xx]=colordata;//don't mask alpha after averaging colors
             }
           }
-          continue;//done with pixel rendering, onto next pixel
+          continue;
         }
       }
-      //bg0 tile is disabled or transparent, on to pure bg1 render
-      //if we're here, we haven't 'continued'
-      yy_vp=yy+viewport.y_origin-bg[layer_counter+1].offset_y[yy];
-      xx_vp=xx+viewport.x_origin-bg[layer_counter+1].offset_x[yy];
+      //BG0 is transparent or disabled, render BG1
+      yy_vp=yy+viewport.y_origin-bg[1].offset_y[yy];
+      xx_vp=xx+viewport.x_origin-bg[1].offset_x[yy];
       tilemap_index = ( (xx_vp/full_tile_size)%layer_tile_number_x
                       + (yy_vp/full_tile_size)*layer_tile_number_x )
                       %(layer_tile_number_x*layer_tile_number_y);
-      tilemap_index = bg[layer_counter+1].tilemap[tilemap_index];
+      tilemap_index = bg[1].tilemap[tilemap_index];
       palette_index=(tilemap_index&Mask_bgtm_palette)>>10;
       if(tilemap_index<Mask_bgtm_disable){
         tileset_index=tilemap_index&Mask_bgtm_index;
-        twopixdata = bg[layer_counter+1].tile[tileset_index]
-                       .two_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size
-                                                +(xx_vp%full_tile_size))>>1)
-                                               %(full_tile_size*full_tile_size)];
-        if((xx_vp%2)==0){
-          twopixdata=twopixdata>>4;
-        }
-        else{
-          twopixdata=twopixdata&0x0F;
-        }
-        colordata=bg[layer_counter+1].palette[palette_index].color[twopixdata];
-        line[xx]=colordata&(~Mask_alpha);
+        eightpixdata = bg[1].tile[tileset_index]
+                       .eight_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size
+                                                +(xx_vp%full_tile_size))>>3)
+                                                %(full_tile_size*full_tile_size)];
+        uint8_t pixdata = (uint8_t) (eightpixdata>>(4*(7-(xx_vp%8))));//mmmhmm...
+        pixdata = pixdata & 0x0F;
+        colordata=bg[1].palette[palette_index].color[pixdata];
+        colordata=colordata<<1;
+        line[xx]=colordata>>1;
       }
       else{
-        line[xx]=bg[layer_counter+1].palette[palette_index].color[0]&(~Mask_alpha);
+        line[xx]=(bg[1].palette[palette_index].color[0]<<1)>>1;
       }
     }
   }
@@ -423,34 +409,32 @@ static void render_frame(void)
                sprite_counter > 0 ; sprite_counter-- ) {
     uint16_t current_sprite=sprite_counter-1;
     if(Mask_fsp_oam_enable & (~fsp.oam[current_sprite])) continue;//skips disabled sprites
+    uint8_t pal_id=(fsp.oam[current_sprite]&Mask_fsp_oam_palette)>>10;
+    uint16_t xx_pos=fsp.oam3[current_sprite]&Mask_fsp_oam3_x_pos;
+    uint16_t yy_pos=fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos;
+    uint32_t xx_fsp_max = (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x);//TODO: test effect of uint16_t here
+    uint32_t yy_fsp_max = (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y);
     for (uint8_t jj=0; jj<full_tile_size; jj++ ) {//itera sobre renglones
-      uint16_t yy_pos=fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos;
       uint16_t yy_fsp=((uint16_t)(yy_pos+jj-viewport.y_origin+fsp.offset_y))%(full_tile_size*layer_tile_number_y);
-      if ( yy_fsp >= (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y)) continue;//discriminar los renglones visibles
+      if ( yy_fsp >= yy_fsp_max) continue;//discriminar los renglones visibles
       line=buf+yy_fsp*stride;
-      for (uint8_t ii=0;ii<full_tile_size;ii++) {//itera sobre pixeles
-        uint16_t xx_pos=fsp.oam3[current_sprite]&Mask_fsp_oam3_x_pos;
-        uint16_t xx_fsp=((uint16_t)(xx_pos+ii-viewport.x_origin+fsp.offset_x))%(full_tile_size*layer_tile_number_x);
-        if ( xx_fsp >= (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x) ) continue;//discriminar los pixeles visibles
-        uint8_t twopixdata=fsp.tile[fsp.oam[current_sprite]
-                                     &Mask_fsp_oam_index]
-                              .two_pixel_color_index
-                               [(jj*full_tile_size+ii)>>1];
-        if (ii%2==0) {
-        twopixdata=twopixdata>>4;
-        }
-        else {
-        twopixdata=twopixdata&0x0F;
-        }
-        if (twopixdata==0) continue;
-        uint8_t pal_id=(fsp.oam[current_sprite]&Mask_fsp_oam_palette)>>10;
-        colordata = fsp.palette[pal_id].color[twopixdata];
-        if(colordata<0x8000){
-          line[xx_fsp]=colordata;//don't mask when it's not needed
-        }
-        else{
-          clearbuf = line[xx_fsp];
-          line[xx_fsp] = average_colors(colordata,clearbuf);
+      for (uint8_t ii=0;ii<full_tile_size;ii+=8) {//itera sobre pixeles de 8 en 8
+        uint16_t xx_fsp=(xx_pos+ii-viewport.x_origin+fsp.offset_x)%(full_tile_size*layer_tile_number_x);
+        uint32_t eightpixdata = fsp.tile[fsp.oam[current_sprite]&Mask_fsp_oam_index]
+                                   .eight_pixel_color_index[(jj*full_tile_size+ii)>>3];
+        for(uint8_t kk=0;kk<8;kk++) {// aqui renderiza 8 pixeles
+          if ( (xx_fsp+kk)>=xx_fsp_max) continue;//discriminar los pixeles visibles
+          uint8_t pixdata = (uint8_t) (eightpixdata>>(4*(7-(kk%8))));//mmmhmm...
+          pixdata = pixdata & 0x0F;
+          if(pixdata==0) continue;
+          colordata=fsp.palette[pal_id].color[pixdata];
+          if(colordata<0x8000){
+            line[xx_fsp+kk]=colordata;//don't mask when it's not needed
+          }
+          else{
+            clearbuf = line[xx_fsp+kk];
+            line[xx_fsp+kk] = average_colors(colordata,clearbuf);
+          }
         }
       }
     }
@@ -461,28 +445,25 @@ static void render_frame(void)
                sprite_counter > 0 ; sprite_counter --) {
     uint16_t current_sprite=sprite_counter-1;
     if(Mask_hsp_oam_enable & (~hsp.oam[current_sprite])) continue;//skips disabled sprites
+    uint8_t pal_id=(hsp.oam[current_sprite]&Mask_hsp_oam_palette)>>10;
+    uint16_t xx_pos = hsp.oam3[current_sprite]&Mask_hsp_oam3_x_pos;
+    uint16_t yy_pos = hsp.oam2[current_sprite]&Mask_hsp_oam2_y_pos;
+    uint32_t xx_hsp_max = (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x);
+    uint32_t yy_hsp_max = (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y);
     for (uint8_t jj=0; jj<half_tile_size; jj++) {
-      uint16_t yy_pos=hsp.oam2[current_sprite]&Mask_hsp_oam2_y_pos;
       uint16_t yy_hsp=((uint16_t)(yy_pos+jj-viewport.y_origin+hsp.offset_y))%(full_tile_size*layer_tile_number_y);
-      if ( yy_hsp >= (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y)) continue;//discriminar los renglones_visibles
+      if ( yy_hsp >= yy_hsp_max) continue;//discriminar los renglones_visibles
       line=buf+yy_hsp*stride;
+      uint32_t offset = jj*half_tile_size;
       for (uint8_t ii=0;ii<half_tile_size;ii++) {//itera sobre pixeles
-        uint16_t xx_pos = hsp.oam3[current_sprite]&Mask_hsp_oam3_x_pos;
         uint16_t xx_hsp = ((uint16_t)(xx_pos+ii-viewport.x_origin+hsp.offset_x))%(full_tile_size*layer_tile_number_x);
-        if ( xx_hsp >= (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x) ) continue;//discriminar los pixeles visibles
-        uint8_t twopixdata=hsp.tile[hsp.oam[current_sprite]
-                                     &Mask_hsp_oam_index]
-                              .two_pixel_color_index
-                               [(jj*half_tile_size+ii)>>1];
-        if (ii%2==0) {
-        twopixdata=(twopixdata>>4)&Mask_half_sprite_index_1;
-        }
-        else {
-        twopixdata=twopixdata&Mask_half_sprite_index_1;
-        }
-        if (twopixdata==0) continue;
-        uint8_t pal_id=(hsp.oam[current_sprite]&Mask_hsp_oam_palette)>>10;
-        colordata = hsp.palette[pal_id].color[twopixdata];
+        if ( xx_hsp >= xx_hsp_max ) continue;//discriminar los pixeles visibles
+        uint32_t eightpixdata=hsp.tile[hsp.oam[current_sprite]&Mask_hsp_oam_index]
+                                 .eight_pixel_color_index[(offset+ii)>>3];
+        uint8_t pixdata = (uint8_t) (eightpixdata>>(4*(7-(ii%8))));//mmmhmm...
+        pixdata = pixdata & 0x0F;
+        if (pixdata==0) continue;
+        colordata = hsp.palette[pal_id].color[pixdata];
         if(colordata<0x8000){
           line[xx_hsp] = colordata;
         }

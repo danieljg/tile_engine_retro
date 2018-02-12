@@ -101,27 +101,27 @@ typedef struct {
 } hsp_animation;
 
 static void inline fsp_animation_update(fsp_animation *animation) {
-  if( (animation->data&MASK_FSPANIM_CURRFRM>>24) < ((animation->data&MASK_FSPANIM_TOTLFRM>>28)-1))
-    animation->data = ((animation->data&MASK_FSPANIM_CURRFRM+0x01000000)&MASK_FSPANIM_CURRFRM)
+  if( ((animation->data&MASK_FSPANIM_CURRFRM)>>24) < (((animation->data&MASK_FSPANIM_TOTLFRM)>>28)-1))
+    animation->data = (((animation->data&MASK_FSPANIM_CURRFRM)+0x01000000)&MASK_FSPANIM_CURRFRM)
                     | (animation->data&(~MASK_FSPANIM_CURRFRM));
   else
     animation->data = (0x00000000|(animation->data&(~MASK_FSPANIM_CURRFRM)));
   set_fsp(animation->data&MASK_FSPANIM_SPINDEX,
-           (animation->data&MASK_FSPANIM_TLESTRT>>8) 
-          +(animation->data&MASK_FSPANIM_CURRFRM>>24) );
-  
+           ((animation->data&MASK_FSPANIM_TLESTRT)>>8)
+          +((animation->data&MASK_FSPANIM_CURRFRM)>>24) );
+  return;
 }
 
 static void inline hsp_animation_update(hsp_animation *animation) {
-  if( (animation->data&MASK_HSPANIM_CURRFRM) < (animation->data&MASK_HSPANIM_TOTLFRM-1))
-    animation->data = ((animation->data&MASK_HSPANIM_CURRFRM+0x01000000)&MASK_HSPANIM_CURRFRM)
+  if( ((animation->data&MASK_HSPANIM_CURRFRM)>>24) < (((animation->data&MASK_HSPANIM_TOTLFRM)>>28)-1))
+    animation->data = (((animation->data&MASK_HSPANIM_CURRFRM)+0x01000000)&MASK_HSPANIM_CURRFRM)
                     | (animation->data&(~MASK_HSPANIM_CURRFRM));
   else
     animation->data = (0x00000000|(animation->data&(~MASK_HSPANIM_CURRFRM)));
   set_hsp(animation->data&MASK_HSPANIM_SPINDEX,
-           (animation->data&MASK_HSPANIM_TLESTRT>>8) 
-          +(animation->data&MASK_HSPANIM_CURRFRM>>24) );
-  
+           ((animation->data&MASK_HSPANIM_TLESTRT)>>8)
+          +((animation->data&MASK_HSPANIM_CURRFRM)>>24) );
+  return;
 }
 
 static void inline hsp_animation_set_pos( hsp_animation *animation, 
@@ -336,7 +336,7 @@ static void add_projectile() {
 static void initialize_game() {
   fprintf(stdout, "Iniciando juego\n");
   game.player_count = 0;
-  for (uint8_t i; i<MAX_PLAYERS; i++) {
+  for (uint8_t i=0; i<MAX_PLAYERS; i++) {
     game.players[i].state = 0;
     game.players[i].input_state = 0;
     game.players[i].body.xdata = 0x00;
@@ -353,7 +353,7 @@ static void initialize_game() {
     game.players[i].animation.data = 0x00000000;
   }
   game.enemy_count = 0;
-  for (uint8_t i; i<MAX_ENEMIES; i++) {
+  for (uint8_t i=0; i<MAX_ENEMIES; i++) {
     game.enemies[i].state = 0;
     game.enemies[i].ai_state = 0;
     game.enemies[i].body.xdata = 0x00;
@@ -366,7 +366,7 @@ static void initialize_game() {
     game.enemies[i].animation.data = 0x00000000;
   }
   game.projectile_count = 0;
-  for (uint8_t i; i<MAX_PROJECTILES; i++) {
+  for (uint8_t i=0; i<MAX_PROJECTILES; i++) {
     game.projectiles[i].state = 0;
     game.projectiles[i].body.xdata = 0x00;
     game.projectiles[i].body.ydata = 0x00;
@@ -376,7 +376,7 @@ static void initialize_game() {
     game.projectiles[i].animation.data = 0x00000000;
   }
   game.powerup_count = 0;
-  for (uint8_t i; i<MAX_POWERUPS; i++) {
+  for (uint8_t i=0; i<MAX_POWERUPS; i++) {
     game.power_ups[i].state = 0;
     game.power_ups[i].body.xdata = 0x00;
     game.power_ups[i].body.ydata = 0x00;
@@ -385,7 +385,7 @@ static void initialize_game() {
     game.power_ups[i].animation.data = 0x00000000;
   }
   game.game_state = 0x00;
-  for (uint8_t i; i<TOP_SCORES_COUNT; i++) {
+  for (uint8_t i=0; i<TOP_SCORES_COUNT; i++) {
     game.top_scores[i].initials = 0x00;
     game.top_scores[i].score = 0;
   }

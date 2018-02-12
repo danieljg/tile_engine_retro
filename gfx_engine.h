@@ -66,7 +66,7 @@ typedef struct {
 #define Mask_bg_tile_index_1	0x0F//two pixels per byte
 
 typedef struct {
- uint8_t two_pixel_color_index[full_tile_size*full_tile_size>>1]; // 128 Bytes at 16 px/tile
+  uint32_t eight_pixel_color_index[full_tile_size*full_tile_size>>3];
 } bg_tile;
 
 //background tilemap masks
@@ -145,7 +145,7 @@ color_16bit color[fsp_palette_color_count];
 #define Mask_full_sprt_index_1	0x0F//two pixels per byte
 
 typedef struct {
- uint8_t two_pixel_color_index[full_tile_size*full_tile_size>>1];
+ uint32_t eight_pixel_color_index[full_tile_size*full_tile_size>>3];
 } fsp_tile;
 
 //Full sprite Object Attribute Memory bitmasks
@@ -270,7 +270,7 @@ color_16bit color[hsp_palette_color_count];
 #define Mask_half_sprite_index_1    0x07//two pixels per byte
 
 typedef struct {
-uint8_t two_pixel_color_index[half_tile_size*half_tile_size>>1];
+uint32_t eight_pixel_color_index[half_tile_size*half_tile_size>>3];
 } hsp_tile;
 
 //half sprite Object Attribute Memory bitmasks
@@ -459,26 +459,26 @@ void read_gfx_data(FILE* file, int gfxtype) {
     //fprintf(stdout,"\nTile: %d:\n", tile_i);
     for (uint8_t line_i=0; line_i<tile_size; line_i++) {
       //fprintf(stdout,"\t");
-      for (uint16_t byte_i=0; byte_i < line_bytesize; byte_i++) {
-        fread(buff,1,1,file);
+      for (uint16_t byte_i=0; byte_i < line_bytesize; byte_i+=4) {//not_really_byte_i
+        fread(buff,1,4,file);
         if (palette_size==4) {
-          uint8_t pixbuffer;
-          pixbuffer = buff[0];
+          uint32_t pixbuffer=0;
+          pixbuffer = buff[0]<<24|buff[1]<<16|buff[2]<<8|buff[3];
           if(gfxtype==0) {
-            bg[0].tile[tile_i].two_pixel_color_index
-              [ byte_i + (line_i*line_bytesize)]=pixbuffer;
+            bg[0].tile[tile_i].eight_pixel_color_index
+              [ (byte_i + (line_i*line_bytesize))>>2]=pixbuffer;
           }
           else if(gfxtype==1) {
-            bg[1].tile[tile_i].two_pixel_color_index
-              [ byte_i + (line_i*line_bytesize)]=pixbuffer;
+            bg[1].tile[tile_i].eight_pixel_color_index
+              [ (byte_i + (line_i*line_bytesize))>>2]=pixbuffer;
           }
           else if(gfxtype==2) {
-            fsp.tile[tile_i].two_pixel_color_index
-               [ byte_i + (line_i*line_bytesize)]=pixbuffer;
+            fsp.tile[tile_i].eight_pixel_color_index
+               [ (byte_i + (line_i*line_bytesize))>>2]=pixbuffer;
           }
           if(gfxtype==3) {
-            hsp.tile[tile_i].two_pixel_color_index
-              [ byte_i + (line_i*line_bytesize)]=pixbuffer;
+            hsp.tile[tile_i].eight_pixel_color_index
+              [ (byte_i + (line_i*line_bytesize))>>2]=pixbuffer;
           }
 
         }
