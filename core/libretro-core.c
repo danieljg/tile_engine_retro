@@ -248,12 +248,13 @@ static void update_game() {
   for (uint8_t i=0; i<game.player_count; i++) {
     update_player(&game.players[i]);
   }
-  update_hud();
+  //update_hud();
 
   frame_counter++;
   scroll_frame_counter=frame_counter%bg_scroll_wait_frames;
   animation_frame_counter=frame_counter%animation_wait_frames;
 
+ ///*
   if(scroll_frame_counter==0){
     for(uint32_t yy=0;yy<(vp_tile_number_y*full_tile_size);yy++){
       bg[0].offset_x[yy]--;
@@ -266,7 +267,7 @@ static void update_game() {
     }
     //viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
     //viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
-  }
+  }//*/
 
   if(animation_frame_counter==0){
     update_animations();
@@ -397,7 +398,8 @@ static void render_frame(void)
         line[xx]=colordata>>1;
       }
       else{
-        line[xx]=(bg[1].palette[palette_index].color[0]<<1)>>1;
+        uint16_t buf=bg[1].palette[palette_index].color[0]<<1;
+        line[xx]=buf>>1;
       }
     }
   }

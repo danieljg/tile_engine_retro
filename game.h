@@ -40,6 +40,7 @@ physics_body;
 // Position
 static void inline pbody_set_x(physics_body *pbody, uint16_t pos_x) {
   pbody->xdata=(pbody->xdata&(~MASK_PB_XDATA_POS))|(pos_x&MASK_PB_XDATA_POS);
+  return;
 }
 
 static uint16_t inline pbody_get_x(physics_body *pbody) {
@@ -48,6 +49,7 @@ static uint16_t inline pbody_get_x(physics_body *pbody) {
 
 static void inline pbody_set_y(physics_body *pbody, uint16_t pos_y) {
   pbody->ydata=(pbody->ydata&(~MASK_PB_YDATA_POS))|(pos_y&MASK_PB_YDATA_POS);
+  return;
 }
 
 static uint16_t inline pbody_get_y(physics_body *pbody) {
@@ -58,6 +60,7 @@ static uint16_t inline pbody_get_y(physics_body *pbody) {
 static void inline pbody_set_vel_x(physics_body *pbody, int8_t vel) {
   pbody->xdata =
     (pbody->xdata&(~MASK_PB_XDATA_VEL))|(vel<<12);
+  return;
 }
 
 static int8_t inline pbody_get_vel_x(physics_body *pbody) {
@@ -67,6 +70,7 @@ static int8_t inline pbody_get_vel_x(physics_body *pbody) {
 static void inline pbody_set_vel_y(physics_body *pbody, int8_t vel) {
   pbody->ydata =
     (pbody->ydata&(~MASK_PB_YDATA_VEL))|(vel<<12);
+  return;
 }
 
 static int8_t inline pbody_get_vel_y(physics_body *pbody) {
@@ -76,6 +80,7 @@ static int8_t inline pbody_get_vel_y(physics_body *pbody) {
 static void inline pbody_update(physics_body *pbody) {
   pbody_set_x(pbody, pbody_get_x(pbody)+pbody_get_vel_x(pbody));
   pbody_set_y(pbody, pbody_get_y(pbody)+pbody_get_vel_y(pbody));
+  return;
 }
 
 #define MASK_FSPANIM_TOTLFRM 0xF0000000
@@ -401,7 +406,7 @@ static void initialize_game() {
   fprintf(stdout, "Pos X: %u Pos Y: %u\n", pos_x>>3, pos_y>>3);
 }
 
-void default_scores() {
+static void default_scores() {
   game.top_scores[0].initials = (' '<<24)|('A'<<16)|('B'<<8)|'C';
   game.top_scores[0].score = 450000;
   game.top_scores[1].initials = (' '<<24)|('D'<<16)|('E'<<8)|'F';;
