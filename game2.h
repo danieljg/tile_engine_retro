@@ -38,7 +38,7 @@
 
 #define MASK_PLAYER_BASE_RES1  0xC000
 #define MASK_PLAYER_BASE_STATE 0x3000 //(2 bits) idle, spawning, alive, falling
-#define MASK_PLAYER_BASE_RES1  0x0800
+#define MASK_PLAYER_BASE_RES2  0x0800
 #define MASK_PLAYER_BASE_LIVES 0x0700 //(3 bits) 8 lives max.
 #define MASK_PLAYER_BASE_INPUT 0x00FF //(8 bits) 4 direction buttons, 3 action buttons, 1 Start button.
 
