@@ -45,6 +45,7 @@
 typedef struct {
   // Basic data
   uint16_t base[MAX_PLAYERS];
+  uint8_t  power_ups[MAX_PLAYERS];
   uint16_t score[MAX_PLAYERS]; // player total score 16 bits
   // Physics Data
   uint32_t xdata[MAX_PLAYERS];
@@ -155,6 +156,8 @@ players_struct players;
 static void inline initialize_players() {
   for (uint8_t i=0; i<MAX_PLAYERS; i++) {
     players.base[i] =                0x0000;
+    players.power_ups[i] =             0x00;
+    players.score[i] =               0x0000;
     players.xdata[i] =           0x00000000;
     players.ydata[i] =           0x00000000;
     players.dimensions[i] =          0x0000;
