@@ -104,6 +104,7 @@ else
 endif
 
 LDFLAGS += $(LIBM)
+LDFLAGS += -lxmp
 
 ifeq ($(DEBUG), 1)
    CFLAGS += -O0 -g

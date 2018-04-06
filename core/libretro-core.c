@@ -6,6 +6,7 @@
 #include <math.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <xmp.h>
 
 #include "libretro.h"
 #include "../gfx_engine.h"
@@ -18,6 +19,70 @@
 static uint16_t *frame_buf;
 static struct retro_log_callback logging;
 static retro_log_printf_t log_cb;
+
+static xmp_context ctx;
+static struct xmp_module_info mi;
+
+static void display_audiomodule_info(struct xmp_module_info *mi)
+{
+	int i, j;
+	struct xmp_module *mod = mi->mod;
+
+	printf("Name: %s\n", mod->name);
+	printf("Type: %s\n", mod->type);
+	printf("Number of patterns: %d\n", mod->pat);
+	printf("Number of tracks: %d\n", mod->trk);
+	printf("Number of channels: %d\n", mod->chn);
+	printf("Number of instruments: %d\n", mod->ins);
+	printf("Number of samples: %d\n", mod->smp);
+	printf("Initial speed: %d\n", mod->spd);
+	printf("Initial BPM: %d\n", mod->bpm);
+	printf("Length in patterns: %d\n", mod->len);
+
+	printf("\n");
+
+	printf("Instruments:\n");
+	for (i = 0; i < mod->ins; i++) {
+		struct xmp_instrument *ins = &mod->xxi[i];
+
+		printf("%02x %-32.32s V:%02x R:%04x %c%c%c\n",
+				i, ins->name, ins->vol, ins->rls,
+				ins->aei.flg & XMP_ENVELOPE_ON ? 'A' : '-',
+				ins->pei.flg & XMP_ENVELOPE_ON ? 'P' : '-',
+				ins->fei.flg & XMP_ENVELOPE_ON ? 'F' : '-');
+
+		for (j = 0; j < ins->nsm; j++) {
+			struct xmp_subinstrument *sub = &ins->sub[j];
+			printf("   %02x V:%02x GV:%02x P:%02x X:%+04d F:%+04d\n",
+					j, sub->vol, sub->gvl, sub->pan,
+					sub->xpo, sub->fin);
+		}
+	}
+
+	printf("\n");
+
+	printf("Samples:\n");
+	for (i = 0; i < mod->smp; i++) {
+		struct xmp_sample *smp = &mod->xxs[i];
+
+		printf("%02x %-32.32s %05x %05x %05x %c%c%c%c%c%c",
+				i, smp->name, smp->len, smp->lps, smp->lpe,
+				smp->flg & XMP_SAMPLE_16BIT ? 'W' : '-',
+				smp->flg & XMP_SAMPLE_LOOP ? 'L' : '-',
+				smp->flg & XMP_SAMPLE_LOOP_BIDIR ? 'B' : '-',
+				smp->flg & XMP_SAMPLE_LOOP_REVERSE ? 'R' : '-',
+				smp->flg & XMP_SAMPLE_LOOP_FULL ? 'F' : '-',
+				smp->flg & XMP_SAMPLE_SYNTH ? 'S' : '-');
+
+		if (smp->len > 0 && smp->lpe >= smp->len) {
+			printf(" LOOP ERROR");
+		}
+
+		printf("\n");
+	}
+}
+
+
 
 static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 {
@@ -46,6 +111,7 @@ static uint32_t scrolling_tilemap_index=0;
 #endif
 
 // Audio variables
+static FILE* audiofile;
 static unsigned phase;
 static uint8_t makesound=0;
 
@@ -76,10 +142,27 @@ void retro_init(void)
   //initialize_game();
   initialize_game();
   default_scores();
+  fprintf(stdout, "mark1s\n");
+  ctx = xmp_create_context();
+  audiofile = fopen("airwolf2.mod","rb");
+  //if( xmp_load_module_from_file(ctx,&file,135862) == 0 ){
+  char* audiofilepath="/home/daniel/build/tileengineretro_test/tile_engine_retro/core/test.xm";
+  if( xmp_load_module(ctx,audiofilepath) == 0 ){
+    fprintf(stdout, "mark2\n");
+    if (xmp_start_player(ctx, 31920, XMP_FORMAT_MONO) == 0) {
+      xmp_get_module_info(ctx, &mi);
+      display_audiomodule_info(&mi);
+    }
+  } 
+  fprintf(stdout, "mark3\n");
 }
 
 void retro_deinit(void)
 {
+   xmp_end_player(ctx);
+   xmp_release_module(ctx);
+   xmp_free_context(ctx);
+   fclose(audiofile);
    free(frame_buf);
    frame_buf = NULL;
 }
@@ -113,7 +196,7 @@ static retro_input_state_t input_state_cb;
 void retro_get_system_av_info(struct retro_system_av_info *info)
 {
    float aspect = (float) vp_tile_number_x / (float) vp_tile_number_y ;
-   float sampling_rate = 30000.0f;
+   float sampling_rate = 31920.0f;
 
    info->timing = (struct retro_system_timing) {
       .fps = 60.0,
@@ -487,7 +570,19 @@ static void check_variables(void)
 
 static void audio_callback(void)
 {
-    audio_cb(0, 0);
+   struct xmp_frame_info fi;
+   int16_t audiobuff[532];
+   xmp_play_buffer(ctx,&audiobuff,532*2,1);
+   //xmp_play_frame(ctx);
+   //xmp_get_frame_info(ctx,&fi);
+   //fprintf(stdout,"%i\n",fi.buffer_size);
+   //fprintf(stdout,"%i\n",fi.frame_time);
+   for(unsigned ii=0;ii<532;ii++,phase++) {
+      //int16_t val = 0x800 * sinf(2.0f * M_PI * phase * 300.0f / 30000.0f);
+      //audio_cb(val, val);
+      audio_cb(audiobuff[ii], audiobuff[ii]);
+   }
+   //audio_cb=(0,0);
 }
 
 void retro_run(void)
