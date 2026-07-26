@@ -5,7 +5,19 @@
 #include <stddef.h>
 #include "libretro.h"
 
-static void vid(const void *data, unsigned w, unsigned h, size_t pitch){ (void)data;(void)w;(void)h;(void)pitch; }
+//frame CRCs at fixed points make renderer changes verifiable: run before
+//and after and compare (frames past the boot fade so output is steady)
+static uint32_t frame_no = 0;
+static void vid(const void *data, unsigned w, unsigned h, size_t pitch){
+  (void)w;
+  frame_no++;
+  if (data && (frame_no==100 || frame_no==500 || frame_no==1000 || frame_no==1500)) {
+    const uint8_t* p = data;
+    uint32_t crc = 2166136261u;
+    for (size_t i=0; i<(size_t)h*pitch; i++) { crc ^= p[i]; crc *= 16777619u; }
+    printf("frame %u crc %08x\n", (unsigned)frame_no, crc);
+  }
+}
 static void aud(int16_t l, int16_t r){ (void)l;(void)r; }
 static size_t audb(const int16_t *d, size_t f){ (void)d; return f; }
 static void poll(void){}

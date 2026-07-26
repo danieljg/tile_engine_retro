@@ -17,6 +17,10 @@
 #endif
 
 static uint16_t *frame_buf;
+//backgrounds are composed into a cache and only recomposed when their
+//state (scroll, tilemap animation, palettes) changes
+static uint16_t *bg_cache;
+static uint8_t bg_cache_dirty = 1;
 static struct retro_log_callback logging;
 static retro_log_printf_t log_cb;
 
@@ -114,10 +118,10 @@ static uint32_t scrolling_tilemap_index=0;
 #endif
 
 static void animate_bg0_blocks(void);
-static void save_ship_palettes(void);
+static void save_base_palettes(void);
 static void shimmer_ship_palettes(void);
-static void save_bg0_palette(void);
 static void pulse_bg0_palette(void);
+static void set_fade(uint8_t level);
 
 //loads a gfx file from the frontend's working directory (core/ via make run)
 static void load_gfx(const char* path, int gfxtype)
@@ -146,12 +150,12 @@ void retro_init(void)
   initialize_full_sprites();
   initialize_half_sprites();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
+  bg_cache  = calloc(viewport.width * viewport.height, sizeof(uint16_t));
   load_gfx("bg0.gfx", 0);
   load_gfx("bg1.gfx", 1);
   load_gfx("fsp.gfx", 2);
   load_gfx("hsp.gfx", 3);
-  save_ship_palettes();
-  save_bg0_palette();
+  save_base_palettes();
   initialize_game();
   default_scores();
 #ifdef HAVE_XMP
@@ -181,6 +185,8 @@ void retro_deinit(void)
 #endif
    free(frame_buf);
    frame_buf = NULL;
+   free(bg_cache);
+   bg_cache = NULL;
 }
 
 unsigned retro_api_version(void)
@@ -273,6 +279,7 @@ void retro_reset(void)
 static void move_viewport(int8_t vel_x, int8_t vel_y) {
   viewport.x_origin=(viewport.x_origin+vel_x*bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
   viewport.y_origin=(viewport.y_origin+vel_y*bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
+  bg_cache_dirty=1;
 }
 
 static void update_input(void)
@@ -320,6 +327,9 @@ static void update_game(void) {
   scroll_frame_counter=frame_counter%bg_scroll_wait_frames;
   animation_frame_counter=frame_counter%animation_wait_frames;
 
+  //boot fade-in: black to full brightness over the first 64 frames
+  if(frame_counter<=64 && (frame_counter&1)==0) set_fade((uint8_t)(frame_counter>>1));
+
  ///*
   if(scroll_frame_counter==0){
     for(uint32_t yy=0;yy<(vp_tile_number_y*full_tile_size);yy++){
@@ -336,6 +346,7 @@ static void update_game(void) {
       else if(yy%11==0) speed=4;
       bg[1].offset_x[yy]-=speed;
     }
+    bg_cache_dirty=1;
     //viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
     //viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
   }//*/
@@ -345,6 +356,7 @@ static void update_game(void) {
     animate_bg0_blocks();
     shimmer_ship_palettes();
     pulse_bg0_palette();
+    bg_cache_dirty=1;
   }
 
 }
@@ -390,22 +402,47 @@ static void animate_bg0_blocks(void) {
   }
 }
 
-//ship palette shimmer: oscillates the brightness of fsp palettes 1-4
-//(one per player ship) by +/-1 around the values loaded from fsp.gfx
-static fsp_palette ship_palette_base[4];
+/* Live palettes are derived data: base palettes (saved once after the gfx
+   load) -> per-tick effects (shimmer, pulse) -> master fade. Fade in/out
+   costs a handful of palette recomputes instead of a per-pixel pass. */
+static fsp_palette fsp_palette_base[fsp_palette_number];
+static hsp_palette hsp_palette_base[hsp_palette_number];
+static bg_palette  bg_palette_base[bg_layer_count]; //palette 0 of each layer
+static uint8_t bg0_pulse_phase = 0;
+static uint8_t fade_level = 32; //0 = black .. 32 = full brightness
 
-static void save_ship_palettes(void) {
-  for (uint8_t p=0; p<4; p++) ship_palette_base[p] = fsp.palette[1+p];
+static void save_base_palettes(void) {
+  memcpy(fsp_palette_base, fsp.palette, sizeof(fsp_palette_base));
+  memcpy(hsp_palette_base, hsp.palette, sizeof(hsp_palette_base));
+  for (uint8_t l=0; l<bg_layer_count; l++) bg_palette_base[l] = bg[l].palette[0];
 }
 
-//bg0 palette pulse: the colors participating in the block animations
-//(indices 6-15; 0-5 are backdrop and structural grays) breathe +/-1
-//around their loaded values, each index offset in phase
-static bg_palette bg0_palette_base;
-static uint8_t bg0_pulse_phase = 0;
+static color_16bit inline apply_fade(color_16bit c) {
+  if (fade_level >= 32) return c;
+  uint16_t r = (((c&Mask_red)>>10)  * fade_level) >> 5;
+  uint16_t g = (((c&Mask_green)>>5) * fade_level) >> 5;
+  uint16_t b = ((c&Mask_blue)       * fade_level) >> 5;
+  return (c & Mask_alpha) | (r<<10) | (g<<5) | b;
+}
 
-static void save_bg0_palette(void) {
-  bg0_palette_base = bg[0].palette[0];
+static void refresh_palettes(void) {
+  for (uint8_t p=0; p<fsp_palette_number; p++)
+    for (uint8_t c=0; c<fsp_palette_color_count; c++)
+      fsp.palette[p].color[c] = apply_fade(fsp_palette_base[p].color[c]);
+  for (uint8_t p=0; p<hsp_palette_number; p++)
+    for (uint8_t c=0; c<hsp_palette_color_count; c++)
+      hsp.palette[p].color[c] = apply_fade(hsp_palette_base[p].color[c]);
+  for (uint8_t l=0; l<bg_layer_count; l++)
+    for (uint8_t c=0; c<bg_palette_color_count; c++)
+      bg[l].palette[0].color[c] = apply_fade(bg_palette_base[l].color[c]);
+  bg_cache_dirty = 1;
+}
+
+static void set_fade(uint8_t level) {
+  if (level > 32) level = 32;
+  if (level == fade_level) return;
+  fade_level = level;
+  refresh_palettes();
 }
 
 static color_16bit inline shift_brightness(color_16bit c, int8_t d) {
@@ -420,25 +457,31 @@ static color_16bit inline shift_brightness(color_16bit c, int8_t d) {
 
 static uint8_t shimmer_phase = 0;
 
+//ship palette shimmer: oscillates the brightness of fsp palettes 1-4
+//(one per player ship) by +/-1 around the values loaded from fsp.gfx
 static void shimmer_ship_palettes(void) {
   shimmer_phase = (shimmer_phase+1) & 3;
   int8_t delta = (shimmer_phase==1) - (shimmer_phase==3); // 0,+1,0,-1
-  for (uint8_t p=0; p<4; p++) {
+  for (uint8_t p=1; p<=4; p++) {
     for (uint8_t c=1; c<fsp_palette_color_count; c++) { //index 0 is transparent
-      fsp.palette[1+p].color[c] =
-        shift_brightness(ship_palette_base[p].color[c], delta);
+      fsp.palette[p].color[c] =
+        apply_fade(shift_brightness(fsp_palette_base[p].color[c], delta));
     }
   }
 }
 
+//bg0 palette pulse: the colors participating in the block animations
+//(indices 6-15; 0-5 are backdrop and structural grays) breathe +/-1
+//around their loaded values, each index offset in phase
 static void pulse_bg0_palette(void) {
   static const int8_t deltas[4] = {0, 1, 0, -1};
   bg0_pulse_phase = (bg0_pulse_phase+1) & 3;
   for (uint8_t c=6; c<bg_palette_color_count; c++) {
     bg[0].palette[0].color[c] =
-      shift_brightness(bg0_palette_base.color[c],
-                       deltas[(bg0_pulse_phase + c) & 3]);
+      apply_fade(shift_brightness(bg_palette_base[0].color[c],
+                                  deltas[(bg0_pulse_phase + c) & 3]));
   }
+  bg_cache_dirty = 1;
 }
 
 static color_16bit inline average_colors(color_16bit color1, color_16bit color2) {
@@ -464,14 +507,14 @@ static void render_sprite_layer(
     uint16_t* buf, uint16_t stride)
 {
   uint16_t words = ((uint16_t)size*size)>>3;
+  uint8_t groups_per_row = size>>3;
+  uint16_t W = viewport.width;
   for (int16_t slot = slot_count-1; slot >= 0; slot--) {
     uint16_t o = oam[slot];
     if (!(o & Mask_fsp_oam_in_use)) continue;
     if (!(o & Mask_fsp_oam_enable)) continue;
     uint8_t pal = (o & Mask_fsp_oam_palette)>>10;
     uint16_t o2 = oam2[slot];
-    uint16_t yy_pos = o2 & Mask_fsp_oam2_y_pos;
-    uint16_t xx_pos = oam3[slot] & Mask_fsp_oam3_x_pos;
     uint8_t vfl = (o2 & Mask_fsp_oam2_v_flip) != 0;
     uint8_t hfl = (o2 & Mask_fsp_oam2_h_flip) != 0;
     uint8_t rot = (o2 & Mask_fsp_oam2_rotation) != 0;
@@ -480,31 +523,131 @@ static void render_sprite_layer(
                                 : (hfl ? tiles_h  : tiles_n);
     const uint32_t* tile = tiles + (uint32_t)(o & Mask_fsp_oam_index)*words;
     uint8_t out_size = size << dbl;
+    //clip once per sprite: at most two visible x spans (wraparound)
+    uint16_t base_x = (uint16_t)((oam3[slot] & Mask_fsp_oam3_x_pos)
+                      - viewport.x_origin + layer_offset_x)
+                      & (full_tile_size*layer_tile_number_x - 1);
+    uint16_t base_y = (uint16_t)((o2 & Mask_fsp_oam2_y_pos)
+                      - viewport.y_origin + layer_offset_y)
+                      & (full_tile_size*layer_tile_number_y - 1);
+    struct { uint8_t ii0; uint16_t xx0; uint8_t len; } spans[2];
+    uint8_t nspans = 0;
+    if (base_x < W) {
+      uint16_t len = W - base_x;
+      if (len > out_size) len = out_size;
+      spans[nspans].ii0 = 0;
+      spans[nspans].xx0 = base_x;
+      spans[nspans].len = (uint8_t)len;
+      nspans++;
+    }
+    if (base_x + out_size > full_tile_size*layer_tile_number_x) {//wrapped tail
+      uint8_t tail = (uint8_t)(base_x + out_size
+                               - full_tile_size*layer_tile_number_x);
+      spans[nspans].ii0 = (uint8_t)(full_tile_size*layer_tile_number_x - base_x);
+      spans[nspans].xx0 = 0;
+      spans[nspans].len = tail;
+      nspans++;
+    }
+    if (nspans == 0) continue;
     for (uint8_t jj=0; jj<out_size; jj++) {//itera sobre renglones
+      uint16_t yy = (uint16_t)(base_y + jj)
+                    & (full_tile_size*layer_tile_number_y - 1);
+      if (yy >= viewport.height) continue;//discriminar renglones visibles
       uint8_t src_row = jj >> dbl;
       if (vfl) src_row = size-1-src_row;
-      uint16_t yy = ((uint16_t)(yy_pos+jj-viewport.y_origin+layer_offset_y))
-                    %(full_tile_size*layer_tile_number_y);
-      if (yy >= viewport.height) continue;//discriminar renglones visibles
+      const uint32_t* row_groups = tile + (uint32_t)src_row*groups_per_row;
       uint16_t* line = buf + yy*stride;
-      for (uint8_t ii=0; ii<out_size; ii++) {//itera sobre pixeles
-        uint16_t xx = ((uint16_t)(xx_pos+ii-viewport.x_origin+layer_offset_x))
-                      %(full_tile_size*layer_tile_number_x);
-        if (xx >= viewport.width) continue;//discriminar pixeles visibles
-        uint8_t pix = tile_get_pixel(tile, size, ii >> dbl, src_row);
-        if (pix==0) continue;
-        color_16bit c = palette_colors[(uint16_t)pal*colors_per_palette + pix];
-        if (c < 0x8000) {
-          line[xx] = c;
-        }
-        else {
-          line[xx] = average_colors(c, line[xx]);//semitransparent
+      for (uint8_t s=0; s<nspans; s++) {
+        uint16_t xx = spans[s].xx0;
+        uint8_t ii = spans[s].ii0;
+        int8_t g_idx = -1;
+        uint32_t group = 0;
+        for (uint8_t k=0; k<spans[s].len; k++, ii++, xx++) {
+          uint8_t src_col = ii >> dbl;
+          if ((int8_t)(src_col>>3) != g_idx) {//fetch 8 pixels at a time
+            g_idx = src_col>>3;
+            group = row_groups[g_idx];
+          }
+          uint8_t pix = (group >> (4*(7-(src_col&7)))) & 0x0F;
+          if (pix==0) continue;
+          color_16bit c = palette_colors[(uint16_t)pal*colors_per_palette + pix];
+          if (c < 0x8000) {
+            line[xx] = c;
+          }
+          else {
+            line[xx] = average_colors(c, line[xx]);//semitransparent
+          }
         }
       }
     }
   }
 }
 
+/* Background scanline renderer, shared by both layers. Walks tile-aligned
+   spans: one tilemap lookup per span, one group fetch per 8 pixels, a
+   rolling shift per pixel. The base layer (BG1) writes every pixel,
+   including index 0 (backdrop) and disabled tiles, always alpha-stripped;
+   the overlay (BG0) skips index 0 and disabled tiles, writes opaque colors
+   and 50/50-blends semitransparent ones over what is already there. */
+static void render_bg_scanline(uint16_t* line, uint32_t yy, uint8_t layer,
+                               uint8_t is_overlay)
+{
+  uint32_t ysrc = (uint32_t)(yy + viewport.y_origin - bg[layer].offset_y[yy])
+                  & (full_tile_size*layer_tile_number_y - 1);
+  uint16_t trow = (uint16_t)((ysrc>>4)<<5); //tilemap row base (32 per row)
+  uint8_t in_y = ysrc & 15;
+  uint32_t x0 = viewport.x_origin - bg[layer].offset_x[yy];
+  uint16_t W = viewport.width;
+  uint16_t xx = 0;
+  while (xx < W) {
+    uint32_t xsrc = (uint32_t)(xx + x0)
+                    & (full_tile_size*layer_tile_number_x - 1);
+    uint8_t in_x = xsrc & 15;
+    uint16_t span = 16 - in_x;
+    if (span > W - xx) span = W - xx;
+    uint16_t entry = bg[layer].tilemap[trow + (xsrc>>4)];
+    uint8_t pal = (entry & Mask_bgtm_palette)>>10;
+    if (entry & Mask_bgtm_disable) {
+      if (is_overlay) { xx += span; continue; }
+      color_16bit c = bg[layer].palette[pal].color[0] & 0x7FFF;
+      for (uint16_t s=0; s<span; s++) line[xx++] = c;
+      continue;
+    }
+    const uint32_t* row_groups =
+      &bg[layer].tile[entry & Mask_bgtm_index]
+        .eight_pixel_color_index[(uint16_t)in_y<<1];
+    uint32_t group = row_groups[in_x>>3];
+    uint8_t shift = 4*(7-(in_x&7));
+    for (uint16_t s=0; s<span; s++, in_x++) {
+      if ((in_x&7)==0 && s) {//fetch 8 pixels at a time
+        group = row_groups[in_x>>3];
+        shift = 28;
+      }
+      uint8_t pix = (group>>shift) & 0x0F;
+      shift -= 4;
+      if (!is_overlay) {
+        line[xx++] = bg[layer].palette[pal].color[pix] & 0x7FFF;
+      }
+      else {
+        if (pix) {
+          color_16bit c = bg[layer].palette[pal].color[pix];
+          if (c < 0x8000) line[xx] = c;
+          else line[xx] = average_colors(c, line[xx]);//semitransparent
+        }
+        xx++;
+      }
+    }
+  }
+}
+
+static void render_backgrounds(uint16_t* cache)
+{
+  for (uint32_t yy=0; yy<viewport.height; yy++) {
+    uint16_t* line = cache + yy*viewport.width;
+    render_bg_scanline(line, yy, 1, 0); //BG1: back layer, opaque base
+    render_bg_scanline(line, yy, 0, 1); //BG0: front layer, overlay
+  }
+}
 
 /* Dibuja una frame del juego
 */
@@ -512,101 +655,14 @@ static void render_frame(void)
 {
   uint16_t *buf    = frame_buf;
   uint16_t stride  = viewport.width; // Stride igual a ancho de viewport
-  uint16_t *line   = buf;
 
-
-  //background rendering
-  uint32_t yy_vp;
-  uint32_t xx_vp;
-  uint32_t eightpixdata=0;
-  uint32_t tilemap_index=0;
-  uint32_t tileset_index=0;
-  uint8_t  palette_index=0;
-  color_16bit colordata;
-  color_16bit clearbuf;
-
-  ///*
-  for (uint32_t yy=0; yy<viewport.height; yy++, line+=stride) {
-    yy_vp=yy+viewport.y_origin-bg[0].offset_y[yy];
-    for (uint32_t xx=0; xx<viewport.width; xx++) {
-      xx_vp=xx+viewport.x_origin-bg[0].offset_x[yy];
-      tilemap_index = ( (xx_vp/full_tile_size)%layer_tile_number_x
-                      + (yy_vp/full_tile_size)*layer_tile_number_x )
-                      %(layer_tile_number_x*layer_tile_number_y);
-      tilemap_index = bg[0].tilemap[tilemap_index];
-      if(tilemap_index<Mask_bgtm_disable){
-        palette_index=(tilemap_index&Mask_bgtm_palette)>>10;
-        tileset_index=tilemap_index&Mask_bgtm_index;
-        eightpixdata = bg[0].tile[tileset_index]
-                       .eight_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size
-                                                +(xx_vp%full_tile_size))>>3)
-                                              %(full_tile_size*full_tile_size)];
-        uint8_t pixdata = (uint8_t) (eightpixdata>>(4*(7-(xx_vp%8))));//mmmhmm...
-        pixdata = pixdata & 0x0F;
-        if(pixdata){//check if palette index is not null, if so we gotta render BG0
-          colordata=bg[0].palette[palette_index].color[pixdata];
-          if(colordata<0x8000){
-            //pixel is opaque
-            line[xx]=colordata;
-          }
-          else{
-            //pixel is semitransparent, render BG1
-            yy_vp=yy+viewport.y_origin-bg[1].offset_y[yy];
-            xx_vp=xx+viewport.x_origin-bg[1].offset_x[yy];
-            tilemap_index = ( (xx_vp/full_tile_size)%layer_tile_number_x
-                            + (yy_vp/full_tile_size)*layer_tile_number_x )
-                            %(layer_tile_number_x*layer_tile_number_y);
-            tilemap_index = bg[1].tilemap[tilemap_index];
-            palette_index=(tilemap_index&Mask_bgtm_palette)>>10;
-            if(tilemap_index<Mask_bgtm_disable){
-              tileset_index=tilemap_index&Mask_bgtm_index;
-              eightpixdata = bg[1].tile[tileset_index]
-                             .eight_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size
-                                                      +(xx_vp%full_tile_size))>>3)
-                                                      %(full_tile_size*full_tile_size)];
-              pixdata = (uint8_t) (eightpixdata>>(4*(7-(xx_vp%8))));//mmmhmm...
-              pixdata = pixdata & 0x0F;
-              clearbuf=bg[1].palette[palette_index].color[pixdata];
-              colordata=average_colors(clearbuf,colordata);
-              line[xx]=colordata;//don't mask alpha after averaging colors
-            }
-            else{
-              //when bg1 tile is disabled, we take the bg1 null for semitransparency
-              clearbuf=bg[1].palette[palette_index].color[0];
-              colordata=average_colors(clearbuf,colordata);
-              line[xx]=colordata;//don't mask alpha after averaging colors
-            }
-          }
-          continue;
-        }
-      }
-      //BG0 is transparent or disabled, render BG1
-      yy_vp=yy+viewport.y_origin-bg[1].offset_y[yy];
-      xx_vp=xx+viewport.x_origin-bg[1].offset_x[yy];
-      tilemap_index = ( (xx_vp/full_tile_size)%layer_tile_number_x
-                      + (yy_vp/full_tile_size)*layer_tile_number_x )
-                      %(layer_tile_number_x*layer_tile_number_y);
-      tilemap_index = bg[1].tilemap[tilemap_index];
-      palette_index=(tilemap_index&Mask_bgtm_palette)>>10;
-      if(tilemap_index<Mask_bgtm_disable){
-        tileset_index=tilemap_index&Mask_bgtm_index;
-        eightpixdata = bg[1].tile[tileset_index]
-                       .eight_pixel_color_index[(( (yy_vp%full_tile_size)*full_tile_size
-                                                +(xx_vp%full_tile_size))>>3)
-                                                %(full_tile_size*full_tile_size)];
-        uint8_t pixdata = (uint8_t) (eightpixdata>>(4*(7-(xx_vp%8))));//mmmhmm...
-        pixdata = pixdata & 0x0F;
-        colordata=bg[1].palette[palette_index].color[pixdata];
-        colordata=colordata<<1;
-        line[xx]=colordata>>1;
-      }
-      else{
-        uint16_t buf=bg[1].palette[palette_index].color[0]<<1;
-        line[xx]=buf>>1;
-      }
-    }
+  //backgrounds come from the cache, recomposed only when dirty
+  if (bg_cache_dirty) {
+    render_backgrounds(bg_cache);
+    bg_cache_dirty = 0;
   }
-  //*/
+  memcpy(buf, bg_cache,
+         (size_t)viewport.width * viewport.height * sizeof(uint16_t));
 
 
   //sprite rendering: full sprites below half-sprites (SP0 then SP1)

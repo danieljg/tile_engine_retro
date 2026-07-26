@@ -39,14 +39,22 @@ Goal: back from the graveyard, nice demo for Luis in a few weeks.
 [x] Save states: versioned manifest of memcpy'd blocks (~15 KB), verified
     byte-identical on a serialize/restore/replay round trip
 
-== 3. RENDERER ==
+== 3. RENDERER == (all done — verified pixel-identical by frame CRCs,
+                    2.8x faster: 0.154 -> 0.055 ms/frame at -O3)
 
-[ ] Per-tile-row span rendering instead of per-pixel div/mod tilemap lookups
-[ ] Factor the 3x-duplicated BG1 sampling into one sample_bg() helper
-[ ] Consume the 8-pixel uint32_t fetch without re-shifting per pixel
-[ ] Clip sprites once per sprite (visible span), not per pixel
-[ ] Dirty-row/dirty-tile tracking for mostly-static backgrounds
-[ ] Fade in/out via palette darkening (64 multiplies, not 76800) — old TODO item
+[x] Span rendering: one tilemap lookup per tile-aligned span, no per-pixel
+    div/mod (render_bg_scanline)
+[x] The 3x-duplicated BG1 sampling collapsed into render_bg_scanline,
+    shared by both layers via a base/overlay flag
+[x] 8-pixel uint32_t fetch consumed with a rolling shift (bg) / cached
+    group (sprites)
+[x] Sprites clipped once per sprite: at most two visible x spans
+    (wraparound), no per-pixel bounds checks
+[x] Background cache: bg layers composed into bg_cache, recomposed only
+    when scroll/animation/palettes change (bg_cache_dirty), memcpy'd per
+    frame with sprites drawn on top
+[x] Fade in/out via palette darkening: set_fade(0..32) recomputes live
+    palettes from bases; boot does a 64-frame fade-in from black
 [x] Vertical flip, rotation (see OAM transforms above)
 
 == 4. TOOLING (bmptogfx is too obtuse) ==
