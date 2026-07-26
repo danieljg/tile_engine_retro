@@ -135,6 +135,14 @@ void retro_init(void)
 {
   initialize_viewport();
   initialize_bg();
+  //the test pattern lands tile 15 (solid black) as the third member of
+  //some clusters, where it reads as a hole; show the solid gray block
+  //(tile 6, static by design) there instead
+  for (uint16_t i=0; i<layer_tile_number_x*layer_tile_number_y; i++) {
+    if ((bg[0].tilemap[i] & Mask_bgtm_index) == 15) {
+      bg[0].tilemap[i] = (bg[0].tilemap[i] & (~Mask_bgtm_index)) | 6;
+    }
+  }
   initialize_full_sprites();
   initialize_half_sprites();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));

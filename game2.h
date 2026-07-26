@@ -573,14 +573,16 @@ static void check_collisions(void) {
 }
 
 //keeps the wave populated: an idle slot respawns every couple of seconds
+//(state at file scope so save states can capture it)
+static uint16_t spawner_wait = 0;
+static uint8_t spawner_lane = 0;
+
 static void update_enemy_spawner(void) {
-  static uint16_t wait = 0;
-  static uint8_t lane = 0;
-  wait++;
-  if (wait < 120) return;
-  wait = 0;
-  lane = (lane+1) & 0x3;
-  add_enemy(300+(lane<<1), 40+lane*40, lane==3);
+  spawner_wait++;
+  if (spawner_wait < 120) return;
+  spawner_wait = 0;
+  spawner_lane = (spawner_lane+1) & 0x3;
+  add_enemy(300+(spawner_lane<<1), 40+spawner_lane*40, spawner_lane==3);
 }
 
 static void inline update_animations(void) {
