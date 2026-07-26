@@ -1,0 +1,4 @@
+# bg1 asset pack (migrated from .pal/.clr sidecars)
+type background
+tileset bmp/bg1.bmp
+palette assets/bg1_pal0.png

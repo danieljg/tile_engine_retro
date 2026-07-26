@@ -1,0 +1,6 @@
+# hsp asset pack (migrated from .pal/.clr sidecars)
+type halfsprite
+tileset bmp/hsp1.bmp
+palette assets/hsp_pal0.png alpha=1
+palette assets/hsp_pal1.png alpha=1
+palette assets/hsp_pal2.png alpha=1

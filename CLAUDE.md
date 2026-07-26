@@ -23,14 +23,11 @@ make clean      # removes core/*.o, core/*.so, core/*.gfx
 
 ## Asset pipeline
 
-Source art lives in `bmp/` as BMP files plus `.pal` palette files (and `.pal.clr` variants). `bmptogfx` converts them into the custom `.gfx` format loaded at runtime:
+Manifest-driven via `gfxtool` (`tools/gfxtool.c`, built by `make gfxtool`). Each pack has a manifest in `assets/*.mfst` declaring `type` (background/fullsprite/halfsprite), `tileset` images (PNG or BMP) and `palette` images (16 colors from the first 16 raster pixels, `alpha=i,j` marks semitransparent colors). 8-bit indexed BMP tilesets contribute their pixel indices directly (qdbmp); other images are matched RGB-exact against the palette and fail loudly on unknown colors. Other subcommands: `gfxtool dump in.gfx out.png` (contact sheet), `gfxtool import-scene image palette out.gfx out.map` (slice + dedup a 512×512 scene into tileset + tilemap).
 
-```sh
-./bmptogfx <input bmps and pals...> <output.gfx> <gfx_type>
-# gfx_type: 0 = background tileset (16x16), 1 = full sprites (16x16), 2 = half sprites (8x8)
-```
+Tilemaps ship as `.map` files (`"MAP\n"`, width/height bytes, big-endian uint16 entries) loaded by `read_map_data()`. Scene 2's tileset/palette/map are *generated* by `tools/gen_scene2.py` (`make scene2-assets` to regenerate) — its tileset mirrors bg0's animation-band layout (0–5, 8–14, 16/20/21, 17–19, statics 6/7/15) so the scripted sequences in `libretro-core.c` apply to both scenes; keep that layout when adding scene tilesets.
 
-The root Makefile generates `core/bg0.gfx`, `core/bg1.gfx`, `core/fsp.gfx`, `core/hsp.gfx`. At runtime `retro_init` loads these (and the music module `core/test.xm`) by relative path, so RetroArch must be launched with `core/` as the working directory (which `make run` does). Missing assets are logged, not fatal.
+The root Makefile generates all `core/*.gfx` + `core/*.map`. At runtime `retro_init` loads these (and the music module `core/test.xm`) by relative path, so RetroArch must be launched with `core/` as the working directory (which `make run` does). Missing assets are logged, not fatal. The game boots into a scene-select menu (`enter_menu`/`start_scene`); scene 1's map is procedural, scene 2 loads `scene2.map`. Save states record `current_scene` and reload the scene tileset on restore.
 
 ## Architecture
 

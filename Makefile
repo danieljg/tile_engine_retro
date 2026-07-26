@@ -14,14 +14,6 @@ RETROARCH ?= $(shell command -v retroarch \
 
 core_source = \
 	gfx_engine.h game2.h core/libretro.h core/libretro-core.c core/link.T
-bg0_input =	bmp/bg0.bmp	bmp/bg0.pal
-bg1_input =	bmp/bg1.bmp	bmp/bg1.pal
-fsp_input = \
-	bmp/fsp1.bmp bmp/fsp2.bmp \
-	bmp/fsp1.pal bmp/fsp2.pal bmp/fsp3.pal bmp/fsp4.pal bmp/fsp5.pal
-hsp_input = \
-	bmp/hsp1.bmp\
-	bmp/hsp1.pal bmp/hsp2.pal bmp/hsp3.pal
 
 all: $(CORE) GFX
 
@@ -31,23 +23,37 @@ run: $(CORE) GFX
 $(CORE): $(core_source)
 	cd core && make
 
-bmptogfx: bmp_to_gfx.c qdbmp.c
-	gcc -o bmptogfx bmp_to_gfx.c qdbmp.c -lm
+# Asset pipeline: manifest-driven (see assets/*.mfst and tools/gfxtool.c)
+gfxtool: tools/gfxtool.c tools/qdbmp.c tools/stb_image.h tools/stb_image_write.h
+	cc -O2 -std=gnu99 -o gfxtool tools/gfxtool.c tools/qdbmp.c -lm
 
-# Generate GFX
-GFX: core/bg0.gfx core/bg1.gfx core/fsp.gfx core/hsp.gfx
+GFX: core/bg0.gfx core/bg1.gfx core/fsp.gfx core/hsp.gfx \
+     core/scene2.gfx core/scene2.map
 
-core/bg0.gfx: bmptogfx $(bg0_input)
-	./bmptogfx $(bg0_input) core/bg0.gfx 0
+core/bg0.gfx: gfxtool assets/bg0.mfst bmp/bg0.bmp assets/bg0_pal0.png
+	./gfxtool build assets/bg0.mfst core/bg0.gfx
 
-core/bg1.gfx: bmptogfx $(bg1_input)
-	./bmptogfx $(bg1_input) core/bg1.gfx 0
+core/bg1.gfx: gfxtool assets/bg1.mfst bmp/bg1.bmp assets/bg1_pal0.png
+	./gfxtool build assets/bg1.mfst core/bg1.gfx
 
-core/fsp.gfx: bmptogfx $(fsp_input)
-	./bmptogfx $(fsp_input) core/fsp.gfx 1
+core/fsp.gfx: gfxtool assets/fsp.mfst bmp/fsp1.bmp bmp/fsp2.bmp \
+              $(wildcard assets/fsp_pal*.png)
+	./gfxtool build assets/fsp.mfst core/fsp.gfx
 
-core/hsp.gfx: bmptogfx $(hsp_input)
-	./bmptogfx $(hsp_input) core/hsp.gfx 2
+core/hsp.gfx: gfxtool assets/hsp.mfst bmp/hsp1.bmp \
+              $(wildcard assets/hsp_pal*.png)
+	./gfxtool build assets/hsp.mfst core/hsp.gfx
+
+core/scene2.gfx: gfxtool assets/scene2.mfst assets/scene2_tiles.png \
+                 assets/scene2_pal0.png
+	./gfxtool build assets/scene2.mfst core/scene2.gfx
+
+core/scene2.map: assets/scene2.map
+	cp assets/scene2.map core/scene2.map
+
+# Regenerate the generated scene 2 art (requires python3 + Pillow)
+scene2-assets:
+	python3 tools/gen_scene2.py
 
 # Headless test: drives the core through 30s of gameplay plus a
 # save-state round trip under AddressSanitizer. No RetroArch, no libxmp.
@@ -59,7 +65,7 @@ test: GFX
 clean:
 	rm -f core/*.o
 	rm -f core/*.so core/*.dylib
-	rm -f core/*.gfx
+	rm -f core/*.gfx core/*.map
 	rm -f core/test_harness
 	rm -rf core/test_harness.dSYM
-	rm -f bmptogfx
+	rm -f gfxtool

@@ -21,9 +21,13 @@ static void vid(const void *data, unsigned w, unsigned h, size_t pitch){
 static void aud(int16_t l, int16_t r){ (void)l;(void)r; }
 static size_t audb(const int16_t *d, size_t f){ (void)d; return f; }
 static void poll(void){}
+//RIGHT held always; A released for the first 10 frames so the menu's
+//edge detection sees a press (selecting scene 0), then held to fire
 static int16_t inp(unsigned port, unsigned dev, unsigned idx, unsigned id){
   (void)port;(void)dev;(void)idx;
-  return (id==RETRO_DEVICE_ID_JOYPAD_A) || (id==RETRO_DEVICE_ID_JOYPAD_RIGHT);
+  if (id==RETRO_DEVICE_ID_JOYPAD_RIGHT) return 1;
+  if (id==RETRO_DEVICE_ID_JOYPAD_A) return frame_no >= 10;
+  return 0;
 }
 static bool env(unsigned cmd, void *data){
   (void)data;

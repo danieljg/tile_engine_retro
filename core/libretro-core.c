@@ -21,6 +21,15 @@ static uint16_t *frame_buf;
 //state (scroll, tilemap animation, palettes) changes
 static uint16_t *bg_cache;
 static uint8_t bg_cache_dirty = 1;
+/* Live palettes are derived data: base palettes (saved once after the gfx
+   load, re-based on scene loads) -> per-tick effects (shimmer, pulse) ->
+   master fade. */
+static fsp_palette fsp_palette_base[fsp_palette_number];
+static hsp_palette hsp_palette_base[hsp_palette_number];
+static bg_palette  bg_palette_base[bg_layer_count]; //palette 0 of each layer
+static uint8_t bg0_pulse_phase = 0;
+static uint8_t shimmer_phase = 0;
+static uint8_t fade_level = 32; //0 = black .. 32 = full brightness
 static struct retro_log_callback logging;
 static retro_log_printf_t log_cb;
 
@@ -135,18 +144,58 @@ static void load_gfx(const char* path, int gfxtype)
   fclose(file);
 }
 
-void retro_init(void)
+/* ---- scenes ---- */
+typedef struct { const char* gfx; const char* map; } scene_def;
+static const scene_def scene_defs[SCENE_COUNT] = {
+  { "bg0.gfx",    NULL },         //0: Asteroid Run (procedural map)
+  { "scene2.gfx", "scene2.map" }, //1: Crystal Cavern
+};
+
+//the classic test pattern for bg0, with the black tile swapped for the
+//gray block (tile 15 read as a hole as a static cluster member)
+static void build_scene1_map(void)
 {
-  initialize_viewport();
-  initialize_bg();
-  //the test pattern lands tile 15 (solid black) as the third member of
-  //some clusters, where it reads as a hole; show the solid gray block
-  //(tile 6, static by design) there instead
+  uint16_t kk = 0;
+  for (uint16_t i=0; i<layer_tile_number_x*layer_tile_number_y; i++) {
+    bg[0].tilemap[i] = kk % 300;
+    kk += 7;
+  }
   for (uint16_t i=0; i<layer_tile_number_x*layer_tile_number_y; i++) {
     if ((bg[0].tilemap[i] & Mask_bgtm_index) == 15) {
       bg[0].tilemap[i] = (bg[0].tilemap[i] & (~Mask_bgtm_index)) | 6;
     }
   }
+}
+
+static void start_scene(uint8_t id)
+{
+  current_scene = id;
+  load_gfx(scene_defs[id].gfx, 0);
+  if (scene_defs[id].map == NULL) {
+    build_scene1_map();
+  }
+  else {
+    FILE* mf = fopen(scene_defs[id].map, "rb");
+    if (mf) {
+      read_map_data(mf, 0);
+      fclose(mf);
+    }
+    else {
+      log_cb(RETRO_LOG_ERROR, "Missing map file: %s\n", scene_defs[id].map);
+    }
+  }
+  bg_palette_base[0] = bg[0].palette[0]; //re-base pulse/fade on new palette
+  bg_cache_dirty = 1;
+  set_fade(0);
+  frame_counter = 0; //replays the fade-in
+  begin_play();
+}
+
+void retro_init(void)
+{
+  initialize_viewport();
+  initialize_bg();
+  build_scene1_map();
   initialize_full_sprites();
   initialize_half_sprites();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
@@ -314,14 +363,23 @@ static void update_input(void)
 /* Actualiza las mecánicas del juego.
 */
 static void update_game(void) {
-  for (uint8_t i=0; i<MAX_PLAYERS; i++) {
-    update_player(i);
+  if (game_mode == MODE_MENU) {
+    uint8_t selected = update_menu();
+    if (selected != 0xFF) start_scene(selected);
   }
-  update_pprojectiles();
-  update_enemies();
-  update_enemy_spawner();
-  check_collisions();
-  update_hud();
+  else if (play_wants_menu()) {
+    enter_menu();
+  }
+  else {
+    for (uint8_t i=0; i<MAX_PLAYERS; i++) {
+      update_player(i);
+    }
+    update_pprojectiles();
+    update_enemies();
+    update_enemy_spawner();
+    check_collisions();
+    update_hud();
+  }
 
   frame_counter++;
   scroll_frame_counter=frame_counter%bg_scroll_wait_frames;
@@ -402,15 +460,6 @@ static void animate_bg0_blocks(void) {
   }
 }
 
-/* Live palettes are derived data: base palettes (saved once after the gfx
-   load) -> per-tick effects (shimmer, pulse) -> master fade. Fade in/out
-   costs a handful of palette recomputes instead of a per-pixel pass. */
-static fsp_palette fsp_palette_base[fsp_palette_number];
-static hsp_palette hsp_palette_base[hsp_palette_number];
-static bg_palette  bg_palette_base[bg_layer_count]; //palette 0 of each layer
-static uint8_t bg0_pulse_phase = 0;
-static uint8_t fade_level = 32; //0 = black .. 32 = full brightness
-
 static void save_base_palettes(void) {
   memcpy(fsp_palette_base, fsp.palette, sizeof(fsp_palette_base));
   memcpy(hsp_palette_base, hsp.palette, sizeof(hsp_palette_base));
@@ -455,12 +504,13 @@ static color_16bit inline shift_brightness(color_16bit c, int8_t d) {
   return (c&Mask_alpha) | (r<<10) | (g<<5) | b;
 }
 
-static uint8_t shimmer_phase = 0;
+/* Shimmer and pulse are split into apply (recompute from base at the
+   current phase — also used after a save-state restore) and tick
+   (advance the phase, then apply). */
 
 //ship palette shimmer: oscillates the brightness of fsp palettes 1-4
 //(one per player ship) by +/-1 around the values loaded from fsp.gfx
-static void shimmer_ship_palettes(void) {
-  shimmer_phase = (shimmer_phase+1) & 3;
+static void apply_shimmer(void) {
   int8_t delta = (shimmer_phase==1) - (shimmer_phase==3); // 0,+1,0,-1
   for (uint8_t p=1; p<=4; p++) {
     for (uint8_t c=1; c<fsp_palette_color_count; c++) { //index 0 is transparent
@@ -470,18 +520,27 @@ static void shimmer_ship_palettes(void) {
   }
 }
 
+static void shimmer_ship_palettes(void) {
+  shimmer_phase = (shimmer_phase+1) & 3;
+  apply_shimmer();
+}
+
 //bg0 palette pulse: the colors participating in the block animations
 //(indices 6-15; 0-5 are backdrop and structural grays) breathe +/-1
 //around their loaded values, each index offset in phase
-static void pulse_bg0_palette(void) {
+static void apply_pulse(void) {
   static const int8_t deltas[4] = {0, 1, 0, -1};
-  bg0_pulse_phase = (bg0_pulse_phase+1) & 3;
   for (uint8_t c=6; c<bg_palette_color_count; c++) {
     bg[0].palette[0].color[c] =
       apply_fade(shift_brightness(bg_palette_base[0].color[c],
                                   deltas[(bg0_pulse_phase + c) & 3]));
   }
   bg_cache_dirty = 1;
+}
+
+static void pulse_bg0_palette(void) {
+  bg0_pulse_phase = (bg0_pulse_phase+1) & 3;
+  apply_pulse();
 }
 
 static color_16bit inline average_colors(color_16bit color1, color_16bit color2) {
@@ -755,7 +814,7 @@ bool retro_load_game_special(unsigned type, const struct retro_game_info *info, 
    but serializing them keeps the first frame after a load exact.
    Not endian-portable; music position is not saved. */
 #define SAVESTATE_MAGIC   0x30524554 // "TER0"
-#define SAVESTATE_VERSION 1
+#define SAVESTATE_VERSION 2
 
 typedef struct { void* ptr; size_t size; } save_block;
 
@@ -771,6 +830,13 @@ static const save_block save_blocks[] = {
   {&gamedata2, sizeof(gamedata2)},
   {&spawner_wait, sizeof(spawner_wait)},
   {&spawner_lane, sizeof(spawner_lane)},
+  //mode and scene state
+  {&game_mode, sizeof(game_mode)},
+  {&menu_cursor, sizeof(menu_cursor)},
+  {&current_scene, sizeof(current_scene)},
+  {&menu_prev_input, sizeof(menu_prev_input)},
+  {&play_prev_input, sizeof(play_prev_input)},
+  {&menu_cursor_sprite, sizeof(menu_cursor_sprite)},
   //full sprite bank: OAM, free list, scroll, live palettes
   {fsp.oam, sizeof(fsp.oam)},
   {fsp.oam2, sizeof(fsp.oam2)},
@@ -798,6 +864,11 @@ static const save_block save_blocks[] = {
   {bg[1].offset_x, sizeof(bg[1].offset_x)},
   {bg[1].offset_y, sizeof(bg[1].offset_y)},
   {bg[1].palette, sizeof(bg[1].palette)},
+  //palette derivation state (bases are re-based on scene loads)
+  {fsp_palette_base, sizeof(fsp_palette_base)},
+  {hsp_palette_base, sizeof(hsp_palette_base)},
+  {bg_palette_base, sizeof(bg_palette_base)},
+  {&fade_level, sizeof(fade_level)},
   //viewport and timeline
   {&viewport, sizeof(viewport)},
   {&frame_counter, sizeof(frame_counter)},
@@ -841,6 +912,17 @@ bool retro_unserialize(const void *data_, size_t size)
       memcpy(save_blocks[i].ptr, p, save_blocks[i].size);
       p += save_blocks[i].size;
    }
+   /* The bg0 tileset is scene-dependent and not part of the state; reload
+      it for the restored scene (this clobbers the live bg palette with
+      file data), then rebuild all live palettes from the restored bases,
+      fade and effect phases so the restore is exact. */
+   if (current_scene < SCENE_COUNT) {
+      load_gfx(scene_defs[current_scene].gfx, 0);
+   }
+   refresh_palettes();
+   apply_shimmer();
+   apply_pulse();
+   bg_cache_dirty = 1;
    return true;
 }
 

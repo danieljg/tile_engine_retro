@@ -59,10 +59,28 @@ GFX file format (as written by bmptogfx)
  Tile data            - qty x (size x size / 2) bytes, 4bpp packed,
                         leftmost pixel in the high nibble
 
-bmptogfx usage: ./bmptogfx <tileset.bmp...> <palette.pal...> out.gfx type
- type 0: background (16x16), 1: full sprites (16x16), 2: half sprites (8x8)
- .pal files are 4x4 indexed BMPs; a .pal.clr sidecar of 0/1 lines marks
- semitransparent colors. (A manifest-driven replacement is planned.)
+gfxtool (tools/gfxtool.c) builds and inspects assets:
+ gfxtool build <manifest> <out.gfx>
+   Manifests (assets/*.mfst) declare type (background/fullsprite/
+   halfsprite), tileset images (PNG or BMP) and palettes (16-color
+   images, first 16 raster pixels; alpha=i,j marks semitransparent
+   colors). 8-bit indexed BMPs contribute their pixel indices directly;
+   other images are matched RGB-exact against the palette and fail
+   loudly on unknown colors.
+ gfxtool dump <in.gfx> <out.png>
+   Tileset contact sheet for inspection.
+ gfxtool import-scene <image> <palette> <out.gfx> <out.map>
+   Slices a 512x512 scene image into tiles, deduplicates identical
+   tiles, and emits tileset + tilemap.
+
+MAP file format (tilemaps, loaded with read_map_data):
+ File header "MAP\n"  - 4 bytes
+ Width, height        - 1 byte each (32x32)
+ Entries              - w x h x 2 bytes, big-endian tilemap words
+
+Scenes: the boot menu selects a scene; each scene is a bg0 tileset
+(.gfx) plus a tilemap (.map, or procedural). Scene 2's art is generated
+by tools/gen_scene2.py.
 
 Save states
 

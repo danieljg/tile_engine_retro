@@ -57,16 +57,23 @@ Goal: back from the graveyard, nice demo for Luis in a few weeks.
     palettes from bases; boot does a 64-frame fade-in from black
 [x] Vertical flip, rotation (see OAM transforms above)
 
-== 4. TOOLING (bmptogfx is too obtuse) ==
+== 4. TOOLING == (gfxtool replaces bmptogfx; legacy outputs verified
+                   byte-identical before the switch)
 
-[ ] Manifest-driven conversion: one small config per asset pack replaces
-    positional args, the 4x4-BMP palette heuristic, and .pal.clr sidecars
-[ ] PNG input (stb_image) so assets come straight out of Aseprite
-[ ] Reverse direction: gfx -> PNG dump for verification
-[ ] Deduplicate identical tiles (and mirrored ones once flips exist)
-[ ] Tiled .tmx -> tilemap blob converter (replace hand-poked test pattern)
-[ ] Validate inputs, fail loudly: bit depth, color count, tile overflow,
-    >16 inputs (currently silent stack smash)
+[x] Manifest-driven conversion (assets/*.mfst): type + tileset + palette
+    lines with alpha= flags replace positional args, the 4x4-BMP palette
+    heuristic, and .pal.clr sidecars
+[x] PNG input and output via vendored stb_image / stb_image_write;
+    indexed BMPs keep their exact pixel indices via qdbmp
+[x] Reverse direction: gfxtool dump renders any .gfx as a contact sheet
+[x] Deduplicate identical tiles: gfxtool import-scene turns a 512x512
+    scene image into a tileset + 32x32 .map (98% saved on the test scene);
+    mirrored-tile dedup waits for background flip support in the renderer
+[x] Tilemap pipeline: MAP file format + read_map_data() replace the
+    hand-poked pattern for authored scenes (Tiled .tmx superseded by
+    scene images and generated maps; revisit if a real level editor lands)
+[x] Validation everywhere: unknown colors (with pixel position), bad
+    dimensions, tile overflow, unknown directives — all fail loudly
 
 == 5. STRUCTURE & LONGEVITY ==
 

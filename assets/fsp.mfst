@@ -1,0 +1,9 @@
+# fsp asset pack (migrated from .pal/.clr sidecars)
+type fullsprite
+tileset bmp/fsp1.bmp
+tileset bmp/fsp2.bmp
+palette assets/fsp_pal0.png
+palette assets/fsp_pal1.png alpha=9,10,11,12
+palette assets/fsp_pal2.png alpha=9,10,11,12
+palette assets/fsp_pal3.png alpha=9,10,11,12
+palette assets/fsp_pal4.png alpha=9,10,11,12

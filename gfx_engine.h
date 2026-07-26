@@ -288,6 +288,18 @@ static void inline set_fsp(int16_t sp_id, int16_t sp_index) {
   fsp.oam[sp_id] = (oambuff&(~Mask_fsp_oam_index))|sp_index;
 }
 
+//releases every full-sprite slot; palettes and tilesets are untouched
+void clear_all_fsp(void) {
+ //all OAM slots become free; pushed in reverse so slot 0 pops first
+ for(uint8_t ii=0;ii<fsp_count;ii++) {
+  fsp.oam[ii]=0x00;
+  fsp.oam2[ii]=0x00;
+  fsp.oam3[ii]=0x00;
+  fsp.free_stack[ii]=fsp_count-1-ii;
+ }
+ fsp.free_count=fsp_count;
+}
+
 void initialize_full_sprites(void) {
  for(uint8_t ii=0;ii<fsp_palette_number;ii++)
  {
@@ -298,14 +310,7 @@ void initialize_full_sprites(void) {
  }
  fsp.offset_x=0;
  fsp.offset_y=0;
- //all OAM slots start free; pushed in reverse so slot 0 pops first
- for(uint8_t ii=0;ii<fsp_count;ii++) {
-  fsp.oam[ii]=0x00;
-  fsp.oam2[ii]=0x00;
-  fsp.oam3[ii]=0x00;
-  fsp.free_stack[ii]=fsp_count-1-ii;
- }
- fsp.free_count=fsp_count;
+ clear_all_fsp();
 }
 
 //half sprites are 4bpp like everything else: 8 palettes of 16 colors
@@ -431,6 +436,18 @@ void draw_text( char label[],
   }
 }
 
+//releases every half-sprite slot; palettes and tilesets are untouched
+void clear_all_hsp(void) {
+  //all OAM slots become free; pushed in reverse so slot 0 pops first
+  for(uint8_t ii=0;ii<hsp_count;ii++) {
+    hsp.oam[ii]=0x00;
+    hsp.oam2[ii]=0x00;
+    hsp.oam3[ii]=0x00;
+    hsp.free_stack[ii]=hsp_count-1-ii;
+  }
+  hsp.free_count=hsp_count;
+}
+
 void initialize_half_sprites(void)
 {
   for(uint8_t ii=0;ii<hsp_palette_number;ii++)
@@ -441,14 +458,7 @@ void initialize_half_sprites(void)
   }
   hsp.offset_x=0;
   hsp.offset_y=0;
-  //all OAM slots start free; pushed in reverse so slot 0 pops first
-  for(uint8_t ii=0;ii<hsp_count;ii++) {
-    hsp.oam[ii]=0x00;
-    hsp.oam2[ii]=0x00;
-    hsp.oam3[ii]=0x00;
-    hsp.free_stack[ii]=hsp_count-1-ii;
-  }
-  hsp.free_count=hsp_count;
+  clear_all_hsp();
 }
 
 /* Reads graphics data from a gfx file.
@@ -550,7 +560,7 @@ void read_gfx_data(FILE* file, int gfxtype) {
   fprintf(stdout,"----- Tile Data Ends -----\n\n");
 
   //pre-compute the transformed tilesets for the sprite layers
-  if (gfxtype==2) {
+  if (gfxtype==2) { //(gfxtype 0/1 background layers have no variants)
     generate_tile_variants((const uint32_t*)fsp.tile, (uint32_t*)fsp.tile_h,
                            (uint32_t*)fsp.tile_r, (uint32_t*)fsp.tile_rh,
                            fsp_tileset_number, full_tile_size);
@@ -561,6 +571,28 @@ void read_gfx_data(FILE* file, int gfxtype) {
                            hsp_tileset_number, half_tile_size);
   }
   fprintf(stdout,"*** The End ***\n\n");
+}
+
+/* Reads a 32x32 tilemap from a MAP file (as written by gfxtool) into a
+   background layer. Entries are big-endian uint16 tilemap words. */
+void read_map_data(FILE* file, uint8_t layer) {
+  uint8_t buff[6];
+  if (fread(buff,1,6,file)!=6 || memcmp(buff,"MAP\n",4)!=0) {
+    fprintf(stdout,"MAP: bad header\n");
+    return;
+  }
+  if (buff[4]!=layer_tile_number_x || buff[5]!=layer_tile_number_y) {
+    fprintf(stdout,"MAP: unexpected size %dx%d\n",buff[4],buff[5]);
+    return;
+  }
+  for (uint16_t i=0;i<layer_tile_number_x*layer_tile_number_y;i++) {
+    uint8_t b[2];
+    if (fread(b,1,2,file)!=2) {
+      fprintf(stdout,"MAP: truncated at entry %d\n",i);
+      return;
+    }
+    bg[layer].tilemap[i]=(uint16_t)((b[0]<<8)|b[1]);
+  }
 }
 
 #endif //GFX_ENGINE_H

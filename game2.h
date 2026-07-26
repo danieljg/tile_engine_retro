@@ -596,16 +596,71 @@ static void inline update_animations(void) {
   }
 }
 
-static void initialize_game(void) {
-  fprintf(stdout, "Iniciando juego\n");
-  gamedata1 = 0x00000000;
-  gamedata2 = 0x00000000;
+/* ---- game modes: scene-select menu and play ---- */
+
+#define MODE_MENU    0
+#define MODE_PLAYING 1
+#define SCENE_COUNT  2
+
+static uint8_t game_mode = MODE_MENU;
+static uint8_t menu_cursor = 0;
+static uint8_t current_scene = 0;
+static uint8_t menu_prev_input = 0;
+static uint8_t play_prev_input = 0;
+static uint8_t menu_cursor_sprite = 0;
+
+#define MENU_OPT_X 112
+#define MENU_OPT_Y 120
+#define MENU_OPT_SPACING 20
+
+//the menu draws over whatever background is loaded, which keeps scrolling
+static void enter_menu(void) {
+  clear_all_fsp();
+  clear_all_hsp();
+  draw_text("TILE ENGINE RETRO", 92, 60, 2);
+  draw_text("ASTEROID RUN", MENU_OPT_X, MENU_OPT_Y, 0);
+  draw_text("CRYSTAL CAVERN", MENU_OPT_X, MENU_OPT_Y+MENU_OPT_SPACING, 0);
+  draw_text("DANIEL AND LUIS 2017-2026", 60, 208, 1);
+  menu_cursor_sprite = add_hsp('>', 2, MENU_OPT_X-12,
+                               MENU_OPT_Y + menu_cursor*MENU_OPT_SPACING);
+  menu_prev_input = 0xFF; //swallow buttons held on entry
+  game_mode = MODE_MENU;
+}
+
+//returns the selected scene id, or 0xFF while still browsing
+static uint8_t update_menu(void) {
+  uint8_t input = players.base[0] & MASK_PLAYER_BASE_INPUT;
+  uint8_t edge = input & (uint8_t)(~menu_prev_input);
+  menu_prev_input = input;
+  if (edge & MASK_INPUT_UP)
+    menu_cursor = (menu_cursor + SCENE_COUNT - 1) % SCENE_COUNT;
+  if (edge & MASK_INPUT_DOWN)
+    menu_cursor = (menu_cursor + 1) % SCENE_COUNT;
+  set_pos_hsp(menu_cursor_sprite, MENU_OPT_X-12,
+              MENU_OPT_Y + menu_cursor*MENU_OPT_SPACING);
+  if (edge & (MASK_INPUT_A | MASK_INPUT_START)) return menu_cursor;
+  return 0xFF;
+}
+
+//in play mode, START (edge) returns to the menu
+static uint8_t play_wants_menu(void) {
+  uint8_t input = players.base[0] & MASK_PLAYER_BASE_INPUT;
+  uint8_t edge = input & (uint8_t)(~play_prev_input);
+  play_prev_input = input;
+  return (edge & MASK_INPUT_START) != 0;
+}
+
+//spawns everything for a fresh play session (scene assets already loaded)
+static void begin_play(void) {
+  clear_all_fsp();
+  clear_all_hsp();
   initialize_players();
   initialize_enemies();
   initialize_player_projectiles();
   initialize_enemy_projectiles();
   initialize_powerups();
-  initialize_topscores();
+  spawner_wait = 0;
+  spawner_lane = 0;
   add_hud();
   add_player(0, 20<<3, 200<<3);
   add_player(1, 60<<3, 200<<3);
@@ -616,6 +671,21 @@ static void initialize_game(void) {
   add_enemy(310,  80, 0);
   add_enemy(290, 120, 0);
   add_enemy(305, 160, 1);
+  play_prev_input = 0xFF; //swallow the button that started the scene
+  game_mode = MODE_PLAYING;
+}
+
+static void initialize_game(void) {
+  fprintf(stdout, "Iniciando juego\n");
+  gamedata1 = 0x00000000;
+  gamedata2 = 0x00000000;
+  initialize_players();
+  initialize_enemies();
+  initialize_player_projectiles();
+  initialize_enemy_projectiles();
+  initialize_powerups();
+  initialize_topscores();
+  enter_menu();
 }
 
 #endif //GAME2_H
