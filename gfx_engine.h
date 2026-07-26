@@ -1,4 +1,10 @@
 //Tile-based graphics engine
+#ifndef GFX_ENGINE_H
+#define GFX_ENGINE_H
+
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 //the engine uses 16 bit color in the format define by the following bitmasks:
 #define Mask_alpha	0x8000
@@ -39,7 +45,7 @@ typedef struct {
 
 vp viewport;
 
-void initialize_viewport() {
+void initialize_viewport(void) {
  viewport.width		= full_tile_size*vp_tile_number_x;
  viewport.height 	= full_tile_size*vp_tile_number_y;
  viewport.x_origin	= vp_x_origin;
@@ -87,7 +93,7 @@ typedef struct {
 
 bg_struct bg[bg_layer_count];
 
-void initialize_bg()
+void initialize_bg(void)
 {
   uint16_t kk=0;
   for(uint8_t ll=0; ll<bg_layer_count; ll++) {
@@ -113,7 +119,7 @@ void initialize_bg()
   }
 }
 
-void initialize_bg_palettes()
+void initialize_bg_palettes(void)
 {
  for(uint8_t kk=0;kk<bg_layer_count;kk++)
  {
@@ -213,10 +219,10 @@ void delete_fsp(uint8_t sp_id) {
   fsp.oam[sp_id] = 0x00;
   fsp.oam2[sp_id] = 0x00;
   fsp.oam3[sp_id] = 0x00;
-  if ((sp_id+1)==fsp.active_number) { // if is the last active sprite
-    do { //recorrer fsp.active_number hasta encontrar sprites en uso.
-      fsp.active_number--;
-    } while (Mask_fsp_oam_in_use & (~fsp.oam[fsp.active_number-1]));
+  //recorrer fsp.active_number hasta encontrar sprites en uso
+  while (fsp.active_number > 0 &&
+         (Mask_fsp_oam_in_use & (~fsp.oam[fsp.active_number-1]))) {
+    fsp.active_number--;
   }
 }
 
@@ -242,7 +248,7 @@ static void inline set_fsp(int16_t sp_id, int16_t sp_index) {
   fsp.oam[sp_id] = (oambuff&(~Mask_fsp_oam_index))|sp_index;
 }
 
-void initialize_full_sprites() {
+void initialize_full_sprites(void) {
  for(uint8_t ii=0;ii<fsp_palette_number;ii++)
  {
   for(uint8_t jj=0;jj<fsp_palette_color_count;jj++)
@@ -338,10 +344,10 @@ void delete_hsp(uint8_t sp_id) {
   hsp.oam[sp_id] = 0x00;
   hsp.oam2[sp_id] = 0x00;
   hsp.oam3[sp_id] = 0x00;
-  if ((sp_id+1)==hsp.active_number) { // if is the last active sprite
-    do { //recorrer fsp.active_number hasta encontrar sprites en uso.
-      hsp.active_number--;
-    } while (Mask_hsp_oam_in_use & (~hsp.oam[hsp.active_number-1]));
+  //recorrer hsp.active_number hasta encontrar sprites en uso
+  while (hsp.active_number > 0 &&
+         (Mask_hsp_oam_in_use & (~hsp.oam[hsp.active_number-1]))) {
+    hsp.active_number--;
   }
 }
 
@@ -378,7 +384,7 @@ void draw_text( char label[],
   }
 }
 
-void initialize_half_sprites()
+void initialize_half_sprites(void)
 {
   for(uint8_t ii=0;ii<hsp_palette_number;ii++)
   {
@@ -494,9 +500,11 @@ void read_gfx_data(FILE* file, int gfxtype) {
   fprintf(stdout,"*** The End ***\n\n");
 }
 
-void update_animations2() {
+void update_animations2(void) {
   // Animating spaceships
   for (uint8_t i=0; i<2; i++) {
     fsp.oam[i]=(fsp.oam[i]&(~Mask_fsp_oam_index))|((((fsp.oam[i]&Mask_fsp_oam_index)+1)%3)+13);
   }
 }
+
+#endif //GFX_ENGINE_H

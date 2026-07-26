@@ -3,10 +3,11 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
-#include <math.h>
 #include <unistd.h>
 #include <fcntl.h>
+#ifdef HAVE_XMP
 #include <xmp.h>
+#endif
 
 #include "libretro.h"
 #include "../gfx_engine.h"
@@ -20,8 +21,10 @@ static uint16_t *frame_buf;
 static struct retro_log_callback logging;
 static retro_log_printf_t log_cb;
 
+#ifdef HAVE_XMP
 static xmp_context ctx;
 static struct xmp_module_info mi;
+static uint8_t music_playing = 0;
 
 static void display_audiomodule_info(struct xmp_module_info *mi)
 {
@@ -81,6 +84,7 @@ static void display_audiomodule_info(struct xmp_module_info *mi)
 		printf("\n");
 	}
 }
+#endif //HAVE_XMP
 
 
 
@@ -110,10 +114,17 @@ static uint32_t scrolling_tilemap_index=0;
 #else
 #endif
 
-// Audio variables
-static FILE* audiofile;
-static unsigned phase;
-static uint8_t makesound=0;
+//loads a gfx file from the frontend's working directory (core/ via make run)
+static void load_gfx(const char* path, int gfxtype)
+{
+  FILE* file = fopen(path,"rb");
+  if (!file) {
+    log_cb(RETRO_LOG_ERROR, "Missing graphics file: %s\n", path);
+    return;
+  }
+  read_gfx_data(file, gfxtype);
+  fclose(file);
+}
 
 void retro_init(void)
 {
@@ -122,47 +133,37 @@ void retro_init(void)
   initialize_full_sprites();
   initialize_half_sprites();
   frame_buf = calloc(viewport.width * viewport.height, sizeof(uint16_t));
-  FILE* file = fopen("bg1.gfx","rb");
-  read_gfx_data(file, 0);
-  fclose(file);
-  file = fopen("bg1.gfx","rb");
-  read_gfx_data(file, 1);
-  fclose(file);
-  file = fopen("fsp.gfx","rb");//Remember to close
-  read_gfx_data(file, 2);
-  fclose(file);
-  file = fopen("hsp.gfx","rb");
-  read_gfx_data(file,3);
-  fclose(file);
-  fprintf(stdout,"=============================\n");
-  fprintf(stdout,"%u ------\n",bg[0].tilemap[464]);
-  char cwd[1024];
-  if (getcwd(cwd, sizeof(cwd)) != NULL)
-    fprintf(stdout, "Current working dir: %s\n", cwd);
-  //initialize_game();
+  load_gfx("bg0.gfx", 0);
+  load_gfx("bg1.gfx", 1);
+  load_gfx("fsp.gfx", 2);
+  load_gfx("hsp.gfx", 3);
   initialize_game();
   default_scores();
-  fprintf(stdout, "mark1s\n");
+#ifdef HAVE_XMP
   ctx = xmp_create_context();
-  audiofile = fopen("airwolf2.mod","rb");
-  //if( xmp_load_module_from_file(ctx,&file,135862) == 0 ){
-  char* audiofilepath="/home/daniel/build/tileengineretro_test/tile_engine_retro/core/test.xm";
-  if( xmp_load_module(ctx,audiofilepath) == 0 ){
-    fprintf(stdout, "mark2\n");
+  if( xmp_load_module(ctx,"test.xm") == 0 ){
     if (xmp_start_player(ctx, 31920, XMP_FORMAT_MONO) == 0) {
+      music_playing = 1;
       xmp_get_module_info(ctx, &mi);
       display_audiomodule_info(&mi);
     }
-  } 
-  fprintf(stdout, "mark3\n");
+  }
+  else {
+    log_cb(RETRO_LOG_WARN, "Could not load music module test.xm\n");
+  }
+#endif
 }
 
 void retro_deinit(void)
 {
-   xmp_end_player(ctx);
-   xmp_release_module(ctx);
+#ifdef HAVE_XMP
+   if (music_playing) {
+      xmp_end_player(ctx);
+      xmp_release_module(ctx);
+   }
    xmp_free_context(ctx);
-   fclose(audiofile);
+   music_playing = 0;
+#endif
    free(frame_buf);
    frame_buf = NULL;
 }
@@ -250,13 +251,8 @@ void retro_set_video_refresh(retro_video_refresh_t cb)
    video_cb = cb;
 }
 
-static unsigned x_coord;
-static unsigned y_coord;
-
 void retro_reset(void)
 {
-   x_coord = 0;
-   y_coord = 0;
 }
 
 static void move_viewport(int8_t vel_x, int8_t vel_y) {
@@ -326,7 +322,7 @@ static void update_input(void)
 
 /* Actualiza las mecánicas del juego.
 */
-static void update_game() {
+static void update_game(void) {
   //update_entities();
   for (uint8_t i=0; i<game.player_count; i++) {
     update_player(&game.players[i]);
@@ -570,19 +566,18 @@ static void check_variables(void)
 
 static void audio_callback(void)
 {
-   struct xmp_frame_info fi;
-   int16_t audiobuff[532];
-   xmp_play_buffer(ctx,&audiobuff,532*2,1);
-   //xmp_play_frame(ctx);
-   //xmp_get_frame_info(ctx,&fi);
-   //fprintf(stdout,"%i\n",fi.buffer_size);
-   //fprintf(stdout,"%i\n",fi.frame_time);
-   for(unsigned ii=0;ii<532;ii++,phase++) {
-      //int16_t val = 0x800 * sinf(2.0f * M_PI * phase * 300.0f / 30000.0f);
-      //audio_cb(val, val);
+   int16_t audiobuff[532];//532 samples at 31920 Hz is exactly one 60 fps frame
+#ifdef HAVE_XMP
+   if (music_playing)
+      xmp_play_buffer(ctx,&audiobuff,532*2,1);
+   else
+      memset(audiobuff, 0, sizeof(audiobuff));
+#else
+   memset(audiobuff, 0, sizeof(audiobuff));
+#endif
+   for(unsigned ii=0;ii<532;ii++) {
       audio_cb(audiobuff[ii], audiobuff[ii]);
    }
-   //audio_cb=(0,0);
 }
 
 void retro_run(void)
@@ -623,38 +618,30 @@ unsigned retro_get_region(void)
 
 bool retro_load_game_special(unsigned type, const struct retro_game_info *info, size_t num)
 {
-   if (type != 0x200)
-      return false;
-   if (num != 2)
-      return false;
-   return retro_load_game(NULL);
+   (void)type;
+   (void)info;
+   (void)num;
+   return false;
 }
 
+//TODO: real save states — serialize game + OAM + scroll state
 size_t retro_serialize_size(void)
 {
-   return 2;
+   return 0;
 }
 
 bool retro_serialize(void *data_, size_t size)
 {
-   if (size < 2)
-      return false;
-
-   uint8_t *data = data_;
-   data[0] = x_coord;
-   data[1] = y_coord;
-   return true;
+   (void)data_;
+   (void)size;
+   return false;
 }
 
 bool retro_unserialize(const void *data_, size_t size)
 {
-   if (size < 2)
-      return false;
-
-   const uint8_t *data = data_;
-   x_coord = data[0] & 31;
-   y_coord = data[1] & 31;
-   return true;
+   (void)data_;
+   (void)size;
+   return false;
 }
 
 void *retro_get_memory_data(unsigned id)

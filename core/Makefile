@@ -32,21 +32,6 @@ endif
 TARGET_NAME := tile_engine_retro
 LIBM		= -lm
 
-ifeq ($(ARCHFLAGS),)
-ifeq ($(archs),ppc)
-   ARCHFLAGS = -arch ppc -arch ppc64
-else
-   ARCHFLAGS = -arch i386 -arch x86_64
-endif
-endif
-
-ifeq ($(platform), osx)
-ifndef ($(NOUNIVERSAL))
-   CFLAGS += $(ARCHFLAGS)
-   LFLAGS += $(ARCHFLAGS)
-endif
-endif
-
 ifeq ($(STATIC_LINKING), 1)
 EXT := a
 endif
@@ -104,7 +89,16 @@ else
 endif
 
 LDFLAGS += $(LIBM)
-LDFLAGS += -lxmp
+
+# Music via libxmp is optional; auto-detected through pkg-config.
+# Override with `make HAVE_XMP=0` or `make HAVE_XMP=1`.
+ifeq ($(HAVE_XMP),)
+   HAVE_XMP := $(shell pkg-config --exists libxmp 2>/dev/null && echo 1 || echo 0)
+endif
+ifeq ($(HAVE_XMP), 1)
+   CFLAGS  += -DHAVE_XMP $(shell pkg-config --cflags libxmp)
+   LDFLAGS += $(shell pkg-config --libs libxmp)
+endif
 
 ifeq ($(DEBUG), 1)
    CFLAGS += -O0 -g

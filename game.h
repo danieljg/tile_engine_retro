@@ -1,3 +1,11 @@
+#ifndef GAME_H
+#define GAME_H
+
+#include <stdint.h>
+#include <stdio.h>
+
+#include "gfx_engine.h"
+
 #define MAX_PLAYERS 4
 #define MAX_ENEMIES 8
 #define MAX_PROJECTILES 64
@@ -188,7 +196,7 @@ typedef struct {
   uint8_t input_state; //4 direction buttons, 3 action buttons, 1 Start button.
   physics_body body;
   uint8_t lives; //(0-8) 3 bits
-  uint16_t score; // player total score 16 bits
+  uint32_t score; // player total score (default hi-scores exceed 16 bits)
   weapon_state weapon_A;
   weapon_state weapon_B;
   fsp_animation animation;
@@ -202,7 +210,7 @@ static void update_player(player *plyr) {
 
   // updating horizontal and vertical velocity
   #define ORT_SPD 12
-  #define DIA_SPD 12
+  #define DIA_SPD 8 //~= ORT_SPD/sqrt(2), keeps diagonal speed uniform
   uint8_t speed;
   if ((state & MASK_INPUT_UP || state & MASK_INPUT_DOWN)&&(state & MASK_INPUT_LEFT || state & MASK_INPUT_RIGHT)) {
     speed = DIA_SPD;
@@ -262,20 +270,19 @@ game_control;
 game_control game;
 
 static uint8_t add_player(uint16_t pos_x, uint16_t pos_y) {
-  if (game.player_count < MAX_PLAYERS) {
-    uint8_t new_id = game.player_count;
-    game.players[new_id].lives = START_LIVES;
-    pbody_set_x(&game.players[new_id].body, pos_x);
-    pbody_set_y(&game.players[new_id].body, pos_y);
-    uint8_t new_sprite_id = add_fsp(12, 1+new_id, pos_x, pos_y);
-    game.players[new_id].animation.data = ( new_sprite_id | 12 << 8 | 3 << 28 );
-    game.player_count++;
-    return 1;
-  }
-  else return 0;
+  if (game.player_count >= MAX_PLAYERS) return 0;
+  uint8_t new_id = game.player_count;
+  uint8_t new_sprite_id = add_fsp(12, 1+new_id, pos_x, pos_y);
+  if (new_sprite_id >= fsp_count) return 0; //no free sprite slot
+  game.players[new_id].lives = START_LIVES;
+  pbody_set_x(&game.players[new_id].body, pos_x);
+  pbody_set_y(&game.players[new_id].body, pos_y);
+  game.players[new_id].animation.data = ( new_sprite_id | 12 << 8 | 3 << 28 );
+  game.player_count++;
+  return 1;
 }
 
-static void inline add_hud() {
+static void inline add_hud(void) {
   for (uint8_t ii=0; ii<5; ii++) add_hsp('0', 0, 204+ii*8, 230);
   for (uint8_t ii=0; ii<5; ii++) add_hsp('0', 0, 252+ii*8, 230);
   //hi-score digits (indexes 6 to 11)
@@ -313,7 +320,7 @@ static void inline update_hiscore(uint32_t score) {
   }
 }
 
-static void inline update_hud() {
+static void inline update_hud(void) {
   #define SHIP_ID 0
   int16_t ship_x, ship_y;
   //ship_y = fsp.oam2[SHIP_ID]&Mask_fsp_oam2_y_pos;
@@ -325,7 +332,7 @@ static void inline update_hud() {
   update_hiscore(game.top_scores[0].score);
 }
 
-static void add_projectile() {
+static void add_projectile(void) {
   uint8_t new_id = game.projectile_count;
   if (new_id < MAX_PROJECTILES) {
     game.projectiles[new_id].state = 0x01;
@@ -335,10 +342,11 @@ static void add_projectile() {
     game.projectiles[new_id].damage = 5;
     game.projectiles[new_id].is_enemy = 0;
     game.projectiles[new_id].animation.data = 0x60000D01;//( 1 )| ( 13 <<8 ) | ( 6 << 28);
+    game.projectile_count++;
   }
 }
 
-static void initialize_game() {
+static void initialize_game(void) {
   fprintf(stdout, "Iniciando juego\n");
   game.player_count = 0;
   for (uint8_t i=0; i<MAX_PLAYERS; i++) {
@@ -406,26 +414,28 @@ static void initialize_game() {
   fprintf(stdout, "Pos X: %u Pos Y: %u\n", pos_x>>3, pos_y>>3);
 }
 
-static void default_scores() {
-  game.top_scores[0].initials = (' '<<24)|('A'<<16)|('B'<<8)|'C';
+#define INITIALS(a,b,c) ((uint32_t)(' '<<24)|((a)<<16)|((b)<<8)|(c))
+
+static void default_scores(void) {
+  game.top_scores[0].initials = INITIALS('A','B','C');
   game.top_scores[0].score = 450000;
-  game.top_scores[1].initials = (' '<<24)|('D'<<16)|('E'<<8)|'F';;
+  game.top_scores[1].initials = INITIALS('D','E','F');
   game.top_scores[1].score = 350000;
-  game.top_scores[2].initials = " GHI";
+  game.top_scores[2].initials = INITIALS('G','H','I');
   game.top_scores[2].score = 100000;
-  game.top_scores[3].initials = " JKL";
+  game.top_scores[3].initials = INITIALS('J','K','L');
   game.top_scores[3].score = 50000;
-  game.top_scores[4].initials = " MNO";
+  game.top_scores[4].initials = INITIALS('M','N','O');
   game.top_scores[4].score = 25000;
-  game.top_scores[5].initials = " PQR";
+  game.top_scores[5].initials = INITIALS('P','Q','R');
   game.top_scores[5].score = 10000;
-  game.top_scores[6].initials = " STU";
+  game.top_scores[6].initials = INITIALS('S','T','U');
   game.top_scores[6].score = 5000;
-  game.top_scores[7].initials = " VWX";
+  game.top_scores[7].initials = INITIALS('V','W','X');
   game.top_scores[7].score = 2500;
 }
 
-static void inline update_animations() {
+static void inline update_animations(void) {
   for (uint8_t plyr_id=0; plyr_id<game.player_count; plyr_id++) {
     fsp_animation_update
 (&game.players[plyr_id].animation);
@@ -437,3 +447,5 @@ static void inline update_animations() {
   }
   */
 }
+
+#endif //GAME_H

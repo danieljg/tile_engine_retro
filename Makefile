@@ -1,3 +1,17 @@
+# The core's filename differs per OS (see core/Makefile)
+UNAME := $(shell uname -s)
+ifeq ($(UNAME), Darwin)
+	CORE = core/tile_engine_retro_libretro.dylib
+else
+	CORE = core/tile_engine_retro_libretro.so
+endif
+
+# RetroArch may live in PATH or in an app bundle (MacPorts/official dmg)
+RETROARCH ?= $(shell command -v retroarch \
+	|| ls /Applications/MacPorts/RetroArch.app/Contents/MacOS/RetroArch \
+	      /Applications/RetroArch.app/Contents/MacOS/RetroArch 2>/dev/null \
+	   | head -1)
+
 core_source = \
 	gfx_engine.h game.h core/libretro.h core/libretro-core.c core/link.T
 bg0_input =	bmp/bg0.bmp	bmp/bg0.pal
@@ -9,12 +23,12 @@ hsp_input = \
 	bmp/hsp1.bmp\
 	bmp/hsp1.pal bmp/hsp2.pal bmp/hsp3.pal
 
-all: core/tile_engine_retro_libretro.so GFX
+all: $(CORE) GFX
 
-run: core/tile_engine_retro_libretro.so GFX
-	cd core && retroarch -L ./tile_engine_retro_libretro.so
+run: $(CORE) GFX
+	cd core && "$(RETROARCH)" -L ./$(notdir $(CORE))
 
-core/tile_engine_retro_libretro.so: $(core_source)
+$(CORE): $(core_source)
 	cd core && make
 
 bmptogfx: bmp_to_gfx.c qdbmp.c
@@ -36,6 +50,7 @@ core/hsp.gfx: bmptogfx $(hsp_input)
 	./bmptogfx $(hsp_input) core/hsp.gfx 2
 
 clean:
-	rm core/*.o
-	rm core/*.so
-	rm core/*.gfx
+	rm -f core/*.o
+	rm -f core/*.so core/*.dylib
+	rm -f core/*.gfx
+	rm -f bmptogfx

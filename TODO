@@ -1,21 +1,77 @@
-Rendering
+TILE ENGINE RETRO — RESURRECTION PLAN (2026-07-26)
 
-- Fade in/Fade out
+Goal: back from the graveyard, nice demo for Luis in a few weeks.
 
-- Horizontal flip
+== 1. RESURRECTION (make it build and run again) ==
 
-- Vertical flip
+[x] Load bg0.gfx into bg[0] (was loading bg1.gfx twice)
+[x] Fix hardcoded /home/daniel/... music path (load test.xm relative to cwd,
+    same as the .gfx files)
+[x] NULL-check every fopen; missing assets log an error instead of segfaulting
+[x] Remove unused audiofile handle (fopen("airwolf2.mod") / fclose(NULL) crash)
+[x] Root + core Makefiles work on modern macOS (arm64, .dylib); drop dead
+    -arch i386/x86_64 universal flags; make clean uses rm -f
+[x] libxmp optional behind HAVE_XMP (auto-detected via pkg-config, override
+    with make HAVE_XMP=0/1); core builds silent without it
+[x] Fix delete_fsp/delete_hsp underflow (OOB read/infinite loop when deleting
+    the last sprite)
+[x] add_player handles add_fsp failure instead of using 32 as a sprite id
+[x] add_projectile increments projectile_count
+[x] player.score uint16_t -> uint32_t (default hi-scores exceed 65535)
+[x] Normalize diagonal speed (DIA_SPD 12 -> 8, ~= 12/sqrt(2))
+[x] Delete vestigial libretro-example skeleton: x_coord/y_coord fake
+    serialization, retro_load_game_special magic numbers
 
-- Rotation
+== 2. ENGINE CORRECTNESS & COMPLETENESS ==
 
-Animation engine
+[ ] Decide game.h (AoS) vs game2.h (SoA), wire the winner in, delete the loser
+    (note: game2.h initialize_enemy_projectiles has an infinite loop —
+    uint8_t i < 256 is always true)
+[ ] Implement OAM h-flip (roadmap 0.1 item), then v-flip; rotation/double-size
+    only if a game needs them
+[ ] Collisions: AABB using physics_body.dimensions (biggest missing 0.1 item)
+[ ] Replace active_number high-water mark with a free list
+[ ] Reconcile Readme vs code on half-sprite 3bpp format: implement or delete
+    the dead masks (gfx_engine.h Mask_half_sprite_*)
+[ ] Real save states: serialize game + OAM + scroll state (rewind/netplay free)
 
-- everything
+== 3. RENDERER ==
 
-Event engine
+[ ] Per-tile-row span rendering instead of per-pixel div/mod tilemap lookups
+[ ] Factor the 3x-duplicated BG1 sampling into one sample_bg() helper
+[ ] Consume the 8-pixel uint32_t fetch without re-shifting per pixel
+[ ] Clip sprites once per sprite (visible span), not per pixel
+[ ] Dirty-row/dirty-tile tracking for mostly-static backgrounds
+[ ] Fade in/out via palette darkening (64 multiplies, not 76800) — old TODO item
+[ ] Vertical flip, rotation (old TODO items, see also OAM bits above)
 
-- Luis is working on it
+== 4. TOOLING (bmptogfx is too obtuse) ==
 
-Audio engine
+[ ] Manifest-driven conversion: one small config per asset pack replaces
+    positional args, the 4x4-BMP palette heuristic, and .pal.clr sidecars
+[ ] PNG input (stb_image) so assets come straight out of Aseprite
+[ ] Reverse direction: gfx -> PNG dump for verification
+[ ] Deduplicate identical tiles (and mirrored ones once flips exist)
+[ ] Tiled .tmx -> tilemap blob converter (replace hand-poked test pattern)
+[ ] Validate inputs, fail loudly: bit depth, color count, tile overflow,
+    >16 inputs (currently silent stack smash)
 
-- Daniel is planning this
+== 5. STRUCTURE & LONGEVITY ==
+
+[ ] Split headers into .h/.c so the engine links as a library
+[ ] Pass state explicitly (gfx_context*) instead of globals
+[ ] Tests for the pure parts: bit-pack accessors, GFX parser round-trip,
+    average_colors
+[ ] SDL2 or PNG-out harness: run the engine without RetroArch (kills the
+    debug-by-commit loop of Feb 2018)
+[ ] Events/timeline system: "at frame N spawn wave X" (events.h successor —
+    Luis's old department)
+[ ] Audio engine proper: audio_batch_cb, SFX mixing, sane sample rate
+[ ] -Wall -Wextra clean, clang-format, README with build-and-run GIF
+
+== DEMO TARGET (Readme "Roadmap to 0.1", the unfinished half) ==
+
+[ ] Collisions
+[ ] Sprites for ships, explosions and bullets
+[ ] Audio for bullets and hits
+[ ] One level and boss
