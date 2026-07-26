@@ -1,31 +1,35 @@
 STATIC_LINKING := 0
 AR             := ar
 
+# Detect via the kernel name only — uname -a includes the hostname, and
+# a hostname containing "win" used to turn Linux boxes into Windows ones
+UNAME_S := $(shell uname -s)
+
 ifeq ($(platform),)
 platform = unix
-ifeq ($(shell uname -a),)
+ifeq ($(UNAME_S),)
    platform = win
-else ifneq ($(findstring MINGW,$(shell uname -a)),)
+else ifneq ($(findstring MINGW,$(UNAME_S)),)
    platform = win
-else ifneq ($(findstring Darwin,$(shell uname -a)),)
+else ifneq ($(findstring Darwin,$(UNAME_S)),)
    platform = osx
-else ifneq ($(findstring win,$(shell uname -a)),)
+else ifneq ($(findstring win,$(UNAME_S)),)
    platform = win
 endif
 endif
 
 # system platform
 system_platform = unix
-ifeq ($(shell uname -a),)
+ifeq ($(UNAME_S),)
 	EXE_EXT = .exe
 	system_platform = win
-else ifneq ($(findstring Darwin,$(shell uname -a)),)
+else ifneq ($(findstring Darwin,$(UNAME_S)),)
 	system_platform = osx
 	arch = intel
 ifeq ($(shell uname -p),powerpc)
 	arch = ppc
 endif
-else ifneq ($(findstring MINGW,$(shell uname -a)),)
+else ifneq ($(findstring MINGW,$(UNAME_S)),)
 	system_platform = win
 endif
 
