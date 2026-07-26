@@ -114,6 +114,10 @@ static uint32_t scrolling_tilemap_index=0;
 #else
 #endif
 
+static void animate_bg0_blocks(void);
+static void save_ship_palettes(void);
+static void shimmer_ship_palettes(void);
+
 //loads a gfx file from the frontend's working directory (core/ via make run)
 static void load_gfx(const char* path, int gfxtype)
 {
@@ -137,6 +141,7 @@ void retro_init(void)
   load_gfx("bg1.gfx", 1);
   load_gfx("fsp.gfx", 2);
   load_gfx("hsp.gfx", 3);
+  save_ship_palettes();
   initialize_game();
   default_scores();
 #ifdef HAVE_XMP
@@ -337,12 +342,17 @@ static void update_game(void) {
   if(scroll_frame_counter==0){
     for(uint32_t yy=0;yy<(vp_tile_number_y*full_tile_size);yy++){
       bg[0].offset_x[yy]--;
+      //starfield: base speeds 2,2,3 with a few faster streak lines
+      uint8_t speed;
       if(yy%3==0){
-      bg[1].offset_x[yy]-=2;
+        speed=2;
       }
       else{
-      bg[1].offset_x[yy]-=(yy%3)+1;
+        speed=(yy%3)+1;
       }
+      if(yy%17==0) speed=5;
+      else if(yy%11==0) speed=4;
+      bg[1].offset_x[yy]-=speed;
     }
     //viewport.x_origin=(viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
     //viewport.y_origin=(viewport.y_origin-bg_scroll_per_step)%(layer_tile_number_y*full_tile_size);
@@ -350,29 +360,56 @@ static void update_game(void) {
 
   if(animation_frame_counter==0){
     update_animations();
-    /*
-    if((bg[0].tilemap[12]&Mask_bgtm_index)>5) {
-      bg[0].tilemap[12]=bg[0].tilemap[12]&(~Mask_bgtm_index);
-    }
-    else {
-      bg[0].tilemap[12]++;
-    }
-    if((bg[0].tilemap[15]&Mask_bgtm_index)>13) {
-      bg[0].tilemap[15]=(bg[0].tilemap[15]&(~Mask_bgtm_index))|8;
-    }
-    else {
-      bg[0].tilemap[15]++;
-    }
-    if((bg[0].tilemap[18]&Mask_bgtm_index)>18) {
-      bg[0].tilemap[18]=(bg[0].tilemap[18]&(~Mask_bgtm_index))|17;
-    }
-    else {
-      bg[0].tilemap[18]++;
-    }//*/
-    //fsp.oam[0]=(fsp.oam[0]&(~Mask_fsp_oam_index))|(((fsp.oam[0]&Mask_fsp_oam_index)+1)%6);
-    //fsp.oam3[0]=(fsp.oam3[0]&(~Mask_fsp_oam3_x_pos))|(((fsp.oam3[0]&Mask_fsp_oam3_x_pos)+1)%(layer_tile_number_x*full_tile_size));
+    animate_bg0_blocks();
+    shimmer_ship_palettes();
   }
 
+}
+
+//the bg0 tileset is organized in three animation bands: tiles 0-6, 8-14 and
+//17-19 are frames of the same block; entries outside the bands stay static
+static void animate_bg0_blocks(void) {
+  for (uint16_t i=0; i<layer_tile_number_x*layer_tile_number_y; i++) {
+    uint16_t entry = bg[0].tilemap[i];
+    if (entry & Mask_bgtm_disable) continue;
+    uint16_t idx = entry & Mask_bgtm_index;
+    uint16_t next;
+    if      (idx <= 6)              next = (idx + 1) % 7;
+    else if (idx >= 8 && idx <= 14) next = ((idx - 8 + 1) % 7) + 8;
+    else if (idx >= 17 && idx <= 19) next = ((idx - 17 + 1) % 3) + 17;
+    else continue;
+    bg[0].tilemap[i] = (entry & (~Mask_bgtm_index)) | next;
+  }
+}
+
+//ship palette shimmer: oscillates the brightness of fsp palettes 1-4
+//(one per player ship) by +/-1 around the values loaded from fsp.gfx
+static fsp_palette ship_palette_base[4];
+
+static void save_ship_palettes(void) {
+  for (uint8_t p=0; p<4; p++) ship_palette_base[p] = fsp.palette[1+p];
+}
+
+static color_16bit inline shift_brightness(color_16bit c, int8_t d) {
+  int16_t r = ((c&Mask_red)>>10) + d;
+  int16_t g = ((c&Mask_green)>>5) + d;
+  int16_t b = (c&Mask_blue) + d;
+  if (r<0) r=0; if (r>31) r=31;
+  if (g<0) g=0; if (g>31) g=31;
+  if (b<0) b=0; if (b>31) b=31;
+  return (c&Mask_alpha) | (r<<10) | (g<<5) | b;
+}
+
+static void shimmer_ship_palettes(void) {
+  static uint8_t phase = 0;
+  phase = (phase+1) & 3;
+  int8_t delta = (phase==1) - (phase==3); // 0,+1,0,-1
+  for (uint8_t p=0; p<4; p++) {
+    for (uint8_t c=1; c<fsp_palette_color_count; c++) { //index 0 is transparent
+      fsp.palette[1+p].color[c] =
+        shift_brightness(ship_palette_base[p].color[c], delta);
+    }
+  }
 }
 
 static color_16bit inline average_colors(color_16bit color1, color_16bit color2) {
