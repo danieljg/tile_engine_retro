@@ -30,7 +30,9 @@ gfxtool: tools/gfxtool.c tools/qdbmp.c tools/stb_image.h tools/stb_image_write.h
 GFX: core/bg0.gfx core/bg1.gfx core/fsp.gfx core/hsp.gfx \
      core/scene2.gfx core/scene2.map \
      core/scene3_surface.gfx core/scene3_surface.map \
-     core/scene3_depths.gfx core/scene3_depths.map core/scene3_lights.map
+     core/scene3_depths.gfx core/scene3_caustics.gfx \
+     core/scene3_floor.map core/scene3_depth1.map core/scene3_depth2.map \
+     core/scene3_caustics.map
 
 core/bg0.gfx: gfxtool assets/bg0.mfst bmp/bg0.bmp assets/bg0_pal0.png
 	./gfxtool build assets/bg0.mfst core/bg0.gfx
@@ -66,11 +68,22 @@ core/scene3_depths.gfx: gfxtool assets/scene3_depths.mfst \
 core/scene3_surface.map: assets/scene3_surface.map
 	cp assets/scene3_surface.map core/scene3_surface.map
 
-core/scene3_depths.map: assets/scene3_depths.map
-	cp assets/scene3_depths.map core/scene3_depths.map
+core/scene3_caustics.gfx: gfxtool assets/scene3_caustics.mfst \
+                          assets/scene3_caustics_tiles.png \
+                          assets/scene3_caustics_pal0.png
+	./gfxtool build assets/scene3_caustics.mfst core/scene3_caustics.gfx
 
-core/scene3_lights.map: assets/scene3_lights.map
-	cp assets/scene3_lights.map core/scene3_lights.map
+core/scene3_floor.map: assets/scene3_floor.map
+	cp assets/scene3_floor.map core/scene3_floor.map
+
+core/scene3_depth1.map: assets/scene3_depth1.map
+	cp assets/scene3_depth1.map core/scene3_depth1.map
+
+core/scene3_depth2.map: assets/scene3_depth2.map
+	cp assets/scene3_depth2.map core/scene3_depth2.map
+
+core/scene3_caustics.map: assets/scene3_caustics.map
+	cp assets/scene3_caustics.map core/scene3_caustics.map
 
 # Regenerate the generated scene art (requires python3 + Pillow)
 scene2-assets:

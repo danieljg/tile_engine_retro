@@ -33,7 +33,51 @@ static bg_palette  bg_palette_base[bg_layer_count]; //palette 0 of each layer
 static uint8_t bg0_pulse_phase = 0;
 static uint8_t shimmer_phase = 0;
 static uint8_t pond_light_phase = 0;
+static uint8_t pond_surface_phase = 0;
 static uint8_t fade_level = 32; //0 = black .. 32 = full brightness
+
+/* ---- pond tuning: every effect parameter lives here, adjustable from
+   the in-game tuner (START in the pond). Serialized with the state. ---- */
+typedef struct {
+  uint8_t floor_amp;    //0..6  floor warp amplitude (x/4 of wave_table)
+  uint8_t floor_freq;   //0..3  floor warp frequency (scanline stride)
+  uint8_t floor_drift;  //0..4  floor current drift speed
+  uint8_t floor_dir;    //0/1   floor drift direction
+  uint8_t floor_caustic;//0/1   slow color rotation on the lit floor cells
+  uint8_t light_amp;    //0..6  caustic-layer warp amplitude
+  uint8_t light_freq;   //0..3  caustic-layer warp frequency
+  uint8_t light_drift;  //0..4  caustic-layer drift speed
+  uint8_t light_dir;    //0/1   caustic-layer drift direction
+  uint8_t light_sweep;  //0..3  caustic palette+frame sweep: off/12/6/3
+  uint8_t surface_on;   //0/1   surface texture layer visible
+  uint8_t surface_bob;  //0..4  whole-surface bob amplitude
+  uint8_t leaf_bob;     //0..4  leaf drift amplitude
+  uint8_t shadows_on;   //0/1   leaf shadows
+  uint8_t shadow_disp;  //0..6  shadow displacement in pixels
+  uint8_t shadow_anim;  //0..2  rigid / swaying / anchored
+  uint8_t veil_density; //0..2  upper veil clouds: off / half / full
+  uint8_t vaporwave;    //0..6  music slowdown, 6%% per step (to -36%%)
+  uint8_t music;        //track index into music_tracks[]
+} pond_tune_t;
+
+static pond_tune_t tune = { 4, 2, 2, 0, 1,
+                            2, 2, 1, 1, 2,
+                            1, 2, 2, 1, 4, 1,
+                            2, 2, 0 };
+
+#define MUSIC_TRACK_COUNT 2
+static const char* const music_files[MUSIC_TRACK_COUNT] =
+  { "ch_jazz_n.xm", "test.xm" };
+static const char* const music_names[MUSIC_TRACK_COUNT] =
+  { "JAZZ N", "SPACE" };
+static uint8_t tune_open = 0;
+static uint8_t tune_sel = 0;
+static uint8_t tune_prev_input = 0xFF;
+static uint8_t tune_slots[40];
+static uint8_t tune_slot_count = 0;
+static uint8_t update_pond_tuner(void);
+static void pond_cycle_caustic_tiles(void);
+static void pond_surface_anim(void);
 static struct retro_log_callback logging;
 static retro_log_printf_t log_cb;
 
@@ -42,64 +86,21 @@ static xmp_context ctx;
 static struct xmp_module_info mi;
 static uint8_t music_playing = 0;
 
-static void display_audiomodule_info(struct xmp_module_info *mi)
-{
-	int i, j;
-	struct xmp_module *mod = mi->mod;
+/* Vaporwave: consume libxmp's 44.1 kHz output slower than real time via
+   nearest-neighbour resampling — tempo and pitch drop together, like a
+   slowed tape. Levels: 0 off, then -8%%, -16%%, -24%%. Live-adjustable. */
+#define MUSIC_FIFO_FRAMES 8192 //power of two
+static int16_t music_fifo[MUSIC_FIFO_FRAMES*2];
+static uint32_t music_fifo_r = 0, music_fifo_w = 0;
+static uint32_t music_pos_frac = 0;
 
-	printf("Name: %s\n", mod->name);
-	printf("Type: %s\n", mod->type);
-	printf("Number of patterns: %d\n", mod->pat);
-	printf("Number of tracks: %d\n", mod->trk);
-	printf("Number of channels: %d\n", mod->chn);
-	printf("Number of instruments: %d\n", mod->ins);
-	printf("Number of samples: %d\n", mod->smp);
-	printf("Initial speed: %d\n", mod->spd);
-	printf("Initial BPM: %d\n", mod->bpm);
-	printf("Length in patterns: %d\n", mod->len);
-
-	printf("\n");
-
-	printf("Instruments:\n");
-	for (i = 0; i < mod->ins; i++) {
-		struct xmp_instrument *ins = &mod->xxi[i];
-
-		printf("%02x %-32.32s V:%02x R:%04x %c%c%c\n",
-				i, ins->name, ins->vol, ins->rls,
-				ins->aei.flg & XMP_ENVELOPE_ON ? 'A' : '-',
-				ins->pei.flg & XMP_ENVELOPE_ON ? 'P' : '-',
-				ins->fei.flg & XMP_ENVELOPE_ON ? 'F' : '-');
-
-		for (j = 0; j < ins->nsm; j++) {
-			struct xmp_subinstrument *sub = &ins->sub[j];
-			printf("   %02x V:%02x GV:%02x P:%02x X:%+04d F:%+04d\n",
-					j, sub->vol, sub->gvl, sub->pan,
-					sub->xpo, sub->fin);
-		}
-	}
-
-	printf("\n");
-
-	printf("Samples:\n");
-	for (i = 0; i < mod->smp; i++) {
-		struct xmp_sample *smp = &mod->xxs[i];
-
-		printf("%02x %-32.32s %05x %05x %05x %c%c%c%c%c%c",
-				i, smp->name, smp->len, smp->lps, smp->lpe,
-				smp->flg & XMP_SAMPLE_16BIT ? 'W' : '-',
-				smp->flg & XMP_SAMPLE_LOOP ? 'L' : '-',
-				smp->flg & XMP_SAMPLE_LOOP_BIDIR ? 'B' : '-',
-				smp->flg & XMP_SAMPLE_LOOP_REVERSE ? 'R' : '-',
-				smp->flg & XMP_SAMPLE_LOOP_FULL ? 'F' : '-',
-				smp->flg & XMP_SAMPLE_SYNTH ? 'S' : '-');
-
-		if (smp->len > 0 && smp->lpe >= smp->len) {
-			printf(" LOOP ERROR");
-		}
-
-		printf("\n");
-	}
+static uint32_t vapor_step(void) {
+   static const uint32_t steps[7] =
+     { 65536, 61604, 57672, 53740, 49807, 45875, 41943 };
+   return steps[tune.vaporwave <= 6 ? tune.vaporwave : 6];
 }
+
+
 #endif //HAVE_XMP
 
 
@@ -146,21 +147,25 @@ static void load_gfx(const char* path, int gfxtype)
 #define SCENE_KIND_POND  1
 
 typedef struct {
-  const char* gfx[3]; //per bg layer: 0 front, 1 middle, 2 base (NULL = off)
-  const char* map[3]; //NULL with a gfx means the procedural builder
+  const char* gfx[bg_layer_count]; //front..base; NULL = layer off
+  const char* map[bg_layer_count]; //NULL with a gfx = procedural builder
   uint8_t kind;
 } scene_def;
 
 static const scene_def scene_defs[SCENE_COUNT] = {
-  //0: Asteroid Run (procedural maps, middle layer unused)
-  { { "bg0.gfx", NULL, "bg1.gfx" },
-    { NULL, NULL, NULL }, SCENE_KIND_SHMUP },
+  //0: Asteroid Run (procedural maps; only front + base layers)
+  { { "bg0.gfx", NULL, NULL, NULL, "bg1.gfx" },
+    { NULL, NULL, NULL, NULL, NULL }, SCENE_KIND_SHMUP },
   //1: Crystal Cavern
-  { { "scene2.gfx", NULL, "bg1.gfx" },
-    { "scene2.map", NULL, NULL }, SCENE_KIND_SHMUP },
-  //2: Koi Pond: floor (base), light webs (middle), surface glints (front)
-  { { "scene3_surface.gfx", "scene3_depths.gfx", "scene3_depths.gfx" },
-    { "scene3_surface.map", "scene3_lights.map", "scene3_depths.map" },
+  { { "scene2.gfx", NULL, NULL, NULL, "bg1.gfx" },
+    { "scene2.map", NULL, NULL, NULL, NULL }, SCENE_KIND_SHMUP },
+  /*2: Koi Pond, top to bottom:
+      0 surface texture -> 1 depth veil 1 -> 2 depth veil 2 ->
+      3 caustics -> 4 floor (sprite passes interleave between them) */
+  { { "scene3_surface.gfx", "scene3_depths.gfx", "scene3_depths.gfx",
+      "scene3_caustics.gfx", "scene3_depths.gfx" },
+    { "scene3_surface.map", "scene3_depth1.map", "scene3_depth2.map",
+      "scene3_caustics.map", "scene3_floor.map" },
     SCENE_KIND_POND },
 };
 
@@ -186,7 +191,7 @@ static void build_starfield_map(void)
 {
   uint16_t kk = 7*layer_tile_number_x*layer_tile_number_y;
   for (uint16_t i=0; i<layer_tile_number_x*layer_tile_number_y; i++) {
-    GFX.bg[2].tilemap[i] = kk % 300;
+    GFX.bg[bg_layer_count-1].tilemap[i] = kk % 300;
     kk += 7;
   }
 }
@@ -197,10 +202,12 @@ static void load_scene_layer(const char* gfx, const char* map, uint8_t layer)
     disable_bg_layer(&GFX, layer);
     return;
   }
-  load_gfx(gfx, layer == 2 ? GFXTYPE_BG2 : layer);
+  static const uint8_t layer_gfxtype[bg_layer_count] =
+    { 0, 1, GFXTYPE_BG2, GFXTYPE_BG3, GFXTYPE_BG4 };
+  load_gfx(gfx, layer_gfxtype[layer]);
   if (map == NULL) {
     if (layer == 0) build_scene1_map();
-    else build_starfield_map();
+    else if (layer == bg_layer_count-1) build_starfield_map();
   }
   else {
     FILE* mf = fopen(map, "rb");
@@ -236,19 +243,47 @@ static void start_scene(uint8_t id)
   else begin_play();
 }
 
+#ifdef HAVE_XMP
+static uint8_t applied_music = 0xFF;
+
+static void music_load(uint8_t idx)
+{
+  if (music_playing) {
+    xmp_end_player(ctx);
+    xmp_release_module(ctx);
+    music_playing = 0;
+  }
+  music_fifo_r = 0;
+  music_fifo_w = 0;
+  music_pos_frac = 0;
+  if (xmp_load_module(ctx, (char*)music_files[idx]) == 0) {
+    if (xmp_start_player(ctx, AUDIO_RATE, 0) == 0) {
+      music_playing = 1;
+      xmp_get_module_info(ctx, &mi);
+      log_cb(RETRO_LOG_INFO, "Music: %s\n", mi.mod->name);
+    }
+  }
+  else {
+    log_cb(RETRO_LOG_WARN, "Could not load music module %s\n",
+           music_files[idx]);
+  }
+  applied_music = idx;
+}
+#endif
+
 void retro_init(void)
 {
   initialize_viewport(&GFX);
   initialize_bg(&GFX);
   build_scene1_map();
   build_starfield_map();
-  disable_bg_layer(&GFX, 1);
+  for (uint8_t l=1; l<bg_layer_count-1; l++) disable_bg_layer(&GFX, l);
   initialize_full_sprites(&GFX);
   initialize_half_sprites(&GFX);
   frame_buf = calloc(GFX.viewport.width * GFX.viewport.height, sizeof(uint16_t));
   bg_cache  = calloc(GFX.viewport.width * GFX.viewport.height, sizeof(uint16_t));
   load_gfx("bg0.gfx", 0);
-  load_gfx("bg1.gfx", GFXTYPE_BG2);
+  load_gfx("bg1.gfx", GFXTYPE_BG4);
   load_gfx("fsp.gfx", 2);
   load_gfx("hsp.gfx", 3);
   save_base_palettes();
@@ -256,16 +291,7 @@ void retro_init(void)
   default_scores();
 #ifdef HAVE_XMP
   ctx = xmp_create_context();
-  if( xmp_load_module(ctx,"test.xm") == 0 ){
-    if (xmp_start_player(ctx, AUDIO_RATE, 0) == 0) { //16-bit stereo
-      music_playing = 1;
-      xmp_get_module_info(ctx, &mi);
-      display_audiomodule_info(&mi);
-    }
-  }
-  else {
-    log_cb(RETRO_LOG_WARN, "Could not load music module test.xm\n");
-  }
+  //the track itself loads lazily in retro_run, following tune.music
 #endif
 }
 
@@ -408,11 +434,13 @@ static void update_game(void) {
     uint8_t selected = update_menu();
     if (selected != 0xFF) start_scene(selected);
   }
+  else if (scene_defs[current_scene].kind == SCENE_KIND_POND) {
+    uint8_t tuning = update_pond_tuner();
+    if (game_mode == MODE_PLAYING) //the tuner may have exited to the menu
+      update_pond(frame_counter, !tuning);
+  }
   else if (play_wants_menu()) {
     enter_menu();
-  }
-  else if (scene_defs[current_scene].kind == SCENE_KIND_POND) {
-    update_pond(frame_counter);
   }
   else {
     for (uint8_t i=0; i<MAX_PLAYERS; i++) {
@@ -435,9 +463,19 @@ static void update_game(void) {
   //water moves every frame while the pond scene is loaded (menu included)
   if (scene_defs[current_scene].kind == SCENE_KIND_POND) {
     pond_water_warp();
-    if (frame_counter % 6 == 0) { //fast sweep on the light webs
-      pond_light_phase = (pond_light_phase+1) & 3;
-      apply_pond_caustics();
+    if (tune.light_sweep) { //palette sweep + web frames on the caustics
+      static const uint8_t sweep_period[4] = { 0, 12, 6, 3 };
+      uint8_t period = sweep_period[tune.light_sweep];
+      if (frame_counter % period == 0) {
+        pond_light_phase = (pond_light_phase+1) & 3;
+        apply_pond_caustics();
+      }
+      if (frame_counter % period == 0) {
+        pond_cycle_caustic_tiles();
+      }
+    }
+    if (frame_counter % 7 == 0) { //the surface lives on its own clock
+      pond_surface_anim();
     }
   }
 
@@ -455,7 +493,7 @@ static void update_game(void) {
       }
       if(yy%17==0) speed=5;
       else if(yy%11==0) speed=4;
-      GFX.bg[2].offset_x[yy]-=speed;
+      GFX.bg[bg_layer_count-1].offset_x[yy]-=speed;
     }
     bg_cache_dirty=1;
     //GFX.viewport.x_origin=(GFX.viewport.x_origin+bg_scroll_per_step)%(layer_tile_number_x*full_tile_size);
@@ -466,7 +504,7 @@ static void update_game(void) {
     update_animations();
     shimmer_ship_palettes();
     if (scene_defs[current_scene].kind == SCENE_KIND_POND) {
-      pond_caustic_shimmer();
+      if (tune.floor_caustic) pond_caustic_shimmer();
     }
     else {
       animate_bg0_blocks(); //the block bands belong to the shmup tilesets
@@ -613,20 +651,36 @@ static const int8_t wave_table[32] = {
 static uint8_t pond_caustic_phase = 0;
 
 static void pond_water_warp(void) {
-  /* Three planes of water: the floor (bg2) sways strongly and drifts,
-     the light webs (bg1) sway on a counter phase and drift the other
-     way, and the surface glints (bg0) only translate as a whole —
-     things ON the water move but never deform. */
+  /* The deeper, the wavier: the surface texture only translates as a
+     whole; the depth veils sway at half and three-quarter strength; the
+     caustics carry their own warp; the floor sways fully and drifts
+     with the current. */
+  uint8_t fsh = (uint8_t)(4 - tune.floor_freq); //scanline stride shifts
+  uint8_t lsh = (uint8_t)(4 - tune.light_freq);
+  int32_t fdrift = (int32_t)((frame_counter*tune.floor_drift)>>6);
+  if (tune.floor_dir) fdrift = -fdrift;
+  int32_t ldrift = (int32_t)((frame_counter*tune.light_drift)>>6);
+  if (tune.light_dir) ldrift = -ldrift;
   int32_t sway0 =
-    (int32_t)wave_table[(frame_counter>>3) & 31] >> 1; //whole-layer bob
+    ((int32_t)wave_table[(frame_counter>>3) & 31] * tune.surface_bob) >> 2;
   for (uint32_t yy=0; yy<GFX.viewport.height; yy++) {
-    GFX.bg[0].offset_x[yy] = (uint32_t)sway0;
-    GFX.bg[1].offset_x[yy] =
-      (uint32_t)((int32_t)wave_table[(((frame_counter*3)>>2) + (yy>>1) + 16) & 31]
-                 - (int32_t)(frame_counter>>6));
-    GFX.bg[2].offset_x[yy] =
-      (uint32_t)((int32_t)wave_table[((frame_counter>>2) + (yy>>2)) & 31]
-                 + (int32_t)(frame_counter>>5));
+    int32_t wfloor = ((int32_t)wave_table[((frame_counter>>2) + (yy>>fsh)) & 31]
+                      * tune.floor_amp) >> 2;
+    int32_t wlight = ((int32_t)wave_table[(((frame_counter*3)>>2)
+                                           + (yy>>lsh) + 16) & 31]
+                      * tune.light_amp) >> 2;
+    GFX.bg[0].offset_x[yy] = (uint32_t)sway0;                //surface
+    GFX.bg[1].offset_x[yy] = 0;                              //veil 1
+    GFX.bg[2].offset_x[yy] = (uint32_t)((wfloor*3>>2) + fdrift); //veil 2
+    GFX.bg[3].offset_x[yy] = (uint32_t)(wlight + ldrift);        //caustics
+    GFX.bg[4].offset_x[yy] = (uint32_t)(wfloor + fdrift);        //floor
+    //the current: water planes stream downhill (positive offset_y
+    //translates the pattern downward); the riverbed stays
+    GFX.bg[0].offset_y[yy] = frame_counter>>2;
+    GFX.bg[1].offset_y[yy] = frame_counter>>3;
+    GFX.bg[2].offset_y[yy] = frame_counter>>3;
+    GFX.bg[3].offset_y[yy] = (frame_counter*3)>>4;
+    GFX.bg[4].offset_y[yy] = 0;
   }
   bg_cache_dirty = 1;
 }
@@ -634,15 +688,49 @@ static void pond_water_warp(void) {
 //caustic shimmer: rotates the caustic colors — slowly on the floor,
 //quickly on the light-web layer for the flashy sweep
 static void apply_pond_caustics(void) {
+  //slow rotation of the lit-cell colors on the floor (bg4)
   for (uint8_t k=0; k<4; k++) {
-    GFX.bg[2].palette[0].color[6+k] =
-      apply_fade(bg_palette_base[2].color[6 + ((k + pond_caustic_phase)&3)]);
-    GFX.bg[1].palette[0].color[6+k] =
-      apply_fade(bg_palette_base[1].color[6 + ((k + pond_light_phase)&3)]);
+    GFX.bg[4].palette[0].color[6+k] =
+      apply_fade(bg_palette_base[4].color[6 + ((k + pond_caustic_phase)&3)]);
   }
-  for (uint8_t k=0; k<3; k++) { //the shaft colors sweep too
-    GFX.bg[1].palette[0].color[3+k] =
-      apply_fade(bg_palette_base[1].color[3 + ((k + pond_light_phase)%3)]);
+  //fast sweep on the caustic layer (bg3): web colors 1-3, ray colors 4-6
+  for (uint8_t k=0; k<3; k++) {
+    GFX.bg[3].palette[0].color[1+k] =
+      apply_fade(bg_palette_base[3].color[1 + ((k + pond_light_phase)%3)]);
+    GFX.bg[3].palette[0].color[4+k] =
+      apply_fade(bg_palette_base[3].color[4 + ((k + pond_light_phase)%3)]);
+  }
+  bg_cache_dirty = 1;
+}
+
+//surface water: contour frames 0..3 drift through the tilemap, and the
+//contour colors 2..4 rotate so whole regions light up as reflections
+static void pond_surface_anim(void) {
+  for (uint16_t i=0; i<layer_tile_number_x*layer_tile_number_y; i++) {
+    uint16_t entry = GFX.bg[0].tilemap[i];
+    if (entry & Mask_bgtm_disable) continue;
+    uint16_t idx = entry & Mask_bgtm_index;
+    if (idx >= 512) continue; //reeds hold still
+    GFX.bg[0].tilemap[i] = (uint16_t)((entry & ~Mask_bgtm_index)
+                                      | ((idx + 64) & 511));
+  }
+  pond_surface_phase = (uint8_t)((pond_surface_phase + 1) % 3);
+  for (uint8_t k=0; k<3; k++) {
+    GFX.bg[0].palette[0].color[2+k] =
+      apply_fade(bg_palette_base[0].color[2 + ((k + pond_surface_phase) % 3)]);
+  }
+  bg_cache_dirty = 1;
+}
+
+//caustic web tiles 0..3 are animation frames; advance them cell by cell
+static void pond_cycle_caustic_tiles(void) {
+  for (uint16_t i=0; i<layer_tile_number_x*layer_tile_number_y; i++) {
+    uint16_t entry = GFX.bg[3].tilemap[i];
+    if (entry & Mask_bgtm_disable) continue;
+    uint16_t idx = entry & Mask_bgtm_index;
+    if (idx >= 512) continue; //pools and sparkles hold still
+    GFX.bg[3].tilemap[i] = (uint16_t)((entry & ~Mask_bgtm_index)
+                                      | ((idx + 64) & 511));
   }
   bg_cache_dirty = 1;
 }
@@ -652,20 +740,202 @@ static void pond_caustic_shimmer(void) {
   apply_pond_caustics();
 }
 
+/* ---- the pond tuner: an OSD over the live scene. START toggles it,
+   up/down pick a parameter, left/right adjust with instant effect,
+   B (outside the tuner) returns to the scene menu. ---- */
+
+typedef struct {
+  const char* name;
+  uint8_t* value;
+  uint8_t max;      //values run 0..max; max 1 renders as OFF/ON
+} tune_entry;
+
+static const tune_entry tune_entries[] = {
+  { "FLOOR WARP AMP",  &tune.floor_amp,     6 },
+  { "FLOOR WARP FREQ", &tune.floor_freq,    3 },
+  { "FLOOR DRIFT",     &tune.floor_drift,   4 },
+  { "FLOOR DRIFT DIR", &tune.floor_dir,     1 },
+  { "FLOOR CAUSTIC",   &tune.floor_caustic, 1 },
+  { "LIGHT WARP AMP",  &tune.light_amp,     6 },
+  { "LIGHT WARP FREQ", &tune.light_freq,    3 },
+  { "LIGHT DRIFT",     &tune.light_drift,   4 },
+  { "LIGHT DRIFT DIR", &tune.light_dir,     1 },
+  { "LIGHT SWEEP",     &tune.light_sweep,   3 },
+  { "SURFACE LAYER",   &tune.surface_on,    1 },
+  { "SURFACE BOB",     &tune.surface_bob,   4 },
+  { "LEAF BOB",        &tune.leaf_bob,      4 },
+  { "SHADOWS",         &tune.shadows_on,    1 },
+  { "SHADOW DISP",     &tune.shadow_disp,   6 },
+  { "SHADOW ANIM",     &tune.shadow_anim,   2 },
+  { "VEIL DENSITY",    &tune.veil_density,  2 },
+  { "VAPORWAVE",       &tune.vaporwave,     6 },
+  { "MUSIC",           &tune.music,         MUSIC_TRACK_COUNT-1 },
+};
+#define TUNE_ENTRY_COUNT (sizeof(tune_entries)/sizeof(tune_entries[0]))
+
+static void tune_clear_text(void) {
+  for (uint8_t i=0; i<tune_slot_count; i++) delete_hsp(&GFX, tune_slots[i]);
+  tune_slot_count = 0;
+}
+
+static void tune_add_text(const char* s, int16_t x, int16_t y, uint8_t pal) {
+  for (; *s; s++, x = (int16_t)(x+8)) {
+    if (*s == ' ') continue;
+    uint8_t id = add_hsp(&GFX, (uint16_t)*s, pal, (uint16_t)x, (uint16_t)y);
+    if (id < hsp_count && tune_slot_count < sizeof(tune_slots))
+      tune_slots[tune_slot_count++] = id;
+  }
+}
+
+static void tune_draw(void) {
+  tune_clear_text();
+  const tune_entry* e = &tune_entries[tune_sel];
+  char line[8];
+  uint8_t v = *e->value;
+  tune_add_text(e->name, 24, 16, 2);
+  if (e->value == &tune.music) {
+    char nb[16];
+    nb[0]='<'; nb[1]=' ';
+    uint8_t k=2;
+    for (const char* s = music_names[v]; *s && k<12; s++) nb[k++]=*s;
+    nb[k++]=' '; nb[k++]='>'; nb[k]=0;
+    tune_add_text(nb, 24, 28, 0);
+  }
+  else if (e->max == 1) {
+    tune_add_text(v ? "< ON >" : "< OFF >", 24, 28, 0);
+  }
+  else {
+    line[0]='<'; line[1]=' '; line[2]=(char)('0'+v); line[3]=' ';
+    line[4]='>'; line[5]=0;
+    tune_add_text(line, 24, 28, 0);
+  }
+}
+
+//reload a pond overlay layer's tilemap after re-enabling it
+static void pond_reload_layer(uint8_t layer) {
+  const char* map = scene_defs[current_scene].map[layer];
+  if (!map) return;
+  FILE* mf = fopen(map, "rb");
+  if (mf) {
+    read_map_data(&GFX, mf, layer);
+    fclose(mf);
+  }
+}
+
+//applies side effects of the entry that just changed
+static void tune_apply(uint8_t sel) {
+  if (tune_entries[sel].value == &tune.surface_on) {
+    if (tune.surface_on) pond_reload_layer(0);
+    else disable_bg_layer(&GFX, 0);
+  }
+  else if (tune_entries[sel].value == &tune.shadows_on) {
+    tune_shadows_hint = tune.shadows_on;
+    for (uint8_t i=0; i<MAX_LEAVES; i++)
+      fsp_set_enabled(leaves.shadow[i], tune.shadows_on);
+    for (uint8_t i=0; i<MAX_KOI; i++)
+      fsp_set_enabled(koi.shadow[i], tune.shadows_on && !koi.wait[i]);
+  }
+  else if (tune_entries[sel].value == &tune.leaf_bob) {
+    leaf_bob_amp = tune.leaf_bob;
+  }
+  else if (tune_entries[sel].value == &tune.shadow_disp) {
+    leaf_shadow_gap = tune.shadow_disp;
+  }
+  else if (tune_entries[sel].value == &tune.shadow_anim) {
+    leaf_shadow_anim = tune.shadow_anim;
+  }
+  else if (tune_entries[sel].value == &tune.veil_density) {
+    if (tune.veil_density == 0) {
+      disable_bg_layer(&GFX, 1);
+    }
+    else {
+      pond_reload_layer(1);
+      if (tune.veil_density == 1) { //half: checker the column cells
+        for (uint16_t i=0; i<layer_tile_number_x*layer_tile_number_y; i++) {
+          uint16_t cx = i & 31, cy = i >> 5;
+          if ((cx + cy) & 1) GFX.bg[1].tilemap[i] = Mask_bgtm_disable;
+        }
+      }
+    }
+  }
+  else if (tune_entries[sel].value == &tune.floor_caustic) {
+    if (!tune.floor_caustic) { //freeze the floor colors at base
+      pond_caustic_phase = 0;
+      apply_pond_caustics();
+    }
+  }
+  bg_cache_dirty = 1;
+}
+
+//pond input frame: returns 1 while the tuner owns the controls
+static uint8_t update_pond_tuner(void) {
+  uint8_t input = players.base[0] & MASK_PLAYER_BASE_INPUT;
+  uint8_t edge = input & (uint8_t)(~tune_prev_input);
+  tune_prev_input = input;
+  if (edge & MASK_INPUT_START) {
+    tune_open ^= 1;
+    if (tune_open) tune_draw();
+    else tune_clear_text();
+    return tune_open;
+  }
+  if (!tune_open) {
+    if (edge & MASK_INPUT_B) enter_menu();
+    return 0;
+  }
+  if (edge & MASK_INPUT_UP)
+    tune_sel = (uint8_t)((tune_sel + TUNE_ENTRY_COUNT - 1) % TUNE_ENTRY_COUNT);
+  if (edge & MASK_INPUT_DOWN)
+    tune_sel = (uint8_t)((tune_sel + 1) % TUNE_ENTRY_COUNT);
+  if (edge & (MASK_INPUT_LEFT | MASK_INPUT_RIGHT)) {
+    const tune_entry* e = &tune_entries[tune_sel];
+    uint8_t v = *e->value;
+    if (edge & MASK_INPUT_RIGHT) v = (v >= e->max) ? 0 : (uint8_t)(v+1);
+    else v = (v == 0) ? e->max : (uint8_t)(v-1);
+    *e->value = v;
+    tune_apply(tune_sel);
+  }
+  if (edge & (MASK_INPUT_UP|MASK_INPUT_DOWN|MASK_INPUT_LEFT|MASK_INPUT_RIGHT))
+    tune_draw();
+  return 1;
+}
+
 
 
 /* Dibuja una frame del juego
 */
 static void render_frame(void)
 {
-  //backgrounds come from the cache, recomposed only when dirty
-  if (bg_cache_dirty) {
-    gfx_render_backgrounds(&GFX, bg_cache);
-    bg_cache_dirty = 0;
+  if (scene_defs[current_scene].kind == SCENE_KIND_POND) {
+    /* The pond's layer stack, back to front — sprite passes interleave
+       between background layers so fish dive under the depth veils:
+       floor, caustics, shadows, deep koi, veil 2, mid koi, veil 1,
+       shallow koi, surface texture, sparkles, leaves, top HUD */
+    uint16_t* buf = frame_buf;
+    gfx_render_bg_layer(&GFX, buf, 4, 1);            //floor (base)
+    gfx_render_bg_layer(&GFX, buf, 3, 0);            //caustics
+    gfx_render_fsp_pass(&GFX, buf, PRIO_SHADOW);
+    gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_DEEP);
+    gfx_render_bg_layer(&GFX, buf, 2, 0);            //depth veil 2
+    gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_MID);
+    gfx_render_bg_layer(&GFX, buf, 1, 0);            //depth veil 1
+    gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_SHALLOW);
+    gfx_render_bg_layer(&GFX, buf, 0, 0);            //surface texture
+    gfx_render_fsp_pass(&GFX, buf, PRIO_SPARKLE);    //contact rings
+    gfx_render_hsp_pass(&GFX, buf, PRIO_SPARKLE);    //surface highlights
+    gfx_render_fsp_pass(&GFX, buf, PRIO_LEAF);
+    gfx_render_fsp_pass(&GFX, buf, 7);               //top full sprites
+    gfx_render_hsp_pass(&GFX, buf, 7);               //hand/menu/tuner
   }
-  memcpy(frame_buf, bg_cache,
-         (size_t)GFX.viewport.width * GFX.viewport.height * sizeof(uint16_t));
-  gfx_render_sprites(&GFX, frame_buf);
+  else {
+    //shmup path: backgrounds from the cache, recomposed only when dirty
+    if (bg_cache_dirty) {
+      gfx_render_backgrounds(&GFX, bg_cache);
+      bg_cache_dirty = 0;
+    }
+    memcpy(frame_buf, bg_cache,
+           (size_t)GFX.viewport.width * GFX.viewport.height * sizeof(uint16_t));
+    gfx_render_sprites(&GFX, frame_buf);
+  }
   video_cb(frame_buf, GFX.viewport.width, GFX.viewport.height,
            GFX.viewport.width << 1);
 }
@@ -721,7 +991,30 @@ static void audio_callback(void)
 {
    static int16_t buf[SAMPLES_PER_FRAME*2]; //stereo interleaved
 #ifdef HAVE_XMP
-   if (music_playing) xmp_play_buffer(ctx, buf, sizeof(buf), 1);
+   if (tune.music != applied_music) music_load(tune.music);
+   if (music_playing) {
+      uint32_t step = vapor_step();
+      uint32_t need = (uint32_t)((((uint64_t)SAMPLES_PER_FRAME*step)>>16) + 2);
+      while (music_fifo_w - music_fifo_r < need) {
+         int16_t chunk[512*2];
+         xmp_play_buffer(ctx, chunk, sizeof(chunk), 1);
+         for (uint32_t k=0; k<512; k++) {
+            uint32_t slot = (music_fifo_w + k) & (MUSIC_FIFO_FRAMES-1);
+            music_fifo[slot*2]   = chunk[k*2];
+            music_fifo[slot*2+1] = chunk[k*2+1];
+         }
+         music_fifo_w += 512;
+      }
+      for (uint32_t i=0; i<SAMPLES_PER_FRAME; i++) {
+         uint32_t idx = (music_fifo_r + (music_pos_frac>>16))
+                        & (MUSIC_FIFO_FRAMES-1);
+         buf[i*2]   = music_fifo[idx*2];
+         buf[i*2+1] = music_fifo[idx*2+1];
+         music_pos_frac += step;
+      }
+      music_fifo_r += music_pos_frac >> 16;
+      music_pos_frac &= 0xFFFF;
+   }
    else memset(buf, 0, sizeof(buf));
 #else
    memset(buf, 0, sizeof(buf));
@@ -791,7 +1084,7 @@ bool retro_load_game_special(unsigned type, const struct retro_game_info *info, 
    but serializing them keeps the first frame after a load exact.
    Not endian-portable; music position is not saved. */
 #define SAVESTATE_MAGIC   0x30524554 // "TER0"
-#define SAVESTATE_VERSION 3
+#define SAVESTATE_VERSION 10
 
 typedef struct { void* ptr; size_t size; } save_block;
 
@@ -819,6 +1112,16 @@ static const save_block save_blocks[] = {
   {&pond_prev_input, sizeof(pond_prev_input)},
   {&pond_caustic_phase, sizeof(pond_caustic_phase)},
   {&pond_light_phase, sizeof(pond_light_phase)},
+  {&pond_surface_phase, sizeof(pond_surface_phase)},
+  {&tune, sizeof(tune)},
+  {&tune_open, sizeof(tune_open)},
+  {&tune_sel, sizeof(tune_sel)},
+  {&tune_prev_input, sizeof(tune_prev_input)},
+  {tune_slots, sizeof(tune_slots)},
+  {&tune_slot_count, sizeof(tune_slot_count)},
+  {&leaf_bob_amp, sizeof(leaf_bob_amp)},
+  {&leaf_shadow_gap, sizeof(leaf_shadow_gap)},
+  {&leaf_shadow_anim, sizeof(leaf_shadow_anim)},
   //mode and scene state
   {&game_mode, sizeof(game_mode)},
   {&menu_cursor, sizeof(menu_cursor)},
@@ -857,6 +1160,14 @@ static const save_block save_blocks[] = {
   {GFX.bg[2].offset_x, sizeof(GFX.bg[2].offset_x)},
   {GFX.bg[2].offset_y, sizeof(GFX.bg[2].offset_y)},
   {GFX.bg[2].palette, sizeof(GFX.bg[2].palette)},
+  {GFX.bg[3].tilemap, sizeof(GFX.bg[3].tilemap)},
+  {GFX.bg[3].offset_x, sizeof(GFX.bg[3].offset_x)},
+  {GFX.bg[3].offset_y, sizeof(GFX.bg[3].offset_y)},
+  {GFX.bg[3].palette, sizeof(GFX.bg[3].palette)},
+  {GFX.bg[4].tilemap, sizeof(GFX.bg[4].tilemap)},
+  {GFX.bg[4].offset_x, sizeof(GFX.bg[4].offset_x)},
+  {GFX.bg[4].offset_y, sizeof(GFX.bg[4].offset_y)},
+  {GFX.bg[4].palette, sizeof(GFX.bg[4].palette)},
   //palette derivation state (bases are re-based on scene loads)
   {fsp_palette_base, sizeof(fsp_palette_base)},
   {hsp_palette_base, sizeof(hsp_palette_base)},

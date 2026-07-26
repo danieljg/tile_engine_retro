@@ -41,9 +41,9 @@ typedef struct {
  uint32_t y_origin;
 } vp;
 
-//There are three background layers, composed back to front: bg[2] (base),
-//bg[1] (middle overlay), bg[0] (front overlay)
-#define bg_layer_count 3
+//There are five background layers, composed back to front:
+//bg[4] (base) then overlays bg[3], bg[2], bg[1], bg[0]
+#define bg_layer_count 5
 
 #define bg_palettes_per_layer 4 // 2 bits
 #define bg_palette_color_count 16 // 4 bits
@@ -74,8 +74,10 @@ typedef struct {
 } bg_struct;
 
 //Full sprites: 16x16, for characters; half sprites: 8x8, for bullets/HUD
+//NOTE: game2.h animation words store sprite ids in 5 bits (<=31); keep
+//animation-word-driven sprites in low slots (they are, by spawn order)
 #define fsp_palette_number 8
-#define fsp_count 32
+#define fsp_count 128
 #define fsp_palette_color_count 16
 #define fsp_tileset_number 1024
 
@@ -100,7 +102,8 @@ typedef struct {
 #define Mask_fsp_oam2_double   0x1000 //double size flag
 #define Mask_fsp_oam2_y_pos    0x0FFF //oversampled by 3 bits
 //OAM3 bitmasks
-#define Mask_fsp_oam3_reserved 0xF000 //not in use
+#define Mask_fsp_oam3_reserved 0x8000 //not in use
+#define Mask_fsp_oam3_priority 0x7000 //3-bit render priority (7 = topmost)
 #define Mask_fsp_oam3_x_pos    0x0FFF //oversampled by 3 bits
 
 typedef struct {
@@ -143,7 +146,8 @@ uint32_t eight_pixel_color_index[half_tile_size*half_tile_size>>3];
 #define Mask_hsp_oam2_rotation 0x2000
 #define Mask_hsp_oam2_double   0x1000
 #define Mask_hsp_oam2_y_pos    0x0FFF
-#define Mask_hsp_oam3_reserved 0xF000
+#define Mask_hsp_oam3_reserved 0x8000
+#define Mask_hsp_oam3_priority 0x7000 //3-bit render priority (7 = topmost)
 #define Mask_hsp_oam3_x_pos    0x0FFF
 
 typedef struct {
@@ -199,6 +203,7 @@ void set_fsp(gfx_context* g, int16_t sp_id, int16_t sp_index);
 void set_pos_fsp(gfx_context* g, int16_t sp_id, int16_t pos_x, int16_t pos_y);
 void set_fsp_effects(gfx_context* g, uint8_t sp_id, uint8_t h_flip,
                      uint8_t v_flip, uint8_t rotate, uint8_t double_size);
+void set_fsp_priority(gfx_context* g, uint8_t sp_id, uint8_t prio);
 
 uint8_t add_hsp(gfx_context* g, uint16_t sp_index, uint8_t pal_index,
                 uint16_t x_pos, uint16_t y_pos);
@@ -208,21 +213,31 @@ void set_hsp(gfx_context* g, int16_t sp_id, int16_t sp_index);
 void set_pos_hsp(gfx_context* g, int16_t sp_id, int16_t pos_x, int16_t pos_y);
 void set_hsp_effects(gfx_context* g, uint8_t sp_id, uint8_t h_flip,
                      uint8_t v_flip, uint8_t rotate, uint8_t double_size);
+void set_hsp_priority(gfx_context* g, uint8_t sp_id, uint8_t prio);
 
 /* half-sprite text: tiles indexed by ASCII code, spaces skipped */
 void draw_text(gfx_context* g, const char* label,
                int16_t x_pos, int16_t y_pos, uint8_t pal_index);
 
-/* asset loading; gfxtype: 0 = bg0, 1 = bg1, 2 = fsp, 3 = hsp, 4 = bg2 */
+/* asset loading; gfxtype: 0 = bg0, 1 = bg1, 2 = fsp, 3 = hsp,
+   4 = bg2, 5 = bg3, 6 = bg4 */
 #define GFXTYPE_BG2 4
+#define GFXTYPE_BG3 5
+#define GFXTYPE_BG4 6
 void read_gfx_data(gfx_context* g, FILE* file, int gfxtype);
 void read_map_data(gfx_context* g, FILE* file, uint8_t layer);
 void disable_bg_layer(gfx_context* g, uint8_t layer);
 
 /* rendering: backgrounds compose into a caller-owned buffer of
-   viewport.width x viewport.height; sprites draw over an existing one */
+   viewport.width x viewport.height; sprites draw over an existing one.
+   The pass API lets a scene interleave sprite priorities between bg
+   layers (prio 0xFF renders every sprite regardless of priority). */
 void gfx_render_backgrounds(gfx_context* g, uint16_t* cache);
 void gfx_render_sprites(gfx_context* g, uint16_t* buf);
+void gfx_render_bg_layer(gfx_context* g, uint16_t* buf, uint8_t layer,
+                         uint8_t as_base);
+void gfx_render_fsp_pass(gfx_context* g, uint16_t* buf, uint8_t prio);
+void gfx_render_hsp_pass(gfx_context* g, uint16_t* buf, uint8_t prio);
 color_16bit average_colors(color_16bit color1, color_16bit color2);
 
 #endif //GFX_ENGINE_H

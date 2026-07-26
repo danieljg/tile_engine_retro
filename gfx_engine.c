@@ -91,7 +91,8 @@ uint8_t add_fsp(gfx_context* g, uint16_t sp_index, uint8_t pal_index,
     (uint16_t)(pal_index<<10) |
     (sp_index & Mask_fsp_oam_index);
   g->fsp.oam2[i] = y_pos & Mask_fsp_oam2_y_pos;
-  g->fsp.oam3[i] = x_pos & Mask_fsp_oam3_x_pos;
+  g->fsp.oam3[i] = (uint16_t)(Mask_fsp_oam3_priority //default: topmost
+                              | (x_pos & Mask_fsp_oam3_x_pos));
   return i;
 }
 
@@ -112,6 +113,12 @@ void set_fsp_effects(gfx_context* g, uint8_t sp_id, uint8_t h_flip,
   if (rotate)      o2 |= Mask_fsp_oam2_rotation;
   if (double_size) o2 |= Mask_fsp_oam2_double;
   g->fsp.oam2[sp_id] = o2;
+}
+
+void set_fsp_priority(gfx_context* g, uint8_t sp_id, uint8_t prio) {
+  g->fsp.oam3[sp_id] = (uint16_t)((g->fsp.oam3[sp_id]
+                                   & (~Mask_fsp_oam3_priority))
+                                  | ((uint16_t)(prio & 7) << 12));
 }
 
 void set_pos_fsp(gfx_context* g, int16_t sp_id, int16_t pos_x, int16_t pos_y) {
@@ -164,7 +171,8 @@ uint8_t add_hsp(gfx_context* g, uint16_t sp_index, uint8_t pal_index,
     (uint16_t)(pal_index<<10) |
     (sp_index & Mask_hsp_oam_index);
   g->hsp.oam2[i] = y_pos & Mask_hsp_oam2_y_pos;
-  g->hsp.oam3[i] = x_pos & Mask_hsp_oam3_x_pos;
+  g->hsp.oam3[i] = (uint16_t)(Mask_hsp_oam3_priority //default: topmost
+                              | (x_pos & Mask_hsp_oam3_x_pos));
   return i;
 }
 
@@ -184,6 +192,12 @@ void set_hsp_effects(gfx_context* g, uint8_t sp_id, uint8_t h_flip,
   if (rotate)      o2 |= Mask_hsp_oam2_rotation;
   if (double_size) o2 |= Mask_hsp_oam2_double;
   g->hsp.oam2[sp_id] = o2;
+}
+
+void set_hsp_priority(gfx_context* g, uint8_t sp_id, uint8_t prio) {
+  g->hsp.oam3[sp_id] = (uint16_t)((g->hsp.oam3[sp_id]
+                                   & (~Mask_hsp_oam3_priority))
+                                  | ((uint16_t)(prio & 7) << 12));
 }
 
 void set_pos_hsp(gfx_context* g, int16_t sp_id, int16_t pos_x, int16_t pos_y) {
@@ -241,6 +255,8 @@ void read_gfx_data(gfx_context* g, FILE* file, int gfxtype) {
       if(gfxtype==0)      g->bg[0].palette[pal_i].color[col_i] = c;
       else if(gfxtype==1) g->bg[1].palette[pal_i].color[col_i] = c;
       else if(gfxtype==GFXTYPE_BG2) g->bg[2].palette[pal_i].color[col_i] = c;
+      else if(gfxtype==GFXTYPE_BG3) g->bg[3].palette[pal_i].color[col_i] = c;
+      else if(gfxtype==GFXTYPE_BG4) g->bg[4].palette[pal_i].color[col_i] = c;
       else if(gfxtype==2) g->fsp.palette[pal_i].color[col_i] = c;
       else if(gfxtype==3) g->hsp.palette[pal_i].color[col_i] = c;
     }
@@ -262,6 +278,8 @@ void read_gfx_data(gfx_context* g, FILE* file, int gfxtype) {
         if(gfxtype==0)      g->bg[0].tile[tile_i].eight_pixel_color_index[word]=pixbuffer;
         else if(gfxtype==1) g->bg[1].tile[tile_i].eight_pixel_color_index[word]=pixbuffer;
         else if(gfxtype==GFXTYPE_BG2) g->bg[2].tile[tile_i].eight_pixel_color_index[word]=pixbuffer;
+        else if(gfxtype==GFXTYPE_BG3) g->bg[3].tile[tile_i].eight_pixel_color_index[word]=pixbuffer;
+        else if(gfxtype==GFXTYPE_BG4) g->bg[4].tile[tile_i].eight_pixel_color_index[word]=pixbuffer;
         else if(gfxtype==2) g->fsp.tile[tile_i].eight_pixel_color_index[word]=pixbuffer;
         else if(gfxtype==3) g->hsp.tile[tile_i].eight_pixel_color_index[word]=pixbuffer;
       }
@@ -378,9 +396,18 @@ void gfx_render_backgrounds(gfx_context* g, uint16_t* cache)
 {
   for (uint32_t yy=0; yy<g->viewport.height; yy++) {
     uint16_t* line = cache + yy*g->viewport.width;
-    render_bg_scanline(g, line, yy, 2, 0); //BG2: back layer, opaque base
-    render_bg_scanline(g, line, yy, 1, 1); //BG1: middle overlay
-    render_bg_scanline(g, line, yy, 0, 1); //BG0: front overlay
+    render_bg_scanline(g, line, yy, bg_layer_count-1, 0); //base layer
+    for (int8_t l=bg_layer_count-2; l>=0; l--) {
+      render_bg_scanline(g, line, yy, (uint8_t)l, 1);     //overlays
+    }
+  }
+}
+
+void gfx_render_bg_layer(gfx_context* g, uint16_t* buf, uint8_t layer,
+                         uint8_t as_base)
+{
+  for (uint32_t yy=0; yy<g->viewport.height; yy++) {
+    render_bg_scanline(g, buf + yy*g->viewport.width, yy, layer, !as_base);
   }
 }
 
@@ -399,7 +426,7 @@ void disable_bg_layer(gfx_context* g, uint8_t layer)
    source pixel into a 2x2 block (cpu). rotation+h_flip+v_flip = -90 deg.
    Slots are drawn in descending order so lower slots land on top. */
 static void render_sprite_layer(
-    gfx_context* g,
+    gfx_context* g, uint8_t prio, //0xFF renders all priorities
     const uint16_t* oam, const uint16_t* oam2, const uint16_t* oam3,
     uint16_t slot_count,
     const uint32_t* tiles_n, const uint32_t* tiles_h,
@@ -416,6 +443,8 @@ static void render_sprite_layer(
     uint16_t o = oam[slot];
     if (!(o & Mask_fsp_oam_in_use)) continue;
     if (!(o & Mask_fsp_oam_enable)) continue;
+    if (prio != 0xFF && ((oam3[slot] & Mask_fsp_oam3_priority)>>12) != prio)
+      continue;
     uint8_t pal = (o & Mask_fsp_oam_palette)>>10;
     uint16_t o2 = oam2[slot];
     uint8_t vfl = (o2 & Mask_fsp_oam2_v_flip) != 0;
@@ -486,11 +515,41 @@ static void render_sprite_layer(
   }
 }
 
+void gfx_render_fsp_pass(gfx_context* g, uint16_t* buf, uint8_t prio)
+{
+  render_sprite_layer(g, prio, g->fsp.oam, g->fsp.oam2, g->fsp.oam3,
+                      fsp_count,
+                      (const uint32_t*)g->fsp.tile,
+                      (const uint32_t*)g->fsp.tile_h,
+                      (const uint32_t*)g->fsp.tile_r,
+                      (const uint32_t*)g->fsp.tile_rh,
+                      full_tile_size,
+                      (const color_16bit*)g->fsp.palette,
+                      fsp_palette_color_count,
+                      g->fsp.offset_x, g->fsp.offset_y, buf,
+                      (uint16_t)g->viewport.width);
+}
+
+void gfx_render_hsp_pass(gfx_context* g, uint16_t* buf, uint8_t prio)
+{
+  render_sprite_layer(g, prio, g->hsp.oam, g->hsp.oam2, g->hsp.oam3,
+                      hsp_count,
+                      (const uint32_t*)g->hsp.tile,
+                      (const uint32_t*)g->hsp.tile_h,
+                      (const uint32_t*)g->hsp.tile_r,
+                      (const uint32_t*)g->hsp.tile_rh,
+                      half_tile_size,
+                      (const color_16bit*)g->hsp.palette,
+                      hsp_palette_color_count,
+                      g->hsp.offset_x, g->hsp.offset_y, buf,
+                      (uint16_t)g->viewport.width);
+}
+
 void gfx_render_sprites(gfx_context* g, uint16_t* buf)
 {
   uint16_t stride = (uint16_t)g->viewport.width;
   //full sprites below half-sprites (SP0 then SP1)
-  render_sprite_layer(g, g->fsp.oam, g->fsp.oam2, g->fsp.oam3, fsp_count,
+  render_sprite_layer(g, 0xFF, g->fsp.oam, g->fsp.oam2, g->fsp.oam3, fsp_count,
                       (const uint32_t*)g->fsp.tile,
                       (const uint32_t*)g->fsp.tile_h,
                       (const uint32_t*)g->fsp.tile_r,
@@ -499,7 +558,7 @@ void gfx_render_sprites(gfx_context* g, uint16_t* buf)
                       (const color_16bit*)g->fsp.palette,
                       fsp_palette_color_count,
                       g->fsp.offset_x, g->fsp.offset_y, buf, stride);
-  render_sprite_layer(g, g->hsp.oam, g->hsp.oam2, g->hsp.oam3, hsp_count,
+  render_sprite_layer(g, 0xFF, g->hsp.oam, g->hsp.oam2, g->hsp.oam3, hsp_count,
                       (const uint32_t*)g->hsp.tile,
                       (const uint32_t*)g->hsp.tile_h,
                       (const uint32_t*)g->hsp.tile_r,

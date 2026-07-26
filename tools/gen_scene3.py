@@ -1,157 +1,443 @@
 #!/usr/bin/env python3
-"""Generates the Koi Pond (scene 3) assets — a top-down pond, unrelated to
-the space scenes:
-  assets/scene3_depths_tiles.png / _pal0.png / assets/scene3_depths.map
-      bg1: the water itself — calm base, sparse caustic webs (palette
-      colors 6-9 rotate at runtime), light shafts and floor detail.
-      This is the layer the per-scanline sine warp bends.
-  assets/scene3_surface_tiles.png / _pal0.png / assets/scene3_surface.map
-      bg0: lily pads (small, medium, wide 2x1 and big 2x2), lotus
-      flowers, reeds, semitransparent sparkles and pad shadows. This
-      layer does NOT warp — the pads sit still while light moves below.
-  assets/koi_tiles.png (fsp tiles 18-19) + koi palettes (fsp 5-6)
-  assets/pond_hsp_tiles.png (hsp tiles 128-131): ripple rings + pellet
+"""Generates the Koi Pond (scene 3) assets for the five-plane architecture:
+
+  bg4 floor    scene3_depths_tiles.png (shared set) + scene3_floor.map
+               An opaque sandy pond bottom: grain, dune ripples, raised
+               banks with edge-transition tiles, pebbles, debris, weeds,
+               caustic-lit cells (colors 6-9 rotate at runtime).
+  bg3 caustics scene3_caustics_tiles.png + scene3_caustics.map
+               Bright translucent light: cellular caustic webs (4 frames,
+               Voronoi-edge style) and godray bands. Palette sweeps fast.
+  bg2/bg1      shared depths tileset + scene3_depth2.map / scene3_depth1.map
+  depth veils  Feathered translucent water clouds (colors 3-5 with alpha)
+               and tall weeds; fish below a veil get tinted by it.
+  bg0 surface  scene3_surface_tiles.png + scene3_surface.map
+               Translucent wave arcs and bank reeds. Pads are sprites.
+
+  Sprites: koi (fsp 18-19 + palettes 5-6), lily pads (fsp 20-24 via
+  index remap onto fsp palette 0), pond half-sprites (hsp 128-133:
+  ripples, pellet, sparkle twinkles).
+
 All RGB values are multiples of 8 to survive 5-bit quantization.
 """
 from PIL import Image
 import struct
 import math
 
-# ====================== depths (bg1) ======================
+OFF = 0x8000
+T = 16  # tile size
+
+
+def h8(x, y, seed=0):
+    """Deterministic pixel hash, 0..255 — organic grain without grids."""
+    v = (x * 374761393 + y * 668265263 + seed * 974711) & 0xFFFFFFFF
+    v = (v ^ (v >> 13)) * 1274126177 & 0xFFFFFFFF
+    return (v >> 16) & 0xFF
+
+
+def new_tile():
+    return [[0] * T for _ in range(T)]
+
+
+def save_strip(tiles, pal, path, size=T):
+    img = Image.new('RGB', (len(tiles) * size, size))
+    for n, t in enumerate(tiles):
+        for y in range(size):
+            for x in range(size):
+                img.putpixel((n * size + x, y), pal[t[y][x]])
+    img.save(path)
+
+
+def save_pal(pal, path):
+    im = Image.new('RGB', (16, 1))
+    im.putdata(pal)
+    im.save(path)
+
+
+def save_map(m, path):
+    with open(path, 'wb') as f:
+        f.write(b'MAP\n')
+        f.write(bytes([32, 32]))
+        for row in m:
+            for v in row:
+                f.write(struct.pack('>H', v))
+
+
+# ================= depths palette (floor + veils, shared) =================
 DPAL = [
-    (8, 16, 40),    # 0 deep water (backdrop)
-    (12, 24, 52),   # 1 water dither dark
-    (16, 32, 64),   # 2 water dither light
-    (28, 52, 88),   # 3 light shaft dim
-    (40, 72, 108),  # 4 light shaft mid
-    (56, 96, 128),  # 5 light shaft bright
-    (32, 88, 104),  # 6 caustic dim   } rotated 6..9
-    (48, 120, 128), # 7 caustic mid   } at runtime
-    (72, 160, 152), # 8 caustic bright}
-    (104, 200, 184),# 9 caustic glint }
-    (24, 48, 40),   # 10 weed dark
-    (36, 76, 52),   # 11 weed light
-    (56, 44, 36),   # 12 mud
-    (80, 64, 48),   # 13 mud light
-    (20, 28, 48),   # 14 water shadow
-    (16, 24, 32),   # 15 pebble dark
+    (104, 88, 64),  # 0 sand base (backdrop, olive-leaning)
+    (84, 68, 48),   # 1 sand grain dark
+    (120, 104, 80), # 2 sand grain light
+    (64, 104, 88),  # 3 water column  } translucent; (sand+3)/2 = wet olive
+    (72, 120, 112), # 4 veil cloud mid} the depth layers
+    (88, 144, 128), # 5 veil cloud bright
+    (128, 112, 72), # 6 lit sand dim   } warm light, rotated 6..9
+    (152, 136, 88), # 7 lit sand mid   }
+    (184, 164, 108),# 8 lit sand bright}
+    (216, 196, 132),# 9 lit sand glint }
+    (48, 72, 40),   # 10 weed dark
+    (72, 104, 56),  # 11 weed light
+    (152, 124, 88), # 12 bank light
+    (184, 152, 108),# 13 bank bright
+    (64, 48, 32),   # 14 debris / dark accents
+    (96, 88, 80),   # 15 pebble gray
 ]
 
-N_D = 10
-dt = [[[0]*16 for _ in range(16)] for _ in range(N_D)]
+# ---- depths tileset: 21 tiles, laid out in bands ----
+#  0 sand fine        1 sand coarse      2 dune ripple A   3 dune ripple B
+#  4 lit sand A       5 lit sand B       6 pebbles small   7 pebble cluster
+#  8 bank interior    9 bank edge N     10 bank edge S    11 bank edge W
+# 12 bank edge E     13 debris          14 weed tuft      15 weed tall lower
+# 16 weed tall upper 17 veil sparse     18 veil medium    19 veil dense
+# 20 veil feather
+N_D = 21
+dt = [new_tile() for _ in range(N_D)]
 
-def calm(t, seed):
-    """Soft water: mostly backdrop with a quiet diagonal dither."""
-    for y in range(16):
-        for x in range(16):
-            v = (x*7 + y*13 + seed) % 23
-            t[y][x] = 1 if v == 0 else (2 if v == 11 else 0)
 
-calm(dt[0], 0)  # t0 open water
+def sand(t, seed, density=1):
+    for y in range(T):
+        for x in range(T):
+            h = h8(x, y, seed)
+            if h < 9 * density: t[y][x] = 1
+            elif h > 255 - 7 * density: t[y][x] = 2
+            else: t[y][x] = 0
 
-for n, seed in ((1, 4), (2, 9)):  # t1,t2 caustic webs: thin bright arcs
-    calm(dt[n], seed)
-    for y in range(16):
-        for x in range(16):
-            a = (x + y*2 + seed*3) % 13
-            b = (x*2 - y + seed*5) % 11
-            if a == 0 and (x + seed) % 3:
-                dt[n][y][x] = 6 + ((x + y) % 2)
-            elif b == 0 and (y + seed) % 4 == 1:
-                dt[n][y][x] = 7 + ((x + y) % 3)
+sand(dt[0], 1)
+sand(dt[1], 7, density=2)
 
-def shaft(t, cols, seed):
-    """A band of sunlight: vertical brightening with ragged edges."""
-    calm(t, seed)
-    for y in range(16):
-        for x in range(16):
-            for c0, w in cols:
-                d = x - c0
-                if 0 <= d < w:
-                    edge = (d == 0 or d == w-1)
-                    ragged = (y*3 + x*5 + seed) % 4
-                    if edge and ragged == 0:
-                        continue
-                    lvl = 4 if not edge else 3
-                    if (x*11 + y*7 + seed) % 19 == 0:
-                        lvl = 5
-                    t[y][x] = lvl
+for n, seed in ((2, 3), (3, 11)):  # dune ripples: wavy horizontal ridges
+    sand(dt[n], seed)
+    for y in range(T):
+        for x in range(T):
+            ridge = (y + int(2.5 * math.sin(x * 0.42 + seed))) % 8
+            if ridge == 0:
+                dt[n][y][x] = 1
+            elif ridge == 1 and h8(x, y, seed) > 70:
+                dt[n][y][x] = 2
 
-shaft(dt[3], [(4, 7)], 2)   # t3 wide shaft
-shaft(dt[4], [(1, 4), (11, 3)], 6)  # t4 two narrow shafts
+for n, seed in ((4, 5), (5, 13)):  # caustic-lit sand: teal glints on grain
+    sand(dt[n], seed)
+    for y in range(T):
+        for x in range(T):
+            h = h8(x, y, seed + 40)
+            if h < 14:
+                dt[n][y][x] = 6 + (h % 3)
+            elif h < 20:
+                dt[n][y][x] = 9
 
-calm(dt[5], 5)  # t5 weeds
-for s, h in ((3, 12), (8, 15), (12, 10)):
-    for k in range(h):
-        y = 15 - k
-        x = s + int(1.5 + 1.2*math.sin(k*0.7 + s))
-        if 0 <= x < 16:
-            dt[5][y][x] = 10 if k % 3 else 11
+sand(dt[6], 17)  # small pebbles
+for cx, cy, r in ((4, 5, 1.8), (11, 3, 1.4), (8, 11, 2.1), (13, 13, 1.5)):
+    for y in range(T):
+        for x in range(T):
+            d = math.hypot(x - cx + .5, y - cy + .5)
+            if d <= r:
+                dt[6][y][x] = 15 if d < r - 0.9 else 14
+sand(dt[7], 23)  # pebble cluster
+for cx, cy, r in ((5, 4, 2.6), (11, 7, 2.2), (4, 11, 1.9), (12, 12, 2.4),
+                  (8, 8, 1.6)):
+    for y in range(T):
+        for x in range(T):
+            d = math.hypot(x - cx + .5, y - cy + .5)
+            if d <= r:
+                c = 15 if d < r - 1 else 14
+                if x - cx < -r * 0.3 and y - cy < -r * 0.3 and d < r - 1:
+                    c = 13  # light from upper-left
+                dt[7][y][x] = c
 
-calm(dt[6], 7)  # t6 sandy floor patch
-for y in range(16):
-    for x in range(16):
-        v = (x*5 + y*11) % 13
-        if v < 5: dt[6][y][x] = 12
-        elif v == 6: dt[6][y][x] = 13
 
-calm(dt[7], 3)  # t7 pebbles
-for cx, cy, r in ((4, 5, 2), (11, 4, 2), (7, 11, 3), (13, 13, 2)):
-    for y in range(16):
-        for x in range(16):
-            d2 = (x-cx)**2 + (y-cy)**2
-            if d2 <= r*r:
-                dt[7][y][x] = 15 if d2 > (r-1)*(r-1) else 13
-calm(dt[8], 11)  # t8 caustic sparse
-for y in range(16):
-    for x in range(16):
-        if (x*3 + y*5) % 17 == 0:
-            dt[8][y][x] = 6
-calm(dt[9], 13)  # t9 gentle shadow (under pad clusters)
-for y in range(16):
-    for x in range(16):
-        if (x + y) % 2 and ((x*5 + y*3) % 7) < 3:
-            dt[9][y][x] = 14
+def bank(t, seed):  # raised sand bank interior
+    for y in range(T):
+        for x in range(T):
+            h = h8(x, y, seed)
+            if h < 22: t[y][x] = 12
+            elif h > 240: t[y][x] = 13
+            else: t[y][x] = 12 if h & 1 else 13
 
-DM = [[0]*32 for _ in range(32)]
+bank(dt[8], 29)
+# bank edges: dithered transition from bank to plain sand, one per side
+for n, (dx, dy) in ((9, (0, -1)), (10, (0, 1)), (11, (-1, 0)), (12, (1, 0))):
+    bank(dt[n], 29)
+    for y in range(T):
+        for x in range(T):
+            #distance toward the outside edge of the tile
+            along = (T - 1 - y) if dy < 0 else y if dy > 0 else \
+                    (T - 1 - x) if dx < 0 else x
+            fall = along / (T - 1.0)  # 0 deep in bank .. 1 at sand
+            if h8(x, y, 31) < fall * 255:
+                h = h8(x, y, 1)
+                dt[n][y][x] = 1 if h < 9 else (2 if h > 248 else 0)
+            #dark waterline contour where the bank steps down
+            if 0.52 < fall < 0.68 and h8(x, y, 47) < 190:
+                dt[n][y][x] = 14
+
+sand(dt[13], 37)  # debris: sunken leaf + twig
+for k in range(9):
+    x = 4 + k
+    y = 6 + int(1.8 * math.sin(k * 0.7))
+    if 0 <= x < T:
+        dt[13][y][x] = 14
+        if k in (3, 4, 5) and y + 1 < T:
+            dt[13][y + 1][x] = 10
+for k in range(5):
+    dt[13][12][7 + k] = 14
+
+sand(dt[14], 41)  # weed tuft
+for s, hgt in ((4, 6), (8, 8), (12, 5)):
+    for k in range(hgt):
+        y = T - 1 - k
+        x = s + int(1.2 * math.sin(k * 0.8 + s))
+        if 0 <= x < T:
+            dt[14][y][x] = 10 if k % 3 else 11
+            if x + 1 < T:
+                dt[14][y][x + 1] = 11 if k % 3 else 10
+
+sand(dt[15], 43)  # tall weed, lower half
+# upper half floats over open water/veils, so it stays transparent-based
+for s, lean in ((4, 0.9), (9, -0.7), (13, 0.6)):
+    for k in range(T):
+        y = T - 1 - k
+        x = s + int(lean * 2.2 * math.sin(k * 0.35 + s))
+        if 0 <= x < T:
+            dt[15][y][x] = 10 if k % 3 else 11
+            if x + 1 < T:
+                dt[15][y][x + 1] = 11 if k % 3 else 10
+    for k in range(T, T + 12):
+        y = 2 * T - 1 - k
+        x = s + int(lean * 2.2 * math.sin(k * 0.35 + s))
+        if 0 <= x < T and 0 <= y < T:
+            dt[16][y][x] = 11 if k % 3 else 10
+            if x + 1 < T:
+                dt[16][y][x + 1] = 10 if k % 3 else 11
+
+# veils: translucent clouds; density falls off toward the tile edge so
+# assembled blobs feather naturally
+for n, (lo, hi, core) in ((17, (10, 26, 3)), (18, (26, 52, 4)),
+                          (19, (52, 86, 5)), (20, (4, 11, 3))):
+    for y in range(T):
+        for x in range(T):
+            edge = min(x, y, T - 1 - x, T - 1 - y) / (T / 2.0)
+            dens = lo + (hi - lo) * min(1.0, edge * 1.6)
+            h = h8(x, y, n * 7)
+            if h < dens:
+                dt[n][y][x] = core if h < dens * 0.4 else \
+                              3 if core == 3 else core - 1
+
+
+# ---- floor map: banks with classified edges, dune flows, dressing ----
+FM = [[0] * 32 for _ in range(32)]
 for y in range(32):
     for x in range(32):
-        v = (x*11 + y*7) % 23
-        if v == 0:   DM[y][x] = 1
-        elif v == 5: DM[y][x] = 2
-        elif v == 9: DM[y][x] = 8
-        else:        DM[y][x] = 0
-#sand banks and pebbles
-for cx, cy, r in ((6, 26, 6), (24, 5, 5), (28, 27, 6), (3, 4, 4)):
+        h = h8(x, y, 100)
+        band = (y + int(2.2 * math.sin(x * 0.35))) % 11
+        if band == 0:
+            FM[y][x] = 2 + (h & 1)       # dune streaks
+        elif h < 30:
+            FM[y][x] = 1                  # coarse patch
+        elif h < 42:
+            FM[y][x] = 4 + (h & 1)        # sunlit sand
+        else:
+            FM[y][x] = 0
+
+BANKS = ((7, 6, 4.2), (24, 22, 5.0), (27, 4, 3.2), (4, 27, 3.4))
+def in_bank(x, y):
+    return any(math.hypot(x - cx, y - cy) <= r for cx, cy, r in BANKS)
+for y in range(32):
+    for x in range(32):
+        if not in_bank(x, y):
+            continue
+        n_out = not in_bank(x, y - 1)
+        s_out = not in_bank(x, y + 1)
+        w_out = not in_bank(x - 1, y)
+        e_out = not in_bank(x + 1, y)
+        if not (n_out or s_out or w_out or e_out):
+            FM[y][x] = 8
+        elif n_out: FM[y][x] = 9
+        elif s_out: FM[y][x] = 10
+        elif w_out: FM[y][x] = 11
+        else: FM[y][x] = 12
+#pebbles hug the banks; debris and weeds fill the open sand
+for x, y, t_ in ((11, 8, 7), (21, 24, 6), (26, 8, 6), (3, 23, 7), (12, 5, 6),
+                 (28, 25, 7)):
+    if FM[y][x] < 8:
+        FM[y][x] = t_
+#weed bases: tufts at the frond sprite anchors (FROND_SITES in game2.h)
+for x, y in ((2, 3), (3, 11), (10, 2), (17, 8), (12, 13), (18, 13),
+             (1, 7), (8, 9)):
+    FM[y][x] = 14
+for x, y in ((4, 15), (13, 21), (27, 28), (23, 2)):
+    if FM[y][x] < 8:
+        FM[y][x] = 14
+
+# ---- depth veil maps: clouds assembled from center/ring/feather ----
+def veil_blob(m, cx, cy, r, dense):
     for y in range(32):
         for x in range(32):
-            if (x-cx)**2 + (y-cy)**2 <= r*r:
-                DM[y][x] = 6 if (x*3 + y*5) % 7 else 7
-#weed stands
-for x, y in ((2, 12), (10, 3), (17, 28), (29, 14), (14, 14), (21, 20)):
-    DM[y][x] = 5
-#caustic-lit patches on the floor
-for x, y in ((8, 8), (19, 6), (5, 19), (26, 20), (13, 24), (30, 8),
-             (16, 11), (23, 12), (9, 30), (1, 26)):
-    DM[y][x] = 1 + ((x + y) % 2)
+            d = math.hypot(x - cx, y - cy)
+            if d > r:
+                continue
+            if d < r * 0.45:
+                m[y][x] = 19 if dense else 18
+            elif d < r * 0.8:
+                m[y][x] = 18 if dense else 17
+            else:
+                m[y][x] = 20
 
-#light-web map (bg1 middle overlay): godrays + caustic webs over the floor,
-#disabled (0x8000) where there is no light feature
-OFF = 0x8000
-LM = [[OFF]*32 for _ in range(32)]
-for x0, w in ((4, 3), (14, 4), (24, 3)):   #godray bands
-    for y in range(32):
-        for k in range(w):
-            LM[y][x0+k] = 3 if (x0 + k + y) % 3 else 4
-for x, y in ((8, 4), (10, 9), (19, 14), (7, 17), (28, 6), (12, 21),
-             (21, 25), (2, 8), (30, 22), (17, 2), (5, 27), (27, 16)):
-    LM[y][x] = 1 + ((x + y) % 2)           #caustic webs
-for y in range(32):                        #drifting plankton speckle
+#depth 1: sparse upper veil clouds (organic dither, no checker)
+D1 = [[OFF] * 32 for _ in range(32)]
+for cx, cy, r in ((6, 8, 3.2), (20, 5, 2.8), (27, 16, 3.4), (10, 22, 3.0),
+                  (22, 27, 3.2)):
+    veil_blob(D1, cx, cy, r, dense=False)
+
+D2 = [[OFF] * 32 for _ in range(32)]
+for cx, cy, r in ((13, 7, 4.2), (27, 9, 3.2), (5, 14, 3.6), (18, 18, 4.6),
+                  (28, 23, 3.4), (9, 28, 4.0), (23, 30, 2.8), (1, 4, 2.7)):
+    veil_blob(D2, cx, cy, r, dense=True)
+
+
+# ================= caustics layer: cellular webs + godrays =================
+CPAL = [
+    (0, 0, 0),      # 0 transparent
+    (192, 184, 144),# 1 web dim      } warm light, swept 1..3
+    (224, 216, 168),# 2 web bright   }
+    (248, 244, 200),# 3 web glint    }
+    (176, 164, 120),# 4 pool dim     } swept 4..6
+    (208, 196, 144),# 5 pool mid     }
+    (232, 224, 168),# 6 pool bright  }
+    (248, 248, 240),# 7 sparkle
+] + [(0, 0, 0)] * 8
+
+#tiles 0..511: 8 frames x 64 position variants covering a 128x128 px
+#torus. Ridges sit where the two nearest feature points are equidistant
+#(the cell walls of a real caustic); each point rides a small closed
+#orbit, so consecutive frames differ gently and frame 7 loops to 0.
+NFRAME = 8
+NPOS = 64  # 8x8 tiles per period
+PER = 128
+N_C = NFRAME * NPOS + 3
+ct = [new_tile() for _ in range(N_C)]
+
+def torus_d(ax, ay, bx, by):
+    dx = abs(ax - bx); dy = abs(ay - by)
+    if dx > PER/2: dx = PER - dx
+    if dy > PER/2: dy = PER - dy
+    return math.hypot(dx, dy)
+
+BASE_PTS = [((37 * k * k + 23 * k) % PER, (53 * k * k + 41 * k + 17) % PER)
+            for k in range(17)]
+for f in range(NFRAME):
+    ph = 2 * math.pi * f / NFRAME
+    pts = [((bx + 5.0 * math.cos(ph + k)) % PER,
+            (by + 5.0 * math.sin(ph * (1 if k % 2 else -1) + k * 2)) % PER)
+           for k, (bx, by) in enumerate(BASE_PTS)]
+    for v in range(NPOS):
+        cx, cy = v % 8, v // 8
+        t = ct[f * NPOS + v]
+        for y in range(T):
+            for x in range(T):
+                wx, wy = cx * 16 + x, cy * 16 + y
+                ds = sorted(torus_d(wx, wy, px, py) for px, py in pts)
+                gap = ds[1] - ds[0]
+                if gap < 0.42:
+                    t[y][x] = 3 if gap < 0.16 else 2
+                elif gap < 0.75 and h8(wx, wy, f) < 26:
+                    t[y][x] = 1
+
+# light pools (after the animation bank) and a sparkle tile
+POOL_A = NFRAME * NPOS
+POOL_B = POOL_A + 1
+SPARK_C = POOL_A + 2
+for n, (rr, dens) in ((POOL_A, (7.2, 150)), (POOL_B, (6.0, 90))):
+    for y in range(T):
+        for x in range(T):
+            d = math.hypot(x - 8 + .5, y - 8 + .5)
+            if d > rr:
+                continue
+            fall = 1.0 - d / rr
+            if h8(x, y, n * 5) < dens * fall:
+                ct[n][y][x] = 6 if fall > 0.6 else 5 if fall > 0.3 else 4
+
+ct[SPARK_C][6][9] = 7   # sparkle specks
+ct[SPARK_C][10][4] = 7
+ct[SPARK_C][2][13] = 7
+
+#caustics blanket the whole floor — frames hash-staggered so the net
+#shimmers without a visible grid; a few pools and sparkles on top
+CM = [[0] * 32 for _ in range(32)]
+for y in range(32):
     for x in range(32):
-        if LM[y][x] == OFF and (x*13 + y*17) % 29 == 0:
-            LM[y][x] = 0
+        CM[y][x] = (x & 7) + (y & 7) * 8   #position variant, frame 0
+for cx, cy in ((5, 7), (16, 3), (26, 12), (9, 19), (21, 23), (29, 27)):
+    CM[cy][cx] = POOL_A
+    if cx + 1 < 32: CM[cy][cx + 1] = POOL_B
+for x, y in ((11, 8), (24, 15), (5, 22), (18, 28), (28, 8)):
+    CM[y][x] = SPARK_C
 
-# ====================== surface (bg0) ======================
+# ================= surface: Wind Waker water =============================
+#Full-coverage animated surface: a translucent base tint (organic dither,
+#~55%% coverage), wandering cel-style contour lines, and flash regions
+#that light up as the palette rotates 2->3->4 at runtime. Frames 0-3
+#cycle through the tilemap; reeds live on tiles 4-5.
+WPAL = [
+    (0, 0, 0),      # 0 transparent
+    (112, 168, 152),# 1 base water tint (semitransparent)
+    (168, 216, 200),# 2 contour dim   } rotated 2..4 at runtime:
+    (208, 240, 224),# 3 contour brightt} regions light up as
+    (248, 248, 232),# 4 reflection flash} the palette turns
+    (120, 144, 56), # 5 reed olive
+    (84, 104, 40),  # 6 reed dark
+] + [(0, 0, 0)] * 9
+
+#tiles 0..511: 8 frames x 64 positions over a 128px field. The tint is
+#smooth blobs (dither only at their edges — no checkerboard wash), the
+#contours drift on looping phase shifts.
+N_W = NFRAME * NPOS + 2
+REED_A = NFRAME * NPOS
+REED_B = REED_A + 1
+wt = [new_tile() for _ in range(N_W)]
+W128 = 2 * math.pi / PER
+for f in range(NFRAME):
+    fp = 2 * math.pi * f / NFRAME
+    for v in range(NPOS):
+        vx, vy = v % 8, v // 8
+        t = wt[f * NPOS + v]
+        for y in range(T):
+            for x in range(T):
+                wx, wy = vx * 16 + x, vy * 16 + y
+                c = (math.sin(wx * W128 * 2 + fp)
+                     + math.sin(wy * W128 * 3 - fp)
+                     + 0.6 * math.sin((wx + wy) * W128 * 5 + 2 * fp)
+                     + 0.45 * math.sin((wx - 2 * wy) * W128 * 7 - fp))
+                #smooth tint blobs, static across frames; dithered rim
+                g = (math.sin(wx * W128 + 1.1) + math.sin(wy * W128 * 2 + 0.4)
+                     + math.sin((wx + wy) * W128 * 3 - 0.8))
+                if abs(c) < 0.10:
+                    r = h8(wx >> 3, wy >> 3, 9)
+                    t[y][x] = 2 if r < 150 else (3 if r < 216 else 4)
+                elif g > 0.75:
+                    t[y][x] = 1
+                elif g > 0.15 and h8(wx, wy, 30) < (g + 0.2) * 160:
+                    t[y][x] = 1
+for n, seed in ((REED_A, 0), (REED_B, 5)):  # reed clusters
+    for s, hgt, lean in ((4, 14, 0.9), (9, 16, -0.7), (13, 11, 0.5)):
+        for k in range(hgt):
+            y = T - 1 - k
+            x = s + int(lean * math.sin(k * 0.35 + seed))
+            if 0 <= x < T:
+                wt[n][y][x] = 5 if (k + seed) % 3 else 6
+                if x + 1 < T:
+                    wt[n][y][x + 1] = 6 if (k + seed) % 3 else 5
+
+WM = [[0] * 32 for _ in range(32)]
+for y in range(32):
+    for x in range(32):
+        WM[y][x] = (x & 7) + (y & 7) * 8   #position variant, frame 0
+for x, y, t_ in ((0, 29, REED_A), (1, 30, REED_B), (2, 29, REED_A),
+                 (29, 29, REED_B), (30, 30, REED_A), (31, 29, REED_B),
+                 (0, 1, REED_B), (1, 0, REED_A), (30, 0, REED_B),
+                 (31, 1, REED_A)):
+    WM[y][x] = t_
+
+#SPAL remains the sprite color table for pads/rings/fronds (not a bg pal)
 SPAL = [
     (0, 0, 0),      # 0 transparent
     (16, 40, 20),   # 1 pad outline
@@ -161,8 +447,8 @@ SPAL = [
     (100, 168, 84), # 5 pad light
     (140, 204, 116),# 6 pad highlight
     (24, 56, 28),   # 7 pad vein
-    (216, 232, 248),# 8 sparkle (semitransparent)
-    (40, 64, 88),   # 9 pad shadow (semitransparent)
+    (216, 232, 248),# 8 wave glint (semitransparent)
+    (16, 16, 24),   # 9 pad shadow (semitransparent, near-black)
     (232, 120, 144),# 10 lotus pink
     (248, 192, 208),# 11 lotus light
     (176, 48, 72),  # 12 lotus deep
@@ -171,139 +457,97 @@ SPAL = [
     (84, 104, 40),  # 15 reed dark
 ]
 
+# ================= lily pads as sprites (unchanged interface) =============
 def draw_pad(canvas, cx, cy, r, notch_dir=0.55, veins=True, wobble=0.0):
-    """A shaded lily pad with a notch and radial veins, light upper-left."""
     W = len(canvas[0]); H = len(canvas)
     for y in range(H):
         for x in range(W):
             dx, dy = x - cx + 0.5, y - cy + 0.5
-            rr = r + wobble*math.sin(math.atan2(dy, dx)*5.0)
+            rr = r + wobble * math.sin(math.atan2(dy, dx) * 5.0)
             d = math.hypot(dx, dy)
             if d > rr:
                 continue
             ang = math.atan2(dy, dx)
-            #the notch: a wedge cut toward notch_dir
-            da = (ang - notch_dir + math.pi) % (2*math.pi) - math.pi
-            if abs(da) < 0.30 and d > rr*0.22:
+            da = (ang - notch_dir + math.pi) % (2 * math.pi) - math.pi
+            if abs(da) < 0.30 and d > rr * 0.22:
                 continue
-            if abs(da) < 0.42 and d > rr*0.22:
-                canvas[y][x] = 1  #notch edge
+            if abs(da) < 0.42 and d > rr * 0.22:
+                canvas[y][x] = 1
                 continue
             if d > rr - 1.1:
                 c = 1
             elif d > rr - 2.4:
                 c = 2
             else:
-                #base shading: light from the upper left
-                light = (-dx - dy) / (rr*1.4)
-                t = d / rr
-                if light > 0.35 and t < 0.75: c = 5
+                light = (-dx - dy) / (rr * 1.4)
+                tt = d / rr
+                if light > 0.35 and tt < 0.75: c = 5
                 elif light > 0.05: c = 4
                 elif light < -0.45: c = 2
                 else: c = 3
-                if t < 0.18: c = 5
-                #radial veins
-                if veins and d > rr*0.3:
-                    v = (ang*4.0/math.pi) % 1.0
+                if tt < 0.18: c = 5
+                if veins and d > rr * 0.3:
+                    v = (ang * 4.0 / math.pi) % 1.0
                     if v < 0.10 and abs(da) > 0.6:
                         c = 7
-                #dew highlight
-                if light > 0.55 and t < 0.45 and (x + y) % 3 == 0:
+                if light > 0.55 and tt < 0.45 and (x + y) % 3 == 0:
                     c = 6
             canvas[y][x] = c
 
-def new_canvas(w, h):
-    return [[0]*w for _ in range(h)]
-
-N_S = 16
-st = [[[0]*16 for _ in range(16)] for _ in range(N_S)]
-
-# t0 empty
-draw_pad(st[1], 8, 8, 6.4, notch_dir=0.5, veins=False)   # t1 small pad
-draw_pad(st[2], 8, 8, 7.6, notch_dir=2.2, wobble=0.4)    # t2 medium pad
-wide = new_canvas(32, 16)                                # t3-4 wide pad 2x1
-draw_pad(wide, 16, 8, 0, veins=False)  # placeholder; ellipse below
-for y in range(16):
-    for x in range(32):
-        dx, dy = (x-16+0.5)/15.0, (y-8+0.5)/7.2
-        d = math.hypot(dx, dy)
-        if d > 1.0: continue
-        ang = math.atan2(dy, dx)
-        da = (ang - 0.9 + math.pi) % (2*math.pi) - math.pi
-        if abs(da) < 0.22 and d > 0.25: wide[y][x] = 0; continue
-        if d > 0.90: c = 1
-        elif d > 0.78: c = 2
-        else:
-            light = (-dx - dy)/1.6
-            if light > 0.28: c = 5
-            elif light > 0.0: c = 4
-            elif light < -0.35: c = 2
-            else: c = 3
-            if d < 0.2: c = 5
-            if light > 0.45 and d < 0.5 and (x+y) % 3 == 0: c = 6
-        wide[y][x] = c
-for y in range(16):
-    for x in range(16):
-        st[3][y][x] = wide[y][x]
-        st[4][y][x] = wide[y][x+16]
-big = new_canvas(32, 32)                                 # t5-8 big pad 2x2
-draw_pad(big, 16, 16, 14.2, notch_dir=0.75, wobble=0.7)
-for y in range(16):
-    for x in range(16):
-        st[5][y][x] = big[y][x]
-        st[6][y][x] = big[y][x+16]
-        st[7][y][x] = big[y+16][x]
-        st[8][y][x] = big[y+16][x+16]
-draw_pad(st[9], 8, 9, 6.8, notch_dir=-2.4, veins=False)  # t9 lotus pad
+pad_small = new_tile()
+draw_pad(pad_small, 8, 8, 6.4, notch_dir=0.5, veins=False)
+pad_med = new_tile()
+draw_pad(pad_med, 8, 8, 7.6, notch_dir=2.2, wobble=0.4)
+pad_lotus = new_tile()
+draw_pad(pad_lotus, 8, 9, 6.8, notch_dir=-2.4, veins=False)
 for dx, dy, c in ((0, -1, 12), (-1, 0, 10), (1, 0, 10), (0, 1, 10),
                   (-1, -1, 11), (1, -1, 11), (0, -2, 11), (0, 0, 13)):
-    st[9][6+dy][8+dx] = c
-for x, y in ((3, 4), (11, 2), (7, 9), (13, 12), (2, 13)):  # t10 sparkles
-    st[10][y][x] = 8
-for y in range(16):                                       # t11 shadow blob
-    for x in range(16):
-        d = math.hypot(x-8+0.5, y-8+0.5)
-        if d < 6.5 and (x + y) % 2 == 0:
-            st[11][y][x] = 9
-for n, seed in ((12, 0), (13, 5)):                        # t12-13 reeds
-    for s, h, lean in ((4, 14, 0.9), (9, 16, -0.7), (13, 11, 0.5)):
-        for k in range(h):
-            y = 15 - k
-            x = s + int(lean*math.sin(k*0.35 + seed))
-            if 0 <= x < 16:
-                st[n][y][x] = 14 if (k + seed) % 3 else 15
-                if k == h-1 and 0 <= x < 16:
-                    st[n][y][x] = 14
-# t14 small pad, other notch direction; t15 tiny pad
-draw_pad(st[14], 8, 8, 6.2, notch_dir=3.6, veins=False)
-draw_pad(st[15], 8, 8, 4.6, notch_dir=1.6, veins=False)
+    pad_lotus[6 + dy][8 + dx] = c
+pad_tiny = new_tile()
+draw_pad(pad_tiny, 8, 8, 4.6, notch_dir=1.6, veins=False)
+shadow_tile = new_tile()
+for y in range(T):
+    for x in range(T):
+        if math.hypot(x - 8 + .5, y - 8 + .5) < 7.2 and h8(x, y, 3) < 118:
+            shadow_tile[y][x] = 9
+fish_shadow = new_tile()
+for y in range(T):
+    for x in range(T):
+        if math.hypot((x - 8 + .5) / 5.0, (y - 8 + .5) / 2.6) < 1.0 \
+           and h8(x, y, 5) < 118:
+            fish_shadow[y][x] = 9
+ring_tile = new_tile()  # contact ring, tracks its pad as a sprite
+for y in range(T):
+    for x in range(T):
+        d = math.hypot(x - 8 + .5, y - 8 + .5)
+        if abs(d - 7.1) < 0.55 and h8(x, y, 33) < 210:
+            ring_tile[y][x] = 8
+frond_a = new_tile()    # upper weed fronds, two sway frames
+frond_b = new_tile()
+for tgt, sway in ((frond_a, 1.0), (frond_b, -1.0)):
+    for s, lean in ((5, 0.8), (10, -0.6)):
+        for k in range(15):
+            y = T - 1 - k
+            x = s + int(sway * lean * 2.4 * math.sin(k * 0.4 + s))
+            if 0 <= x < T:
+                tgt[y][x] = 3 if k % 3 else 5
+                if x + 1 < T and k > 3:
+                    tgt[y][x + 1] = 5 if k % 3 else 3
 
-SM = [[0]*32 for _ in range(32)]
-def place(x, y, t):
-    if SM[y][x] == 0: SM[y][x] = t
-#reeds along the banks
-for x, y, t in ((0, 29, 12), (1, 30, 13), (2, 29, 12), (29, 29, 13),
-                (30, 30, 12), (31, 29, 13), (0, 1, 13), (1, 0, 12),
-                (30, 0, 13), (31, 1, 12)):
-    place(x, y, t)
-#sparkles on open water
-for x, y in ((4, 2), (16, 2), (28, 7), (2, 13), (11, 19), (25, 19),
-             (6, 28), (19, 29), (30, 18), (13, 6), (22, 23)):
-    place(x, y, 10)
-
-# ====================== koi (fsp tiles 18-19, palettes 5-6) ==============
+# ================= koi (fsp tiles 18-19, palettes 5-6) ====================
 fsp_pal0 = list(Image.open('assets/fsp_pal0.png').convert('RGB').getdata())[:16]
 used = [1, 2, 3, 4, 5]
 assert len(set(fsp_pal0[i] for i in used)) == len(used), \
     'fsp palette 0 has duplicate colors at koi indices'
 
+
 def draw_koi(tail_up):
-    t = [[0]*16 for _ in range(16)]
-    for y in range(16):
-        for x in range(16):
+    t = new_tile()
+    for y in range(T):
+        for x in range(T):
             dx, dy = (x - 6.5) / 5.5, (y - 8) / 3.5
-            if dx*dx + dy*dy <= 1.0:
-                t[y][x] = 2 if dx*dx + dy*dy > 0.55 else 3
+            if dx * dx + dy * dy <= 1.0:
+                t[y][x] = 2 if dx * dx + dy * dy > 0.55 else 3
     for x, y in ((5, 7), (6, 7), (5, 8), (8, 9), (9, 8)):
         t[y][x] = 5
     t[7][10] = 1
@@ -312,7 +556,7 @@ def draw_koi(tail_up):
         x = 3 - k
         for y in range(8 - k, 9 + k):
             yy = y + (ty - 8) * k // 3
-            if 0 <= yy < 16:
+            if 0 <= yy < T:
                 t[yy][x] = 4
     t[4][7] = 4
     t[12][7] = 4
@@ -322,58 +566,54 @@ def draw_koi(tail_up):
 koi_frames = [draw_koi(True), draw_koi(False)]
 kimg = Image.new('RGB', (32, 16), fsp_pal0[0])
 for n, t in enumerate(koi_frames):
-    for y in range(16):
-        for x in range(16):
-            kimg.putpixel((n*16 + x, y), fsp_pal0[t[y][x]])
+    for y in range(T):
+        for x in range(T):
+            kimg.putpixel((n * 16 + x, y), fsp_pal0[t[y][x]])
 kimg.save('assets/koi_tiles.png')
 
 KOI_ORANGE = list(fsp_pal0)
-KOI_ORANGE[1] = (32, 24, 24)
-KOI_ORANGE[2] = (232, 96, 32)
-KOI_ORANGE[3] = (248, 200, 120)
-KOI_ORANGE[4] = (248, 144, 64)
-KOI_ORANGE[5] = (248, 240, 224)
+KOI_ORANGE[1] = (16, 12, 16)
+KOI_ORANGE[2] = (240, 88, 24)
+KOI_ORANGE[3] = (248, 176, 80)
+KOI_ORANGE[4] = (248, 136, 48)
+KOI_ORANGE[5] = (248, 248, 240)
 KOI_CALICO = list(fsp_pal0)
-KOI_CALICO[1] = (32, 24, 24)
-KOI_CALICO[2] = (240, 240, 232)
-KOI_CALICO[3] = (248, 224, 200)
-KOI_CALICO[4] = (248, 200, 180)
-KOI_CALICO[5] = (216, 72, 48)
+KOI_CALICO[1] = (16, 12, 16)
+KOI_CALICO[2] = (248, 248, 248)
+KOI_CALICO[3] = (240, 216, 184)
+KOI_CALICO[4] = (248, 192, 160)
+KOI_CALICO[5] = (224, 56, 40)
 for name, pal in (('koi_pal0', KOI_ORANGE), ('koi_pal1', KOI_CALICO)):
     im = Image.new('RGB', (16, 1))
     im.putdata([tuple(c) for c in pal])
     im.save(f'assets/{name}.png')
 
-# ====================== pond half-sprites (hsp 128-131) ==================
+# ================= pond half-sprites (hsp 128-133) ========================
 hsp_pal0 = list(Image.open('assets/hsp_pal0.png').convert('RGB').getdata())[:16]
-pt = [[[0]*8 for _ in range(8)] for _ in range(4)]
+pt = [[[0] * 8 for _ in range(8)] for _ in range(6)]
 for n, (lo, hi) in enumerate(((2, 6), (6, 11), (10, 14))):
     for y in range(8):
         for x in range(8):
-            d2 = (2*x-7)*(2*x-7) + (2*y-7)*(2*y-7)
-            if lo*4 <= d2 <= hi*4 and (x + y + n) % 4:
+            d2 = (2 * x - 7) ** 2 + (2 * y - 7) ** 2
+            if lo * 4 <= d2 <= hi * 4 and (x + y + n) % 4:
                 pt[n][y][x] = 1
 for x, y in ((3, 3), (4, 3), (3, 4), (4, 4)):
     pt[3][y][x] = 2
-pimg = Image.new('RGB', (32, 8), hsp_pal0[0])
-for n in range(4):
+for x, y in ((3, 1), (3, 5), (1, 3), (5, 3), (3, 3)):
+    pt[4][y][x] = 1
+for x, y in ((2, 2), (4, 4), (2, 4), (4, 2), (3, 3)):
+    pt[5][y][x] = 1
+pimg = Image.new('RGB', (48, 8), hsp_pal0[0])
+for n in range(6):
     for y in range(8):
         for x in range(8):
-            pimg.putpixel((n*8 + x, y), hsp_pal0[pt[n][y][x]])
+            pimg.putpixel((n * 8 + x, y), hsp_pal0[pt[n][y][x]])
 pimg.save('assets/pond_hsp_tiles.png')
 
-
-# ============== lily pads as full sprites (fsp tiles 20-24) ==============
-#shadow blob tile in the surface palette's shadow color (index 9)
-shadow_tile = [[0]*16 for _ in range(16)]
-for y in range(16):
-    for x in range(16):
-        if math.hypot(x-8+0.5, y-8+0.5) < 7.2 and (x + y) % 2 == 0:
-            shadow_tile[y][x] = 9
-
-PAD_TILES = [st[1], st[2], st[9], st[15], shadow_tile]
+# ============== lily pads onto the fsp palette (index remap) ==============
+PAD_TILES = [pad_small, pad_med, pad_lotus, pad_tiny, shadow_tile,
+             fish_shadow, ring_tile, frond_a, frond_b]
 need = sorted({v for t in PAD_TILES for row in t for v in row})
-#map surface-palette indices onto slots whose fsp-pal0 colors are unique
 first = []
 seen = set()
 for i, c in enumerate(fsp_pal0):
@@ -381,7 +621,7 @@ for i, c in enumerate(fsp_pal0):
         seen.add(c)
         if i != 0:
             first.append(i)
-merges = [(7, 1), (12, 10), (11, 10), (6, 5), (13, 11)]
+merges = [(7, 1), (12, 10), (11, 10), (6, 5), (13, 11), (2, 1), (4, 3)]
 work = [t for t in PAD_TILES]
 needed = [v for v in need if v != 0]
 while len(needed) > len(first):
@@ -395,52 +635,36 @@ leaf_pal = [(0, 0, 0)] * 16
 for v, slot in mapping.items():
     leaf_pal[slot] = SPAL[v]
 shadow_slot = mapping[9]
-pimg2 = Image.new('RGB', (len(work)*16, 16), fsp_pal0[0])
+ring_slot = mapping.get(8, shadow_slot)
+pimg2 = Image.new('RGB', (len(work) * 16, 16), fsp_pal0[0])
 for n, t in enumerate(work):
-    for y in range(16):
-        for x in range(16):
-            pimg2.putpixel((n*16 + x, y), fsp_pal0[mapping[t[y][x]]])
+    for y in range(T):
+        for x in range(T):
+            pimg2.putpixel((n * 16 + x, y), fsp_pal0[mapping[t[y][x]]])
 pimg2.save('assets/pad_fsp_tiles.png')
 lp = Image.new('RGB', (16, 1))
 lp.putdata(leaf_pal)
 lp.save('assets/leaf_pal.png')
 
-#keep the fsp manifest in sync (idempotent)
 mf = [l for l in open('assets/fsp.mfst').read().splitlines()
       if 'pad_fsp_tiles' not in l and 'leaf_pal' not in l]
 mf.append('tileset assets/pad_fsp_tiles.png')
-mf.append(f'palette assets/leaf_pal.png alpha={shadow_slot}')
+mf.append('palette assets/leaf_pal.png '
+          f'alpha={shadow_slot},{ring_slot}')
 open('assets/fsp.mfst', 'w').write('\n'.join(mf) + '\n')
 print(f'pad sprites: shadow color slot {shadow_slot}')
 
-# ====================== write everything ======================
-def save_strip(tiles, pal, path, size=16):
-    img = Image.new('RGB', (len(tiles)*size, size))
-    for n, t in enumerate(tiles):
-        for y in range(size):
-            for x in range(size):
-                img.putpixel((n*size + x, y), pal[t[y][x]])
-    img.save(path)
-
-def save_pal(pal, path):
-    im = Image.new('RGB', (16, 1))
-    im.putdata(pal)
-    im.save(path)
-
-def save_map(m, path):
-    with open(path, 'wb') as f:
-        f.write(b'MAP\n')
-        f.write(bytes([32, 32]))
-        for row in m:
-            for v in row:
-                f.write(struct.pack('>H', v))
-
+# ================= write the background sets ==============================
 save_strip(dt, DPAL, 'assets/scene3_depths_tiles.png')
 save_pal(DPAL, 'assets/scene3_depths_pal0.png')
-save_map(DM, 'assets/scene3_depths.map')
-save_map(LM, 'assets/scene3_lights.map')
-save_strip(st, SPAL, 'assets/scene3_surface_tiles.png')
-save_pal(SPAL, 'assets/scene3_surface_pal0.png')
-save_map(SM, 'assets/scene3_surface.map')
-print(f'scene3 assets: depths {N_D} tiles, surface {N_S} tiles,'
-      ' 2 koi frames, 2 koi palettes, 4 pond half-sprites')
+save_map(FM, 'assets/scene3_floor.map')
+save_map(D1, 'assets/scene3_depth1.map')
+save_map(D2, 'assets/scene3_depth2.map')
+save_strip(ct, CPAL, 'assets/scene3_caustics_tiles.png')
+save_pal(CPAL, 'assets/scene3_caustics_pal0.png')
+save_map(CM, 'assets/scene3_caustics.map')
+save_strip(wt, WPAL, 'assets/scene3_surface_tiles.png')
+save_pal(WPAL, 'assets/scene3_surface_pal0.png')
+save_map(WM, 'assets/scene3_surface.map')
+print(f'scene3: floor/veils {N_D} tiles, caustics {N_C}, surface {N_W},'
+      ' 2 koi frames, 6 pond half-sprites')

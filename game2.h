@@ -429,6 +429,8 @@ static void kill_pprojectile(uint8_t id) {
   pprojectiles.base[id] = 0x0000;
 }
 
+static void kill_pellet_quiet(uint8_t id);
+
 static void update_pprojectiles(void) {
   for (uint8_t i=0; i<MAX_PPROJECTILES; i++) {
     if (pprojectile_state(i) != STATE_ALIVE) continue;
@@ -681,6 +683,15 @@ static uint8_t game_mode = MODE_MENU;
 #define RIPPLE_TILE 128    //3 growth stages: 128..130
 #define PELLET_TILE 131
 
+/* Sprite render priorities for the pond compositor (7 = topmost is the
+   default for every add): */
+#define PRIO_SHADOW      1
+#define PRIO_KOI_DEEP    2
+#define PRIO_KOI_MID     3
+#define PRIO_KOI_SHALLOW 4
+#define PRIO_SPARKLE     5
+#define PRIO_LEAF        6
+
 /* Lily pads are full sprites: they bob and drift as whole objects (motion
    without deformation) and, allocated before the koi, they draw ON TOP of
    the fish — the koi swim under the leaves. Each leaf casts a
@@ -691,42 +702,128 @@ static uint8_t game_mode = MODE_MENU;
 #define LEAF_TILE_LOTUS  22
 #define LEAF_TILE_TINY   23
 #define LEAF_TILE_SHADOW 24
+#define KOI_TILE_SHADOW  25
+#define RING_TILE        26
+#define FROND_TILE_A     27
+#define FROND_TILE_B     28
 #define LEAF_PAL 7
 
 typedef struct {
   uint8_t sprite[MAX_LEAVES];
   uint8_t shadow[MAX_LEAVES];
-  uint16_t base_x[MAX_LEAVES]; //anchor, pixels
+  uint8_t ring[MAX_LEAVES]; //contact ring on the surface, tracks the pad
+  uint16_t base_x[MAX_LEAVES]; //anchor, pixels (wraps at 512)
   uint16_t base_y[MAX_LEAVES];
   uint8_t phase[MAX_LEAVES];
+  uint8_t drift[MAX_LEAVES];  //downstream speed, 1/32 px per frame
+  uint8_t dfrac[MAX_LEAVES];  //drift accumulator
 } leaf_struct;
 static leaf_struct leaves;
 
-typedef struct { uint16_t x, y; uint8_t tile; uint8_t big; } leaf_def;
+static uint32_t river_hash(uint32_t a, uint32_t b) {
+  uint32_t v = a * 2654435761u ^ (b * 0x9E3779B9u + 0x7F4A7C15u);
+  v ^= v >> 15; v *= 0x2C1B3C6Du; v ^= v >> 12;
+  return v;
+}
+
+//a spawn x that keeps clear water between this leaf and the others
+static uint16_t leaf_spawn_x(uint8_t self, uint32_t seed) {
+  for (uint8_t attempt = 0; attempt < 8; attempt++) {
+    uint16_t x = (uint16_t)(20 + river_hash(seed, attempt) % 270);
+    uint8_t ok = 1;
+    for (uint8_t j = 0; j < MAX_LEAVES; j++) {
+      if (j == self) continue;
+      int16_t dx = (int16_t)(x - leaves.base_x[j]);
+      int16_t dy = (int16_t)(leaves.base_y[j] - 480); //vs entry band
+      if (dx < 0) dx = -dx;
+      if (dy < 0) dy = -dy;
+      if (dy > 256) dy = (int16_t)(512 - dy);
+      if (dx < 44 && dy < 56) { ok = 0; break; }
+    }
+    if (ok) return x;
+  }
+  return (uint16_t)(20 + river_hash(seed, 99) % 270);
+}
+
+//in the river the positions are rolled at spawn; defs give each slot its
+//pad type (two big ones, a couple of lotuses, assorted sizes)
+typedef struct { uint8_t tile; uint8_t big; } leaf_def;
 static const leaf_def leaf_defs[MAX_LEAVES] = {
-  { 96,  84, LEAF_TILE_MEDIUM, 1 }, //the grand pad
-  {232, 152, LEAF_TILE_MEDIUM, 1 },
-  { 56,  40, LEAF_TILE_SMALL,  0 },
-  {176,  48, LEAF_TILE_LOTUS,  0 },
-  {268,  64, LEAF_TILE_SMALL,  0 },
-  { 40, 152, LEAF_TILE_LOTUS,  0 },
-  {148, 128, LEAF_TILE_SMALL,  0 },
-  {208, 100, LEAF_TILE_TINY,   0 },
-  {120, 192, LEAF_TILE_MEDIUM, 0 },
-  {284, 200, LEAF_TILE_TINY,   0 },
+  { LEAF_TILE_MEDIUM, 1 }, { LEAF_TILE_SMALL, 0 }, { LEAF_TILE_LOTUS, 0 },
+  { LEAF_TILE_TINY, 0 },   { LEAF_TILE_MEDIUM, 0 }, { LEAF_TILE_SMALL, 0 },
+  { LEAF_TILE_MEDIUM, 1 }, { LEAF_TILE_LOTUS, 0 }, { LEAF_TILE_TINY, 0 },
+  { LEAF_TILE_SMALL, 0 },
 };
 
 //gentle circular drift, a quarter phase apart on each axis
 static const int8_t bob_table[16] =
   {0, 1, 1, 2, 2, 2, 1, 1, 0, -1, -1, -2, -2, -2, -1, -1};
 
+/* weeds: rooted tuft on the floor map + a swaying frond sprite above it,
+   in tandem — anchors match the tuft cells the generator paints */
+#define MAX_FRONDS 8
+static const uint16_t frond_sites[MAX_FRONDS][2] = {
+  {2*16, 3*16}, {3*16, 11*16}, {10*16, 2*16}, {17*16, 8*16},
+  {12*16, 13*16}, {18*16, 13*16}, {1*16, 7*16}, {8*16, 9*16},
+};
+static uint8_t frond_sprite[MAX_FRONDS];
+
+static void update_fronds(uint32_t frame) {
+  for (uint8_t i=0; i<MAX_FRONDS; i++) {
+    uint8_t t = (uint8_t)(((frame>>3) + i*3) & 15);
+    set_pos_fsp(&GFX, frond_sprite[i],
+                (int16_t)(frond_sites[i][0] + (bob_table[t]>>1)),
+                (int16_t)(frond_sites[i][1] - 12)); //fronds reach upward
+    set_fsp(&GFX, frond_sprite[i],
+            (int16_t)((((frame>>4) + i) & 1) ? FROND_TILE_B : FROND_TILE_A));
+  }
+}
+
+
+static uint8_t tune_shadows_hint = 1; //mirrors the tuner's SHADOWS flag
+static uint8_t leaf_bob_amp = 2;    //0..4, x/2 scale on bob_table
+static uint8_t leaf_shadow_gap = 4; //shadow offset in pixels
+static uint8_t leaf_shadow_anim = 1;//0 rigid, 1 swaying, 2 anchored
+
+//enable/disable a full sprite without releasing its OAM slot
+static void inline fsp_set_enabled(uint8_t sp_id, uint8_t enabled) {
+  if (enabled) GFX.fsp.oam[sp_id] |= Mask_fsp_oam_enable;
+  else GFX.fsp.oam[sp_id] &= (uint16_t)(~Mask_fsp_oam_enable);
+}
+
 static void update_leaves(uint32_t frame) {
   for (uint8_t i=0; i<MAX_LEAVES; i++) {
+    //downstream drift; past the bottom margin the pad slips away and a
+    //fresh one enters above the top of the frame (positions wrap at 512)
+    leaves.dfrac[i] = (uint8_t)(leaves.dfrac[i] + leaves.drift[i]);
+    if (leaves.dfrac[i] >= 32) {
+      leaves.dfrac[i] -= 32;
+      leaves.base_y[i] = (uint16_t)((leaves.base_y[i] + 1) & 511);
+    }
+    if (leaves.base_y[i] > 264 && leaves.base_y[i] < 440) {
+      leaves.base_y[i] = (uint16_t)(460 + river_hash(frame, i) % 40);
+      leaves.base_x[i] = leaf_spawn_x(i, frame + i * 7919u);
+      leaves.drift[i] = (uint8_t)(2 + river_hash(frame, i + 40) % 3);
+    }
     uint8_t t = (uint8_t)(((frame>>3) + leaves.phase[i]) & 15);
-    int16_t lx = (int16_t)(leaves.base_x[i] + bob_table[t]);
-    int16_t ly = (int16_t)(leaves.base_y[i] + bob_table[(t+4)&15]);
+    int16_t lx = (int16_t)(leaves.base_x[i]
+                           + ((bob_table[t]*leaf_bob_amp)>>1));
+    int16_t ly = (int16_t)(leaves.base_y[i]
+                           + ((bob_table[(t+4)&15]*leaf_bob_amp)>>1));
     set_pos_fsp(&GFX, leaves.sprite[i], lx, ly);
-    set_pos_fsp(&GFX, leaves.shadow[i], (int16_t)(lx+3), (int16_t)(ly+3));
+    set_pos_fsp(&GFX, leaves.ring[i], lx, (int16_t)(ly+1));
+    int16_t sx, sy;
+    if (leaf_shadow_anim == 2) { //anchored: the leaf bobs over its shadow
+      sx = (int16_t)(leaves.base_x[i] + leaf_shadow_gap);
+      sy = (int16_t)(leaves.base_y[i] + leaf_shadow_gap);
+    }
+    else {
+      sx = (int16_t)(lx + leaf_shadow_gap);
+      sy = (int16_t)(ly + leaf_shadow_gap);
+      if (leaf_shadow_anim == 1) //swaying: light refracts, shadow slides
+        sx = (int16_t)(sx + (bob_table[((frame>>2)+i) & 15] >> 1));
+    }
+    set_pos_fsp(&GFX, leaves.shadow[i], sx, sy);
   }
 }
 
@@ -735,18 +832,72 @@ static void update_leaves(uint32_t frame) {
 #define HEAD_D 2
 #define HEAD_U 3
 
+/* 8-bit angles: 256 units per turn, 0 = +x (right), 64 = +y (down).
+   sin in 1/64 units through a 32-entry table. */
+static const int8_t sin64[32] = {
+    0,  12,  24,  36,  45,  53,  59,  62,
+   63,  62,  59,  53,  45,  36,  24,  12,
+    0, -12, -24, -36, -45, -53, -59, -62,
+  -63, -62, -59, -53, -45, -36, -24, -12
+};
+static int8_t inline sin8(uint8_t a) { return sin64[(a>>3)&31]; }
+static int8_t inline cos8(uint8_t a) { return sin64[((a>>3)+8)&31]; }
+
+//coarse eight-direction angle toward (dx, dy), in 1/8 px units
+static uint8_t inline angle_toward(int32_t dx, int32_t dy) {
+  int32_t ax = dx<0?-dx:dx, ay = dy<0?-dy:dy;
+  if (ax > (ay<<1)) return dx>=0 ? 0 : 128;         //mostly horizontal
+  if (ay > (ax<<1)) return dy>=0 ? 64 : 192;        //mostly vertical
+  if (dx>=0) return dy>=0 ? 32 : 224;               //diagonals
+  return dy>=0 ? 96 : 160;
+}
+
 typedef struct {
   uint8_t sprite[MAX_KOI];
-  uint8_t heading[MAX_KOI];
+  uint8_t shadow[MAX_KOI]; //floor shadow; its offset tracks depth
+  uint8_t heading[MAX_KOI]; //displayed cardinal (nearest to theta)
   uint8_t phase[MAX_KOI];
+  uint8_t depth[MAX_KOI]; //0 shallow, 1 mid, 2 deep (under both veils)
+  uint8_t theta[MAX_KOI];  //actual swim direction, 8-bit angle
+  uint8_t target[MAX_KOI]; //general direction being followed
+  uint16_t wait[MAX_KOI];  //offstage frames before re-entering (0 = active)
   uint32_t xdata[MAX_KOI];
   uint32_t ydata[MAX_KOI];
 } koi_struct;
 static koi_struct koi;
 
+//surface highlights: twinkling half sprites between the water texture
+//and the leaves
+#define MAX_SPARKS 10
+#define SPARK_TILE 132 //2 twinkle frames: 132, 133
+typedef struct {
+  uint8_t sprite[MAX_SPARKS];
+  uint8_t phase[MAX_SPARKS];
+} spark_struct;
+static spark_struct sparks;
+static const uint16_t spark_defs[MAX_SPARKS][2] = {
+  {36,20},{130,16},{226,60},{20,108},{92,152},
+  {202,156},{50,224},{154,232},{242,148},{284,36},
+};
+
+static void update_sparks(uint32_t frame) {
+  for (uint8_t i=0; i<MAX_SPARKS; i++) {
+    uint8_t t = (uint8_t)(((frame>>4) + sparks.phase[i]) % 5);
+    //twinkle: two frames plus a dark beat
+    if (t == 4) {
+      GFX.hsp.oam[sparks.sprite[i]] &= (uint16_t)(~Mask_hsp_oam_enable);
+    }
+    else {
+      GFX.hsp.oam[sparks.sprite[i]] |= Mask_hsp_oam_enable;
+      set_hsp(&GFX, sparks.sprite[i], (int16_t)(SPARK_TILE + (t & 1)));
+    }
+  }
+}
+
 typedef struct {
   uint8_t state[MAX_PELLETS];
   uint8_t sprite[MAX_PELLETS];
+  uint16_t age[MAX_PELLETS]; //frames afloat; stale pellets sink
   uint32_t xdata[MAX_PELLETS];
   uint32_t ydata[MAX_PELLETS];
 } pellet_struct;
@@ -796,6 +947,11 @@ static void update_ripples(void) {
   }
 }
 
+static void kill_pellet_quiet(uint8_t id) {
+  delete_hsp(&GFX, pellets.sprite[id]);
+  pellets.state[id] = 0;
+}
+
 static void drop_pellet(uint16_t x_px, uint16_t y_px) {
   for (uint8_t i=0; i<MAX_PELLETS; i++) {
     if (pellets.state[i]) continue;
@@ -803,6 +959,7 @@ static void drop_pellet(uint16_t x_px, uint16_t y_px) {
     if (sp >= hsp_count) return;
     pellets.state[i] = 1;
     pellets.sprite[i] = sp;
+    pellets.age[i] = 0;
     pellets.xdata[i] = 0; pellets.ydata[i] = 0;
     body_set_pos(&pellets.xdata[i], (uint16_t)(x_px<<3));
     body_set_pos(&pellets.ydata[i], (uint16_t)(y_px<<3));
@@ -815,7 +972,68 @@ static void drop_pellet(uint16_t x_px, uint16_t y_px) {
 #define KOI_SPEED 10 //1/8 px units per frame
 
 static void update_koi(uint32_t frame) {
+  //stale pellets sink out of reach of stubborn geometry
+  for (uint8_t p=0; p<MAX_PELLETS; p++) {
+    if (!pellets.state[p]) continue;
+    body_set_pos(&pellets.ydata[p],
+                 (uint16_t)(body_get_pos(&pellets.ydata[p]) + 1));
+    set_pos_hsp(&GFX, pellets.sprite[p],
+                (int16_t)((body_get_pos(&pellets.xdata[p])>>3)-4),
+                (int16_t)((body_get_pos(&pellets.ydata[p])>>3)-4));
+    if (body_get_pos(&pellets.ydata[p]) > (260<<3)
+        && body_get_pos(&pellets.ydata[p]) < (480<<3)) {
+      kill_pellet_quiet(p); //washed downstream
+      continue;
+    }
+    if (++pellets.age[p] >= 600) {
+      spawn_ripple((uint16_t)(body_get_pos(&pellets.xdata[p])>>3),
+                   (uint16_t)(body_get_pos(&pellets.ydata[p])>>3));
+      kill_pellet_quiet(p);
+    }
+  }
   for (uint8_t i=0; i<MAX_KOI; i++) {
+    //offstage fish wait in the wings, then slip in from an edge —
+    //usually upstream, sometimes a side or from below
+    if (koi.wait[i]) {
+      if (--koi.wait[i] == 0) {
+        uint32_t h = river_hash(frame, i * 31u);
+        uint8_t side = (uint8_t)(h & 7);
+        uint16_t sx, sy;
+        uint8_t th;
+        if (side < 5)      { sx = (uint16_t)(30+(h>>4)%260); sy = 500;
+                             th = 64; }
+        else if (side == 5){ sx = 498; sy = (uint16_t)(30+(h>>4)%180);
+                             th = 0; }
+        else if (side == 6){ sx = 336; sy = (uint16_t)(30+(h>>4)%180);
+                             th = 128; }
+        else               { sx = (uint16_t)(30+(h>>4)%260); sy = 252;
+                             th = 192; }
+        body_set_pos(&koi.xdata[i], (uint16_t)(sx<<3));
+        body_set_pos(&koi.ydata[i], (uint16_t)(sy<<3));
+        koi.theta[i] = (uint8_t)(th + ((h>>12) & 31) - 16);
+        koi.target[i] = koi.theta[i];
+        koi.depth[i] = (uint8_t)((h>>16) % 3);
+        set_fsp_priority(&GFX, koi.sprite[i],
+                         (uint8_t)(PRIO_KOI_SHALLOW - koi.depth[i]));
+        fsp_set_enabled(koi.sprite[i], 1);
+        fsp_set_enabled(koi.shadow[i], tune_shadows_hint);
+      }
+      continue;
+    }
+    {
+      uint16_t px = body_get_pos(&koi.xdata[i]) >> 3;
+      uint16_t py = body_get_pos(&koi.ydata[i]) >> 3;
+      if ((px > 344 && px < 488) || (py > 264 && py < 488)) {
+        //slipped out of frame: rest, then return
+        koi.wait[i] = (uint16_t)(90 + river_hash(frame, i * 13u) % 300);
+        fsp_set_enabled(koi.sprite[i], 0);
+        fsp_set_enabled(koi.shadow[i], 0);
+        continue;
+      }
+    }
+    //slow dive/surface cycle, phase-shifted per fish: 0 -> 1 -> 2 -> 1 ->
+    uint8_t stage = (uint8_t)((((frame>>9) + koi.phase[i])) & 3);
+    uint8_t want_depth = (stage == 3) ? 1 : stage;
     uint16_t x = body_get_pos(&koi.xdata[i]);
     uint16_t y = body_get_pos(&koi.ydata[i]);
     //find the nearest pellet
@@ -828,13 +1046,16 @@ static void update_koi(uint32_t frame) {
       int32_t d = (dx<0?-dx:dx) + (dy<0?-dy:dy);
       if (d < best) { best = d; target = (int8_t)p; }
     }
-    uint8_t heading = koi.heading[i];
+    /* Swimming: each koi follows a general direction (target) that it
+       keeps for a few seconds before a deterministic hash picks the
+       next one; the actual heading turns toward it at a limited rate
+       and a sine wiggle sways around it, so paths curve and meander
+       instead of snapping between cardinals. */
     if (target >= 0) {
-      //steer toward the pellet along the dominant axis
       int32_t dx = (int32_t)body_get_pos(&pellets.xdata[target]) - x;
       int32_t dy = (int32_t)body_get_pos(&pellets.ydata[target]) - y;
-      if ((dx<0?-dx:dx) >= (dy<0?-dy:dy)) heading = dx >= 0 ? HEAD_R : HEAD_L;
-      else                                heading = dy >= 0 ? HEAD_D : HEAD_U;
+      koi.target[i] = angle_toward(dx, dy);
+      want_depth = 0; //food floats: rise to the surface to eat
       if (best < (10<<3)) { //close enough: eat
         delete_hsp(&GFX, pellets.sprite[target]);
         pellets.state[target] = 0;
@@ -842,54 +1063,88 @@ static void update_koi(uint32_t frame) {
         spawn_ripple((uint16_t)(x>>3), (uint16_t)(y>>3));
       }
     }
-    else if (((frame + (uint32_t)koi.phase[i]*37u) % 96u) == 0) {
-      //lazy deterministic wandering
-      heading = (uint8_t)(((frame/96u)*2654435761u + koi.phase[i]*97u) & 3u);
+    else if (((frame + (uint32_t)koi.phase[i]*53u) & 255u) == 0) {
+      //a new general direction every ~4 s, staggered per fish
+      uint32_t h = ((frame>>8)*2654435761u) ^ ((uint32_t)i*0x9E3779B9u);
+      koi.target[i] = (uint8_t)(h >> 24);
     }
-    //keep to the pond: turn away from the edges
-    if (x < (24<<3) && heading == HEAD_L) heading = HEAD_R;
-    if (x > (288<<3) && heading == HEAD_R) heading = HEAD_L;
-    if (y < (24<<3) && heading == HEAD_U) heading = HEAD_D;
-    if (y > (208<<3) && heading == HEAD_D) heading = HEAD_U;
-    if (heading != koi.heading[i]) {
-      koi.heading[i] = heading;
+    //apply the depth (feeding overrides the dive cycle)
+    if (want_depth != koi.depth[i]) {
+      koi.depth[i] = want_depth;
+      set_fsp_priority(&GFX, koi.sprite[i],
+                       (uint8_t)(PRIO_KOI_SHALLOW - want_depth));
+    }
+    //no walls in a river: gently favor swimming with the current
+    if (target < 0 && ((frame + i*17u) & 63u) == 0
+        && sin8(koi.target[i]) < 0) {
+      koi.target[i] = (uint8_t)(64 + (int8_t)((river_hash(frame, i) & 63))
+                                - 32); //re-aim loosely downstream
+    }
+    //turn toward the target at a limited rate (shortest way around)
+    int8_t diff = (int8_t)(koi.target[i] - koi.theta[i]);
+    if (diff > 2) diff = 2;
+    else if (diff < -2) diff = -2;
+    koi.theta[i] = (uint8_t)(koi.theta[i] + (uint8_t)diff);
+    //the wiggle: sway around the heading, phase-shifted per fish
+    uint8_t th = (uint8_t)(koi.theta[i]
+                 + (sin8((uint8_t)((frame<<1) + koi.phase[i]*40)) >> 3));
+    //display: snap the art to the nearest cardinal
+    static const uint8_t quad_to_head[4] = { HEAD_R, HEAD_D, HEAD_L, HEAD_U };
+    uint8_t head = quad_to_head[((uint8_t)(th + 32)) >> 6];
+    if (head != koi.heading[i]) {
+      koi.heading[i] = head;
       koi_face(i);
     }
-    //swim
-    int8_t vx = heading==HEAD_R ? KOI_SPEED : heading==HEAD_L ? -KOI_SPEED : 0;
-    int8_t vy = heading==HEAD_D ? KOI_SPEED : heading==HEAD_U ? -KOI_SPEED : 0;
+    //swim along theta (speed scaled from the 1/64-unit sine table)
+    int8_t vx = (int8_t)(((int16_t)cos8(th) * KOI_SPEED) >> 6);
+    int8_t vy = (int8_t)(((int16_t)sin8(th) * KOI_SPEED) >> 6);
     body_set_vel(&koi.xdata[i], vx);
     body_set_vel(&koi.ydata[i], vy);
     body_update(&koi.xdata[i], &koi.ydata[i]);
-    set_pos_fsp(&GFX, koi.sprite[i],
-                (int16_t)((body_get_pos(&koi.xdata[i])+4)>>3),
-                (int16_t)((body_get_pos(&koi.ydata[i])+4)>>3));
+    //the current carries every fish a little downstream
+    body_set_pos(&koi.ydata[i],
+                 (uint16_t)(body_get_pos(&koi.ydata[i]) + 1));
+    int16_t fx = (int16_t)((body_get_pos(&koi.xdata[i])+4)>>3);
+    int16_t fy = (int16_t)((body_get_pos(&koi.ydata[i])+4)>>3);
+    set_pos_fsp(&GFX, koi.sprite[i], fx, fy);
+    //the shadow falls farther from the fish the nearer the surface it is
+    int16_t off = (int16_t)(6 - 2*koi.depth[i]);
+    set_pos_fsp(&GFX, koi.shadow[i],
+                (int16_t)(fx + off), (int16_t)(fy + off));
     //tail flap, phase-shifted per fish
     set_fsp(&GFX, koi.sprite[i],
             (int16_t)(KOI_TILE + (((frame>>3) + koi.phase[i]) & 1)));
   }
 }
 
-static void update_pond(uint32_t frame) {
+//allow_input == 0 keeps the world alive but ignores the hand (used while
+//the tuning overlay owns the controls)
+static void update_pond(uint32_t frame, uint8_t allow_input) {
   uint8_t input = players.base[0] & MASK_PLAYER_BASE_INPUT;
   uint8_t edge = input & (uint8_t)(~pond_prev_input);
   pond_prev_input = input;
-  //the feeding hand
-  if (input & MASK_INPUT_LEFT)  hand_x -= 24;
-  if (input & MASK_INPUT_RIGHT) hand_x += 24;
-  if (input & MASK_INPUT_UP)    hand_y -= 24;
-  if (input & MASK_INPUT_DOWN)  hand_y += 24;
-  if ((int32_t)hand_x < (12<<3)) hand_x = 12<<3;
-  if (hand_x > (306<<3)) hand_x = 306<<3;
-  if ((int32_t)hand_y < (12<<3)) hand_y = 12<<3;
-  if (hand_y > (226<<3)) hand_y = 226<<3;
-  set_pos_hsp(&GFX, hand_sprite,
-              (int16_t)((hand_x>>3)-4), (int16_t)((hand_y>>3)-4));
-  if (edge & MASK_INPUT_A) {
-    drop_pellet((uint16_t)(hand_x>>3), (uint16_t)(hand_y>>3));
+  if (allow_input) {
+    //the feeding hand
+    if (input & MASK_INPUT_LEFT)  hand_x -= 24;
+    if (input & MASK_INPUT_RIGHT) hand_x += 24;
+    if (input & MASK_INPUT_UP)    hand_y -= 24;
+    if (input & MASK_INPUT_DOWN)  hand_y += 24;
+    //clamped to the region the koi can actually reach (their edge
+    //avoidance turns them at 24..288 x 24..208)
+    if ((int32_t)hand_x < (20<<3)) hand_x = 20<<3;
+    if (hand_x > (292<<3)) hand_x = 292<<3;
+    if ((int32_t)hand_y < (20<<3)) hand_y = 20<<3;
+    if (hand_y > (204<<3)) hand_y = 204<<3;
+    set_pos_hsp(&GFX, hand_sprite,
+                (int16_t)((hand_x>>3)-4), (int16_t)((hand_y>>3)-4));
+    if (edge & MASK_INPUT_A) {
+      drop_pellet((uint16_t)(hand_x>>3), (uint16_t)(hand_y>>3));
+    }
   }
   update_koi(frame);
   update_leaves(frame);
+  update_fronds(frame);
+  update_sparks(frame);
   update_ripples();
 }
 
@@ -897,14 +1152,26 @@ static void begin_pond(void) {
   clear_all_fsp(&GFX);
   clear_all_hsp(&GFX);
   initialize_players(); //players idle; only the input byte is used
-  //leaves first: lowest OAM slots render on top of everything after them
+  //leaves first, spread down the whole 512-tall river so the frame
+  //starts populated; they drift in from the top thereafter
   for (uint8_t i=0; i<MAX_LEAVES; i++) {
     const leaf_def* d = &leaf_defs[i];
-    uint8_t sp = add_fsp(&GFX, d->tile, LEAF_PAL, d->x, d->y);
+    leaves.base_y[i] = (uint16_t)((i * 51 + 8) & 511);
+    if (leaves.base_y[i] > 264 && leaves.base_y[i] < 440)
+      leaves.base_y[i] = (uint16_t)(leaves.base_y[i] + 200) & 511;
+    leaves.base_x[i] = leaf_spawn_x(i, i * 7919u);
+    leaves.drift[i] = (uint8_t)(2 + river_hash(11u, i) % 3);
+    leaves.dfrac[i] = 0;
+    uint8_t sp = add_fsp(&GFX, d->tile, LEAF_PAL,
+                         leaves.base_x[i], leaves.base_y[i]);
     if (d->big) set_fsp_effects(&GFX, sp, 0, 0, 0, 1);
+    set_fsp_priority(&GFX, sp, PRIO_LEAF);
     leaves.sprite[i] = sp;
-    leaves.base_x[i] = d->x;
-    leaves.base_y[i] = d->y;
+    uint8_t rg = add_fsp(&GFX, RING_TILE, LEAF_PAL,
+                         leaves.base_x[i], (uint16_t)(leaves.base_y[i]+1));
+    if (d->big) set_fsp_effects(&GFX, rg, 0, 0, 0, 1);
+    set_fsp_priority(&GFX, rg, PRIO_SPARKLE);
+    leaves.ring[i] = rg;
     leaves.phase[i] = (uint8_t)(i*5+2);
   }
   for (uint8_t i=0; i<MAX_KOI; i++) {
@@ -913,7 +1180,20 @@ static void begin_pond(void) {
     uint8_t sp = add_fsp(&GFX, KOI_TILE,
                          (i&1) ? KOI_PAL_CALICO : KOI_PAL_ORANGE, px, py);
     koi.sprite[i] = sp;
+    set_fsp_priority(&GFX, sp, PRIO_KOI_SHALLOW);
+    uint8_t ksh = add_fsp(&GFX, KOI_TILE_SHADOW, LEAF_PAL,
+                          (uint16_t)(px+6), (uint16_t)(py+6));
+    set_fsp_priority(&GFX, ksh, PRIO_SHADOW);
+    koi.shadow[i] = ksh;
+    koi.wait[i] = (uint16_t)((i >= 3) ? 120 + i*90 : 0); //staggered entries
+    if (koi.wait[i]) {
+      fsp_set_enabled(sp, 0);
+      fsp_set_enabled(ksh, 0);
+    }
+    koi.depth[i] = 0;
     koi.heading[i] = (i&1) ? HEAD_L : HEAD_R;
+    koi.theta[i] = (uint8_t)((i&1) ? 128 : 0);
+    koi.target[i] = (uint8_t)(i * 51);
     koi.phase[i] = (uint8_t)(i*3+1);
     koi.xdata[i] = 0; koi.ydata[i] = 0;
     body_set_pos(&koi.xdata[i], (uint16_t)(px<<3));
@@ -924,9 +1204,25 @@ static void begin_pond(void) {
   for (uint8_t i=0; i<MAX_LEAVES; i++) {
     const leaf_def* d = &leaf_defs[i];
     uint8_t sh = add_fsp(&GFX, LEAF_TILE_SHADOW, LEAF_PAL,
-                         (uint16_t)(d->x+3), (uint16_t)(d->y+3));
+                         (uint16_t)(leaves.base_x[i]+4),
+                         (uint16_t)(leaves.base_y[i]+4));
     if (d->big) set_fsp_effects(&GFX, sh, 0, 0, 0, 1);
+    set_fsp_priority(&GFX, sh, PRIO_SHADOW);
     leaves.shadow[i] = sh;
+  }
+  for (uint8_t i=0; i<MAX_FRONDS; i++) {
+    uint8_t fs = add_fsp(&GFX, FROND_TILE_A, LEAF_PAL,
+                         frond_sites[i][0],
+                         (uint16_t)(frond_sites[i][1]-12));
+    set_fsp_priority(&GFX, fs, PRIO_KOI_SHALLOW);
+    frond_sprite[i] = fs;
+  }
+  for (uint8_t i=0; i<MAX_SPARKS; i++) {
+    uint8_t sp = add_hsp(&GFX, SPARK_TILE, 1,
+                         spark_defs[i][0], spark_defs[i][1]);
+    set_hsp_priority(&GFX, sp, PRIO_SPARKLE);
+    sparks.sprite[i] = sp;
+    sparks.phase[i] = (uint8_t)(i*7+3);
   }
   for (uint8_t i=0; i<MAX_PELLETS; i++) pellets.state[i] = 0;
   for (uint8_t i=0; i<MAX_RIPPLES; i++) ripples.age[i] = 0;

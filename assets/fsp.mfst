@@ -11,4 +11,4 @@ tileset assets/koi_tiles.png
 palette assets/koi_pal0.png
 palette assets/koi_pal1.png
 tileset assets/pad_fsp_tiles.png
-palette assets/leaf_pal.png alpha=7
+palette assets/leaf_pal.png alpha=8,7
