@@ -11,8 +11,7 @@
 
 #include "libretro.h"
 #include "../gfx_engine.h"
-//#include "../events.h"
-#include "../game.h"
+#include "../game2.h"
 
 #if defined(_3DS)
 #endif
@@ -268,57 +267,26 @@ static void move_viewport(int8_t vel_x, int8_t vel_y) {
 static void update_input(void)
 {
   input_poll_cb();
-  // Cleaning players' input states
-  for (uint8_t player_id=0; player_id < game.player_count; player_id++){
-    game.players[player_id].input_state = 0x00;
-  }
-  // Checking START button for al players (including idle players)
   for (uint8_t player_id=0; player_id < MAX_PLAYERS; player_id++) {
-    if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START)) {
-      game.players[player_id].input_state = MASK_INPUT_START;
-    }
-  }
-  // Updating other buttons for all active players
-  for (uint8_t player_id=0; player_id < game.player_count; player_id++){
+    uint8_t input = 0x00;
+    if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START))
+      input |= MASK_INPUT_START;
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
-    {
-      game.players[player_id].input_state =
-        game.players[player_id].input_state | MASK_INPUT_UP;
-    }
+      input |= MASK_INPUT_UP;
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
-    {
-      game.players[player_id].input_state =
-        game.players[player_id].input_state | MASK_INPUT_DOWN;
-    }
+      input |= MASK_INPUT_DOWN;
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
-    {
-      game.players[player_id].input_state =
-        game.players[player_id].input_state | MASK_INPUT_LEFT;
-    }
+      input |= MASK_INPUT_LEFT;
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
-    {
-      game.players[player_id].input_state =
-        game.players[player_id].input_state | MASK_INPUT_RIGHT;
-    }
+      input |= MASK_INPUT_RIGHT;
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
-    {
-      game.players[player_id].input_state =
-        game.players[player_id].input_state | MASK_INPUT_A;
-    }
+      input |= MASK_INPUT_A;
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B))
-    {
-      game.players[player_id].input_state =
-        game.players[player_id].input_state | MASK_INPUT_B;
-    }
+      input |= MASK_INPUT_B;
     if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X))
-    {
-      game.players[player_id].input_state =
-        game.players[player_id].input_state | MASK_INPUT_C;
-    }
-    if (input_state_cb(player_id, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y))
-    {
-
-    }
+      input |= MASK_INPUT_C;
+    players.base[player_id] =
+      (players.base[player_id] & (~MASK_PLAYER_BASE_INPUT)) | input;
   }
 }
 
@@ -328,11 +296,14 @@ static void update_input(void)
 /* Actualiza las mecánicas del juego.
 */
 static void update_game(void) {
-  //update_entities();
-  for (uint8_t i=0; i<game.player_count; i++) {
-    update_player(&game.players[i]);
+  for (uint8_t i=0; i<MAX_PLAYERS; i++) {
+    update_player(i);
   }
-  //update_hud();
+  update_pprojectiles();
+  update_enemies();
+  update_enemy_spawner();
+  check_collisions();
+  update_hud();
 
   frame_counter++;
   scroll_frame_counter=frame_counter%bg_scroll_wait_frames;
@@ -416,6 +387,64 @@ static color_16bit inline average_colors(color_16bit color1, color_16bit color2)
   return ( ( ( (color1&Mask_red)   + (color2&Mask_red)   )>>1 )&Mask_red   ) |
          ( ( ( (color1&Mask_green) + (color2&Mask_green) )>>1 )&Mask_green ) |
          ( ( ( (color1&Mask_blue)  + (color2&Mask_blue)  )>>1 )&Mask_blue  );
+}
+
+/* Generic sprite layer renderer (fsp and hsp share the same OAM bit layout,
+   so the fsp masks are used as the canonical ones).
+   Transforms: h-flip and rotation select a pre-computed tileset variant
+   (memory); v-flip remaps the source row and double-size samples each
+   source pixel into a 2x2 block (cpu). rotation+h_flip+v_flip = -90 deg.
+   Slots are drawn in descending order so lower slots land on top. */
+static void render_sprite_layer(
+    const uint16_t* oam, const uint16_t* oam2, const uint16_t* oam3,
+    uint16_t slot_count,
+    const uint32_t* tiles_n, const uint32_t* tiles_h,
+    const uint32_t* tiles_r, const uint32_t* tiles_rh,
+    uint8_t size,
+    const color_16bit* palette_colors, uint8_t colors_per_palette,
+    uint32_t layer_offset_x, uint32_t layer_offset_y,
+    uint16_t* buf, uint16_t stride)
+{
+  uint16_t words = ((uint16_t)size*size)>>3;
+  for (int16_t slot = slot_count-1; slot >= 0; slot--) {
+    uint16_t o = oam[slot];
+    if (!(o & Mask_fsp_oam_in_use)) continue;
+    if (!(o & Mask_fsp_oam_enable)) continue;
+    uint8_t pal = (o & Mask_fsp_oam_palette)>>10;
+    uint16_t o2 = oam2[slot];
+    uint16_t yy_pos = o2 & Mask_fsp_oam2_y_pos;
+    uint16_t xx_pos = oam3[slot] & Mask_fsp_oam3_x_pos;
+    uint8_t vfl = (o2 & Mask_fsp_oam2_v_flip) != 0;
+    uint8_t hfl = (o2 & Mask_fsp_oam2_h_flip) != 0;
+    uint8_t rot = (o2 & Mask_fsp_oam2_rotation) != 0;
+    uint8_t dbl = (o2 & Mask_fsp_oam2_double) != 0;
+    const uint32_t* tiles = rot ? (hfl ? tiles_rh : tiles_r)
+                                : (hfl ? tiles_h  : tiles_n);
+    const uint32_t* tile = tiles + (uint32_t)(o & Mask_fsp_oam_index)*words;
+    uint8_t out_size = size << dbl;
+    for (uint8_t jj=0; jj<out_size; jj++) {//itera sobre renglones
+      uint8_t src_row = jj >> dbl;
+      if (vfl) src_row = size-1-src_row;
+      uint16_t yy = ((uint16_t)(yy_pos+jj-viewport.y_origin+layer_offset_y))
+                    %(full_tile_size*layer_tile_number_y);
+      if (yy >= viewport.height) continue;//discriminar renglones visibles
+      uint16_t* line = buf + yy*stride;
+      for (uint8_t ii=0; ii<out_size; ii++) {//itera sobre pixeles
+        uint16_t xx = ((uint16_t)(xx_pos+ii-viewport.x_origin+layer_offset_x))
+                      %(full_tile_size*layer_tile_number_x);
+        if (xx >= viewport.width) continue;//discriminar pixeles visibles
+        uint8_t pix = tile_get_pixel(tile, size, ii >> dbl, src_row);
+        if (pix==0) continue;
+        color_16bit c = palette_colors[(uint16_t)pal*colors_per_palette + pix];
+        if (c < 0x8000) {
+          line[xx] = c;
+        }
+        else {
+          line[xx] = average_colors(c, line[xx]);//semitransparent
+        }
+      }
+    }
+  }
 }
 
 
@@ -522,76 +551,19 @@ static void render_frame(void)
   //*/
 
 
-  //full sprite rendering
-  for(uint16_t sprite_counter = fsp.active_number ;
-               sprite_counter > 0 ; sprite_counter-- ) {
-    uint16_t current_sprite=sprite_counter-1;
-    if(Mask_fsp_oam_enable & (~fsp.oam[current_sprite])) continue;//skips disabled sprites
-    uint8_t pal_id=(fsp.oam[current_sprite]&Mask_fsp_oam_palette)>>10;
-    uint16_t xx_pos=fsp.oam3[current_sprite]&Mask_fsp_oam3_x_pos;
-    uint16_t yy_pos=fsp.oam2[current_sprite]&Mask_fsp_oam2_y_pos;
-    uint32_t xx_fsp_max = (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x);//TODO: test effect of uint16_t here
-    uint32_t yy_fsp_max = (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y);
-    for (uint8_t jj=0; jj<full_tile_size; jj++ ) {//itera sobre renglones
-      uint16_t yy_fsp=((uint16_t)(yy_pos+jj-viewport.y_origin+fsp.offset_y))%(full_tile_size*layer_tile_number_y);
-      if ( yy_fsp >= yy_fsp_max) continue;//discriminar los renglones visibles
-      line=buf+yy_fsp*stride;
-      for (uint8_t ii=0;ii<full_tile_size;ii+=8) {//itera sobre pixeles de 8 en 8
-        uint16_t xx_fsp=(xx_pos+ii-viewport.x_origin+fsp.offset_x)%(full_tile_size*layer_tile_number_x);
-        uint32_t eightpixdata = fsp.tile[fsp.oam[current_sprite]&Mask_fsp_oam_index]
-                                   .eight_pixel_color_index[(jj*full_tile_size+ii)>>3];
-        for(uint8_t kk=0;kk<8;kk++) {// aqui renderiza 8 pixeles
-          if ( (xx_fsp+kk)>=xx_fsp_max) continue;//discriminar los pixeles visibles
-          uint8_t pixdata = (uint8_t) (eightpixdata>>(4*(7-(kk%8))));//mmmhmm...
-          pixdata = pixdata & 0x0F;
-          if(pixdata==0) continue;
-          colordata=fsp.palette[pal_id].color[pixdata];
-          if(colordata<0x8000){
-            line[xx_fsp+kk]=colordata;//don't mask when it's not needed
-          }
-          else{
-            clearbuf = line[xx_fsp+kk];
-            line[xx_fsp+kk] = average_colors(colordata,clearbuf);
-          }
-        }
-      }
-    }
-  }
-
-  //Render half-sprites
-  for(uint16_t sprite_counter = hsp.active_number ;
-               sprite_counter > 0 ; sprite_counter --) {
-    uint16_t current_sprite=sprite_counter-1;
-    if(Mask_hsp_oam_enable & (~hsp.oam[current_sprite])) continue;//skips disabled sprites
-    uint8_t pal_id=(hsp.oam[current_sprite]&Mask_hsp_oam_palette)>>10;
-    uint16_t xx_pos = hsp.oam3[current_sprite]&Mask_hsp_oam3_x_pos;
-    uint16_t yy_pos = hsp.oam2[current_sprite]&Mask_hsp_oam2_y_pos;
-    uint32_t xx_hsp_max = (full_tile_size*vp_tile_number_x)%(full_tile_size*layer_tile_number_x);
-    uint32_t yy_hsp_max = (full_tile_size*vp_tile_number_y)%(full_tile_size*layer_tile_number_y);
-    for (uint8_t jj=0; jj<half_tile_size; jj++) {
-      uint16_t yy_hsp=((uint16_t)(yy_pos+jj-viewport.y_origin+hsp.offset_y))%(full_tile_size*layer_tile_number_y);
-      if ( yy_hsp >= yy_hsp_max) continue;//discriminar los renglones_visibles
-      line=buf+yy_hsp*stride;
-      uint32_t offset = jj*half_tile_size;
-      for (uint8_t ii=0;ii<half_tile_size;ii++) {//itera sobre pixeles
-        uint16_t xx_hsp = ((uint16_t)(xx_pos+ii-viewport.x_origin+hsp.offset_x))%(full_tile_size*layer_tile_number_x);
-        if ( xx_hsp >= xx_hsp_max ) continue;//discriminar los pixeles visibles
-        uint32_t eightpixdata=hsp.tile[hsp.oam[current_sprite]&Mask_hsp_oam_index]
-                                 .eight_pixel_color_index[(offset+ii)>>3];
-        uint8_t pixdata = (uint8_t) (eightpixdata>>(4*(7-(ii%8))));//mmmhmm...
-        pixdata = pixdata & 0x0F;
-        if (pixdata==0) continue;
-        colordata = hsp.palette[pal_id].color[pixdata];
-        if(colordata<0x8000){
-          line[xx_hsp] = colordata;
-        }
-        else{
-          clearbuf = line[xx_hsp];
-          line[xx_hsp] = average_colors(colordata,clearbuf);
-        }
-      }
-    }
-  }
+  //sprite rendering: full sprites below half-sprites (SP0 then SP1)
+  render_sprite_layer(fsp.oam, fsp.oam2, fsp.oam3, fsp_count,
+                      (const uint32_t*)fsp.tile, (const uint32_t*)fsp.tile_h,
+                      (const uint32_t*)fsp.tile_r, (const uint32_t*)fsp.tile_rh,
+                      full_tile_size,
+                      (const color_16bit*)fsp.palette, fsp_palette_color_count,
+                      fsp.offset_x, fsp.offset_y, buf, stride);
+  render_sprite_layer(hsp.oam, hsp.oam2, hsp.oam3, hsp_count,
+                      (const uint32_t*)hsp.tile, (const uint32_t*)hsp.tile_h,
+                      (const uint32_t*)hsp.tile_r, (const uint32_t*)hsp.tile_rh,
+                      half_tile_size,
+                      (const color_16bit*)hsp.palette, hsp_palette_color_count,
+                      hsp.offset_x, hsp.offset_y, buf, stride);
 
   video_cb(buf, viewport.width, viewport.height, stride << 1);
 }

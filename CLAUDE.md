@@ -34,16 +34,17 @@ The root Makefile generates `core/bg0.gfx`, `core/bg1.gfx`, `core/fsp.gfx`, `cor
 
 ## Architecture
 
-The whole core is a **single translation unit**: `core/libretro-core.c` directly `#include`s `../gfx_engine.h` and `../game.h`, which contain implementations and global state, not just declarations. There is no separate compilation; touching any header rebuilds the one object file.
+The whole core is a **single translation unit**: `core/libretro-core.c` directly `#include`s `../gfx_engine.h` and `../game2.h`, which contain implementations and global state, not just declarations. There is no separate compilation; touching any header rebuilds the one object file.
 
 - **`gfx_engine.h`** — the engine. Emulates 16-bit-console-style hardware in software:
   - Color is ARGB 1555 (`color_16bit`, masks at top of file). Palette index 0 is transparent everywhere except BG0, where it is the backdrop color.
   - Four layers, rendered back to front: BG0, BG1 (16x16-tile backgrounds), SP0 = "full sprites" (`fsp`, 16x16, 32 slots, for characters/ships), SP1 = "half sprites" (`hsp`, 8x8, 128 slots, for bullets/score/HUD text via `draw_text`).
-  - Each layer is a global struct (`bg[2]`, `fsp`, `hsp`) holding palettes, a tileset (1024 tiles), and either a 32x32 tilemap with per-scanline scroll offsets (backgrounds) or OAM arrays (sprites).
+  - Each layer is a global struct (`bg[2]`, `fsp`, `hsp`) holding palettes, a tileset (1024 tiles), and either a 32x32 tilemap with per-scanline scroll offsets (backgrounds) or OAM arrays (sprites). Sprite OAM slots are allocated from a free-list stack (`add_fsp`/`delete_fsp` are O(1)); a returned id equal to `fsp_count`/`hsp_count` means "no free slot".
   - Sprite/tile attributes are bit-packed into `uint16_t` OAM words manipulated through `Mask_*` #defines (in_use, enable, palette, tile index, flips, x/y position oversampled by 3 bits). This bitmask-packing idiom pervades the codebase — follow it when adding state.
-  - `read_gfx_data(file, gfxtype)` parses `.gfx` files into these structs (gfxtype 0/1 = BG0/BG1, 2 = fsp, 3 = hsp).
-- **`game.h`** — the active game logic (players, enemies, projectiles, power-ups, scores) using bit-packed `physics_body` structs. `game2.h` is a newer variant that is **not yet included anywhere** — check which one is wired into `libretro-core.c` before editing game logic.
-- **`core/libretro-core.c`** — libretro entry points. `retro_init` initializes engine structs, loads `.gfx` assets and music; `retro_run` polls input, steps game state, calls `render_frame()` (software-composites all layers into a `uint16_t` framebuffer) and pushes audio frames from libxmp.
+  - Sprite transforms (`set_fsp_effects`/`set_hsp_effects`): h-flip and rotation select pre-computed tileset variants generated at load time (`tile_h`, `tile_r`, `tile_rh` — memory for speed); v-flip and double-size are computed at render time. `rotation+h_flip+v_flip` = rotate −90°.
+  - `read_gfx_data(file, gfxtype)` parses `.gfx` files into these structs (gfxtype 0/1 = BG0/BG1, 2 = fsp, 3 = hsp) and regenerates the transform variants.
+- **`game2.h`** — the game logic, structure-of-arrays style: each entity kind (players, enemies, player/enemy projectiles, power-ups) is one struct of parallel arrays whose elements are bit-packed words (`base` holds state/lives/input, `xdata`/`ydata` hold position+velocity). Includes AABB collisions (`check_collisions`), firing, an enemy wave spawner, and the HUD (which owns hsp slots 0–15 by allocation order — fragile, don't reorder `add_hud`). The old AoS `game.h` was deleted in 2026.
+- **`core/libretro-core.c`** — libretro entry points. `retro_init` initializes engine structs, loads `.gfx` assets and music; `retro_run` polls input, steps game state, calls `render_frame()` (software-composites both backgrounds per pixel, then both sprite layers via the generic `render_sprite_layer()`) and pushes audio frames from libxmp.
 - **`bmp_to_gfx.c` + `qdbmp.c/h`** — standalone host-side asset converter (qdbmp is a vendored BMP reader).
 
 Comments are a mix of English and Spanish; both are fine.

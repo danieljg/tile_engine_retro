@@ -13,7 +13,7 @@ RETROARCH ?= $(shell command -v retroarch \
 	   | head -1)
 
 core_source = \
-	gfx_engine.h game.h core/libretro.h core/libretro-core.c core/link.T
+	gfx_engine.h game2.h core/libretro.h core/libretro-core.c core/link.T
 bg0_input =	bmp/bg0.bmp	bmp/bg0.pal
 bg1_input =	bmp/bg1.bmp	bmp/bg1.pal
 fsp_input = \

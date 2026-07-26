@@ -24,16 +24,19 @@ Goal: back from the graveyard, nice demo for Luis in a few weeks.
 
 == 2. ENGINE CORRECTNESS & COMPLETENESS ==
 
-[ ] Decide game.h (AoS) vs game2.h (SoA), wire the winner in, delete the loser
-    (note: game2.h initialize_enemy_projectiles has an infinite loop —
-    uint8_t i < 256 is always true)
-[ ] Implement OAM h-flip (roadmap 0.1 item), then v-flip; rotation/double-size
-    only if a game needs them
-[ ] Collisions: AABB using physics_body.dimensions (biggest missing 0.1 item)
-[ ] Replace active_number high-water mark with a free list
+[x] SoA it is: game2.h completed and wired in, game.h deleted
+    (the uint8_t<256 infinite loop died with the port)
+[x] OAM transforms, all of them: h-flip + rotate +/-90 via pre-computed
+    tileset variants (memory), v-flip + double-size at render time (cpu);
+    rotation+h_flip+v_flip composes to -90
+[x] Collisions: AABB on the packed dimensions words (projectiles vs
+    enemies, players vs enemies) — no wraparound handling yet
+[x] Free lists replace the active_number high-water mark (O(1) alloc,
+    double-free guard)
 [ ] Reconcile Readme vs code on half-sprite 3bpp format: implement or delete
-    the dead masks (gfx_engine.h Mask_half_sprite_*)
-[ ] Real save states: serialize game + OAM + scroll state (rewind/netplay free)
+    the dead masks (gfx_engine.h Mask_half_sprite_*) — DISCUSS NEXT
+[ ] Real save states: serialize game + OAM + scroll state (rewind/netplay
+    free) — DISCUSS NEXT
 
 == 3. RENDERER ==
 
@@ -43,7 +46,7 @@ Goal: back from the graveyard, nice demo for Luis in a few weeks.
 [ ] Clip sprites once per sprite (visible span), not per pixel
 [ ] Dirty-row/dirty-tile tracking for mostly-static backgrounds
 [ ] Fade in/out via palette darkening (64 multiplies, not 76800) — old TODO item
-[ ] Vertical flip, rotation (old TODO items, see also OAM bits above)
+[x] Vertical flip, rotation (see OAM transforms above)
 
 == 4. TOOLING (bmptogfx is too obtuse) ==
 

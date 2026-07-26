@@ -52,6 +52,43 @@ void initialize_viewport(void) {
  viewport.y_origin	= vp_y_origin;
 }
 
+//Tiles pack 8 pixels (4 bits each) per 32 bit word, leftmost pixel in the
+//highest nibble. These helpers work for any square tile size (8 or 16).
+static uint8_t inline tile_get_pixel(const uint32_t* tile, uint8_t size,
+                                     uint8_t x, uint8_t y) {
+  uint32_t group = tile[((uint16_t)y*size + x)>>3];
+  return (group >> (4*(7-(x&7)))) & 0x0F;
+}
+
+static void inline tile_set_pixel(uint32_t* tile, uint8_t size,
+                                  uint8_t x, uint8_t y, uint8_t value) {
+  uint16_t idx = ((uint16_t)y*size + x)>>3;
+  uint8_t shift = 4*(7-(x&7));
+  tile[idx] = (tile[idx] & ~((uint32_t)0x0F<<shift)) | ((uint32_t)value<<shift);
+}
+
+/* Sprite transform strategy: h-flip and rotation trade memory for speed by
+   pre-computing transformed tilesets at load time (tile_h, tile_r, tile_rh);
+   v-flip and double-size are computed per row/pixel at render time.
+   The OAM2 bit combinations cover all 8 orientations:
+     rotation + h_flip + v_flip = rotate -90 degrees. */
+static void generate_tile_variants(const uint32_t* src, uint32_t* h,
+                                   uint32_t* r, uint32_t* rh,
+                                   uint16_t tile_count, uint8_t size) {
+  uint16_t words = ((uint16_t)size*size)>>3;
+  for (uint16_t t=0; t<tile_count; t++) {
+    const uint32_t* s = src + (uint32_t)t*words;
+    for (uint8_t y=0; y<size; y++) {
+      for (uint8_t x=0; x<size; x++) {
+        uint8_t v = tile_get_pixel(s, size, x, y);
+        tile_set_pixel(h  + (uint32_t)t*words, size, size-1-x, y, v);//mirror
+        tile_set_pixel(r  + (uint32_t)t*words, size, size-1-y, x, v);//90 CW
+        tile_set_pixel(rh + (uint32_t)t*words, size, y, x, v);//90 CW mirrored
+      }
+    }
+  }
+}
+
 //There are two background layers
 #define bg_layer_count 2
 
@@ -173,57 +210,60 @@ typedef struct {
 typedef struct {
  fsp_palette palette[fsp_palette_number];
  fsp_tile tile[fsp_tileset_number]; //128 kB with 1024 tiles in the set
+ fsp_tile tile_h[fsp_tileset_number]; //pre-mirrored (OAM h-flip)
+ fsp_tile tile_r[fsp_tileset_number]; //pre-rotated 90 degrees CW
+ fsp_tile tile_rh[fsp_tileset_number];//rotated 90 CW, then mirrored
  uint16_t oam[fsp_count];
  uint16_t oam2[fsp_count];
  uint16_t oam3[fsp_count];
+ uint16_t free_stack[fsp_count];//free OAM slots; top of stack pops first
+ uint16_t free_count;
  uint32_t offset_x;//TODO:Combine offsets into one 32 bit variable
  uint32_t offset_y;
- uint32_t active_number;
 } fsp_struct;
 
 fsp_struct fsp;
 
 /* ADD FULL SPRITE
 
-Esta función recibe 3 argumentos:
-- index: indice del sprite a utilizarpal_in
-- x_pos, y_pos: coordenadas del sprite
-
-El sprite es creado en el primer espacio disponible en la estructura de sprites. El contador de sprites es incrementado en 1
+El sprite es creado en el primer espacio disponible (free list, O(1)).
+Regresa fsp_count si no hay espacios libres.
 */
-//TODO: ciclar las estructuras disponibles y colocarlo en el primero disponible
 uint8_t add_fsp(
     uint16_t sp_index,
     uint8_t pal_index,
     uint16_t x_pos, uint16_t y_pos
   ) {
-  uint8_t i = 0;
-  while (i < fsp_count) {
-    if (Mask_fsp_oam_in_use & (~fsp.oam[i])) {
-      fsp.oam[i] =
-        Mask_fsp_oam_in_use |
-        Mask_fsp_oam_enable |
-        (pal_index<<10) |
-        (sp_index & Mask_fsp_oam_index);
-      fsp.oam2[i] = y_pos;
-      fsp.oam3[i] = x_pos;
-      if (i == fsp.active_number) fsp.active_number++;
-      return i;
-    }
-    i++;
-  }
-  return fsp_count;
+  if (fsp.free_count == 0) return fsp_count;
+  uint8_t i = fsp.free_stack[--fsp.free_count];
+  fsp.oam[i] =
+    Mask_fsp_oam_in_use |
+    Mask_fsp_oam_enable |
+    (pal_index<<10) |
+    (sp_index & Mask_fsp_oam_index);
+  fsp.oam2[i] = y_pos & Mask_fsp_oam2_y_pos;
+  fsp.oam3[i] = x_pos & Mask_fsp_oam3_x_pos;
+  return i;
 }
 
 void delete_fsp(uint8_t sp_id) {
+  if (!(fsp.oam[sp_id] & Mask_fsp_oam_in_use)) return;//double-free guard
   fsp.oam[sp_id] = 0x00;
   fsp.oam2[sp_id] = 0x00;
   fsp.oam3[sp_id] = 0x00;
-  //recorrer fsp.active_number hasta encontrar sprites en uso
-  while (fsp.active_number > 0 &&
-         (Mask_fsp_oam_in_use & (~fsp.oam[fsp.active_number-1]))) {
-    fsp.active_number--;
-  }
+  fsp.free_stack[fsp.free_count++] = sp_id;
+}
+
+//sets the transform bits of a sprite, preserving its position
+static void inline set_fsp_effects(uint8_t sp_id, uint8_t h_flip,
+                                   uint8_t v_flip, uint8_t rotate,
+                                   uint8_t double_size) {
+  uint16_t o2 = fsp.oam2[sp_id] & Mask_fsp_oam2_y_pos;
+  if (h_flip)      o2 |= Mask_fsp_oam2_h_flip;
+  if (v_flip)      o2 |= Mask_fsp_oam2_v_flip;
+  if (rotate)      o2 |= Mask_fsp_oam2_rotation;
+  if (double_size) o2 |= Mask_fsp_oam2_double;
+  fsp.oam2[sp_id] = o2;
 }
 
 static void inline move_fsp(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
@@ -258,7 +298,14 @@ void initialize_full_sprites(void) {
  }
  fsp.offset_x=0;
  fsp.offset_y=0;
- fsp.active_number=0;
+ //all OAM slots start free; pushed in reverse so slot 0 pops first
+ for(uint8_t ii=0;ii<fsp_count;ii++) {
+  fsp.oam[ii]=0x00;
+  fsp.oam2[ii]=0x00;
+  fsp.oam3[ii]=0x00;
+  fsp.free_stack[ii]=fsp_count-1-ii;
+ }
+ fsp.free_count=fsp_count;
 }
 
 #define hsp_palette_number 16
@@ -298,57 +345,60 @@ uint32_t eight_pixel_color_index[half_tile_size*half_tile_size>>3];
 typedef struct {
  hsp_palette palette[hsp_palette_number];
  hsp_tile tile[hsp_tileset_number];
+ hsp_tile tile_h[hsp_tileset_number]; //pre-mirrored (OAM h-flip)
+ hsp_tile tile_r[hsp_tileset_number]; //pre-rotated 90 degrees CW
+ hsp_tile tile_rh[hsp_tileset_number];//rotated 90 CW, then mirrored
  uint16_t oam[hsp_count];
  uint16_t oam2[hsp_count];
  uint16_t oam3[hsp_count];
+ uint16_t free_stack[hsp_count];//free OAM slots; top of stack pops first
+ uint16_t free_count;
  uint32_t offset_x;//TODO: combine offsets into one 32 bit qty
  uint32_t offset_y;
- uint32_t active_number;
 } hsp_struct;
 
 hsp_struct hsp;
 
 /* ADD HALF SPRITE
 
-Esta función recibe 3 argumentos:
-- index: indice del sprite a utilizar
-- x_pos, y_pos: coordenadas del sprite
-
-El sprite es creado en el primer espacio disponible en la estructura de sprites. El contador de sprites es incrementado en 1
+El sprite es creado en el primer espacio disponible (free list, O(1)).
+Regresa hsp_count si no hay espacios libres.
 */
-//TODO: buscar el primer espacio disponible
 uint8_t add_hsp(
     uint16_t sp_index,
     uint8_t pal_index,
     uint16_t x_pos, uint16_t y_pos
   ) {
-  uint8_t i = 0;
-  while (i < hsp_count) {
-    if (Mask_hsp_oam_in_use & (~hsp.oam[i])) {
-      hsp.oam[i] =
-        Mask_hsp_oam_in_use |
-        Mask_hsp_oam_enable |
-        (pal_index<<10) |
-        (sp_index & Mask_hsp_oam_index);
-      hsp.oam2[i] = y_pos;
-      hsp.oam3[i] = x_pos;
-      if (i == hsp.active_number) hsp.active_number++;
-      return i;
-    }
-    i++;
-  }
-  return hsp_count;
+  if (hsp.free_count == 0) return hsp_count;
+  uint8_t i = hsp.free_stack[--hsp.free_count];
+  hsp.oam[i] =
+    Mask_hsp_oam_in_use |
+    Mask_hsp_oam_enable |
+    (pal_index<<10) |
+    (sp_index & Mask_hsp_oam_index);
+  hsp.oam2[i] = y_pos & Mask_hsp_oam2_y_pos;
+  hsp.oam3[i] = x_pos & Mask_hsp_oam3_x_pos;
+  return i;
 }
 
 void delete_hsp(uint8_t sp_id) {
+  if (!(hsp.oam[sp_id] & Mask_hsp_oam_in_use)) return;//double-free guard
   hsp.oam[sp_id] = 0x00;
   hsp.oam2[sp_id] = 0x00;
   hsp.oam3[sp_id] = 0x00;
-  //recorrer hsp.active_number hasta encontrar sprites en uso
-  while (hsp.active_number > 0 &&
-         (Mask_hsp_oam_in_use & (~hsp.oam[hsp.active_number-1]))) {
-    hsp.active_number--;
-  }
+  hsp.free_stack[hsp.free_count++] = sp_id;
+}
+
+//sets the transform bits of a sprite, preserving its position
+static void inline set_hsp_effects(uint8_t sp_id, uint8_t h_flip,
+                                   uint8_t v_flip, uint8_t rotate,
+                                   uint8_t double_size) {
+  uint16_t o2 = hsp.oam2[sp_id] & Mask_hsp_oam2_y_pos;
+  if (h_flip)      o2 |= Mask_hsp_oam2_h_flip;
+  if (v_flip)      o2 |= Mask_hsp_oam2_v_flip;
+  if (rotate)      o2 |= Mask_hsp_oam2_rotation;
+  if (double_size) o2 |= Mask_hsp_oam2_double;
+  hsp.oam2[sp_id] = o2;
 }
 
 static void inline move_hsp(int16_t sp_id, int8_t vel_x, int8_t vel_y) {
@@ -394,10 +444,14 @@ void initialize_half_sprites(void)
   }
   hsp.offset_x=0;
   hsp.offset_y=0;
-  hsp.active_number=0;
-  //draw_text("Now with support for...", 8, 168, 0);
-  //draw_text("...multi-palette sprites! :D", 8, 184, 1);
-  //draw_text("Nice! #$%&*", 8, 122, 2);
+  //all OAM slots start free; pushed in reverse so slot 0 pops first
+  for(uint8_t ii=0;ii<hsp_count;ii++) {
+    hsp.oam[ii]=0x00;
+    hsp.oam2[ii]=0x00;
+    hsp.oam3[ii]=0x00;
+    hsp.free_stack[ii]=hsp_count-1-ii;
+  }
+  hsp.free_count=hsp_count;
 }
 
 /* Reads graphics data from a gfx file.
@@ -497,14 +551,19 @@ void read_gfx_data(FILE* file, int gfxtype) {
     }
   }
   fprintf(stdout,"----- Tile Data Ends -----\n\n");
-  fprintf(stdout,"*** The End ***\n\n");
-}
 
-void update_animations2(void) {
-  // Animating spaceships
-  for (uint8_t i=0; i<2; i++) {
-    fsp.oam[i]=(fsp.oam[i]&(~Mask_fsp_oam_index))|((((fsp.oam[i]&Mask_fsp_oam_index)+1)%3)+13);
+  //pre-compute the transformed tilesets for the sprite layers
+  if (gfxtype==2) {
+    generate_tile_variants((const uint32_t*)fsp.tile, (uint32_t*)fsp.tile_h,
+                           (uint32_t*)fsp.tile_r, (uint32_t*)fsp.tile_rh,
+                           fsp_tileset_number, full_tile_size);
   }
+  else if (gfxtype==3) {
+    generate_tile_variants((const uint32_t*)hsp.tile, (uint32_t*)hsp.tile_h,
+                           (uint32_t*)hsp.tile_r, (uint32_t*)hsp.tile_rh,
+                           hsp_tileset_number, half_tile_size);
+  }
+  fprintf(stdout,"*** The End ***\n\n");
 }
 
 #endif //GFX_ENGINE_H
