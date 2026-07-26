@@ -33,10 +33,11 @@ Goal: back from the graveyard, nice demo for Luis in a few weeks.
     enemies, players vs enemies) — no wraparound handling yet
 [x] Free lists replace the active_number high-water mark (O(1) alloc,
     double-free guard)
-[ ] Reconcile Readme vs code on half-sprite 3bpp format: implement or delete
-    the dead masks (gfx_engine.h Mask_half_sprite_*) — DISCUSS NEXT
-[ ] Real save states: serialize game + OAM + scroll state (rewind/netplay
-    free) — DISCUSS NEXT
+[x] Readme reconciled with code: 4bpp everywhere (hsp now 8 palettes x 16
+    colors, dead 3bpp masks deleted), 512x512 layers kept, actual GFX byte
+    format documented, real render order (BG1, BG0, SP0, SP1) documented
+[x] Save states: versioned manifest of memcpy'd blocks (~15 KB), verified
+    byte-identical on a serialize/restore/replay round trip
 
 == 3. RENDERER ==
 

@@ -308,19 +308,16 @@ void initialize_full_sprites(void) {
  fsp.free_count=fsp_count;
 }
 
-#define hsp_palette_number 16
+//half sprites are 4bpp like everything else: 8 palettes of 16 colors
+//(the 3bpp format from the original design document was never used)
+#define hsp_palette_number 8
 #define hsp_count 128
-#define hsp_palette_color_count 8
+#define hsp_palette_color_count 16
 #define hsp_tileset_number 1024
 
 typedef struct {
 color_16bit color[hsp_palette_color_count];
 } hsp_palette;
-
-#define Mask_half_sprite_reserved2  0x80//unused padding
-#define Mask_half_sprite_index_0    0x70//three bits per pixel
-#define Mask_half_sprite_reserved1  0x08//unused padding
-#define Mask_half_sprite_index_1    0x07//two pixels per byte
 
 typedef struct {
 uint32_t eight_pixel_color_index[half_tile_size*half_tile_size>>3];

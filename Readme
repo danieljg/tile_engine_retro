@@ -1,63 +1,85 @@
 Tile Engine Design Document
 Daniel Jimenez
-18-11-2017
+18-11-2017 (revised 26-07-2026 to match the implementation)
 
-This documents details the basic requirements for a general purpose and
-lightweight tile engine. The target architecture is the libretro API with 
-priority for Wii, 3DS, and eventually PSP compatibility.
+This document details the design of a general purpose and lightweight tile
+engine. The target architecture is the libretro API, with priority for
+desktop (RetroArch), 3DS, and eventually Wii/PSP compatibility.
 
-The system is intended for simplicity of design and high performance. It is to
-be written from a low-level perspective, compiled from C code, with minimal
-dependencies. A firm toolset has not been defined at this point, and solutions
-must be implemented for tileset and palette formatting as well as sound.
+The system is intended for simplicity of design and high performance. It is
+written from a low-level perspective in C, with minimal dependencies
+(libxmp for module music, optional at build time). Graphics are prepared
+with the bmptogfx utility from indexed BMP tilesets plus palette files.
 
-Specifications
+Specifications (as implemented)
 
-All color is 16 bit ARGB (1,5,5,5).
+All color is 16 bit ARGB (1,5,5,5). A set alpha bit marks a color as
+semitransparent: the renderer blends it 50/50 with whatever lies behind it.
 
-The data format for graphics files is as follows:
+The rendering system consists of two background layers and two sprite
+layers, composited in software back to front: BG1, BG0, SP0, SP1. The
+viewport is 320x240 (400x240 on 3DS; other sizes are future work).
 
- File Header "GFX\n"	- 32 bits 
- Pixel bitdepth		- 8 bits //log2(palette size)
- Padding                - 4 bits
- Palette qty		- 4 bits
- Palette data 0 	- (Palette size * 16)
- ---
- Palette data (N-1)	- (Palette size * 16)
- Tile size		- 8 bits
- Padding                - 4 bits
- Tile qty		- 12 bits
- Tile data 0		- (Tile size * Tile size * Pixel bitdepth )
- ---
- Tile data x		- (Tile size * Tile size * Pixel bitdepth )
+Background layers (BG0 and BG1)
+ - 512x512 pixels: 32x32 tilemap of 16x16 tiles. The power-of-two size
+   makes all wraparound arithmetic free.
+ - Each layer has 4 sub-palettes of 16 colors (64 colors per layer);
+   each tilemap entry selects its sub-palette with 2 bits.
+ - Palette index 0 is transparent on BG0 (BG1 shows through) and is the
+   backdrop color on BG1.
+ - Per-scanline x/y offsets per layer (parallax, raster effects).
+ - Tilemap entry: disable bit, v-flip/h-flip bits (reserved, background
+   flips not implemented yet), 2-bit sub-palette, 10-bit tile index.
+ - Tilemap entries can be rewritten at runtime for block animation.
 
+Sprite layers
+ - SP0 "full sprites": 32 sprites of 16x16, 8 palettes of 16 colors.
+ - SP1 "half sprites": 128 sprites of 8x8, 8 palettes of 16 colors
+   (used for bullets, score and HUD text; tiles indexed by ASCII code).
+ - Palette index 0 is transparent on both sprite layers.
+ - All graphics are 4 bits per pixel. (The 3bpp half-sprite format from
+   the original document was never implemented and has been dropped;
+   it remains a possible memory optimization for PSP-class targets.)
+ - OAM transforms per sprite: h-flip, v-flip, 90-degree rotation and
+   double size. rotation+h_flip+v_flip composes to a -90 rotation.
+   H-flip and rotation index pre-computed transformed tilesets built at
+   load time (memory for speed); v-flip and double size are computed at
+   render time (cpu).
+ - OAM slots are allocated from a free list; allocation and deletion
+   are O(1).
 
-The rendering system consists of two background layers (BG0 and BG1) and two
-sprite layers (SP0 and SP1) which are rendered to a viewport. The size of each
-of these layers is 512x320 and the viewport is 320x240 by default, although
-support for 256x224, 240x160, 400x240, and 480x272 is also planned.
+GFX file format (as written by bmptogfx)
 
-Rendering order is, from back to front: BG0, BG1, SP0, SP1.
+ File header "GFX\n"  - 4 bytes
+ Pixel bitdepth       - 1 byte (4; only 4bpp is supported)
+ Palette qty          - 1 byte
+ Palette data         - qty x 16 colors x 2 bytes, big-endian ARGB1555
+ Tile size            - 1 byte (16 or 8)
+ Tile qty             - 2 bytes, big-endian
+ Tile data            - qty x (size x size / 2) bytes, 4bpp packed,
+                        leftmost pixel in the high nibble
 
-The SP0 layer is the 16x16 sprite layer (main sprite layer).
-The SP1 layer is the 8x8 sprite layer (bullet and score layer).
+bmptogfx usage: ./bmptogfx <tileset.bmp...> <palette.pal...> out.gfx type
+ type 0: background (16x16), 1: full sprites (16x16), 2: half sprites (8x8)
+ .pal files are 4x4 indexed BMPs; a .pal.clr sidecar of 0/1 lines marks
+ semitransparent colors. (A manifest-driven replacement is planned.)
 
-The BG0 and BG1 layers use 64 color palettes. The SP0 layer has 8 palettes with
-15 colors each, and the SP1 layer has 16 palettes with 8 colors each. Palette
-index 0 is fully transparent for all layers except for BG0, for which it is used
-as final background color.
+Save states
 
-For background layers, which use 8 bits per pixel, each graphics tile uses
-2048 bits or 256 bytes. A 320x240 viewport full of non-redundant graphics uses
-20x15=300 tiles which requires 76800 bytes or 75 kilo bytes. A full layer of
-size 512x320 has 640 tiles, which requires 160 kilo bytes.
+Full game, OAM and background state (about 15 KB), versioned and
+validated with a magic number. The game loop is deterministic, so
+RetroArch rewind and netplay-style replay work from these states.
+Save states are not endian-portable, and the music position is not
+saved (the module keeps playing through a load).
 
 ROADMAP TO 0.1
 
--Full Sprites w/horizontal flip (at least)
--Half Sprites for bullets and HUD
--Controls and interaction
--Collisions
--Sprites for ships, explosions and bullets
--Audio for bullets and hits
--One level and boss
+ [x] Full sprites with h/v flip, rotation and double size
+ [x] Half sprites for bullets and HUD
+ [x] Controls and interaction
+ [x] Collisions
+ [x] Module music (libxmp); sound effects pending
+ [x] Save states
+ [ ] Dedicated art for ships, explosions and bullets
+ [ ] Sound effects for bullets and hits
+ [ ] One level and boss

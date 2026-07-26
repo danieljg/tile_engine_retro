@@ -691,24 +691,101 @@ bool retro_load_game_special(unsigned type, const struct retro_game_info *info, 
    return false;
 }
 
-//TODO: real save states — serialize game + OAM + scroll state
+/* Save states: a versioned manifest of memcpy'd blocks. Everything that
+   mutates after load is listed once, and serialize/unserialize walk the
+   same table so they cannot drift apart. Tilesets, their transform
+   variants and the base palettes are immutable after load and stay out;
+   the shimmer/pulse palettes are recomputed from base + phase anyway,
+   but serializing them keeps the first frame after a load exact.
+   Not endian-portable; music position is not saved. */
+#define SAVESTATE_MAGIC   0x30524554 // "TER0"
+#define SAVESTATE_VERSION 1
+
+typedef struct { void* ptr; size_t size; } save_block;
+
+static const save_block save_blocks[] = {
+  //game state
+  {&players, sizeof(players)},
+  {&enemies, sizeof(enemies)},
+  {&pprojectiles, sizeof(pprojectiles)},
+  {&eprojectiles, sizeof(eprojectiles)},
+  {&power_ups, sizeof(power_ups)},
+  {&top_scores, sizeof(top_scores)},
+  {&gamedata1, sizeof(gamedata1)},
+  {&gamedata2, sizeof(gamedata2)},
+  {&spawner_wait, sizeof(spawner_wait)},
+  {&spawner_lane, sizeof(spawner_lane)},
+  //full sprite bank: OAM, free list, scroll, live palettes
+  {fsp.oam, sizeof(fsp.oam)},
+  {fsp.oam2, sizeof(fsp.oam2)},
+  {fsp.oam3, sizeof(fsp.oam3)},
+  {fsp.free_stack, sizeof(fsp.free_stack)},
+  {&fsp.free_count, sizeof(fsp.free_count)},
+  {&fsp.offset_x, sizeof(fsp.offset_x)},
+  {&fsp.offset_y, sizeof(fsp.offset_y)},
+  {fsp.palette, sizeof(fsp.palette)},
+  //half sprite bank
+  {hsp.oam, sizeof(hsp.oam)},
+  {hsp.oam2, sizeof(hsp.oam2)},
+  {hsp.oam3, sizeof(hsp.oam3)},
+  {hsp.free_stack, sizeof(hsp.free_stack)},
+  {&hsp.free_count, sizeof(hsp.free_count)},
+  {&hsp.offset_x, sizeof(hsp.offset_x)},
+  {&hsp.offset_y, sizeof(hsp.offset_y)},
+  {hsp.palette, sizeof(hsp.palette)},
+  //backgrounds: tilemaps and palettes mutate through the animations
+  {bg[0].tilemap, sizeof(bg[0].tilemap)},
+  {bg[0].offset_x, sizeof(bg[0].offset_x)},
+  {bg[0].offset_y, sizeof(bg[0].offset_y)},
+  {bg[0].palette, sizeof(bg[0].palette)},
+  {bg[1].tilemap, sizeof(bg[1].tilemap)},
+  {bg[1].offset_x, sizeof(bg[1].offset_x)},
+  {bg[1].offset_y, sizeof(bg[1].offset_y)},
+  {bg[1].palette, sizeof(bg[1].palette)},
+  //viewport and timeline
+  {&viewport, sizeof(viewport)},
+  {&frame_counter, sizeof(frame_counter)},
+  {&bg0_anim_step, sizeof(bg0_anim_step)},
+  {&shimmer_phase, sizeof(shimmer_phase)},
+  {&bg0_pulse_phase, sizeof(bg0_pulse_phase)},
+};
+#define SAVE_BLOCK_COUNT (sizeof(save_blocks)/sizeof(save_blocks[0]))
+
 size_t retro_serialize_size(void)
 {
-   return 0;
+   size_t total = 8; //magic + version
+   for (size_t i=0; i<SAVE_BLOCK_COUNT; i++) total += save_blocks[i].size;
+   return total;
 }
 
 bool retro_serialize(void *data_, size_t size)
 {
-   (void)data_;
-   (void)size;
-   return false;
+   if (size < retro_serialize_size()) return false;
+   uint8_t *p = data_;
+   uint32_t magic = SAVESTATE_MAGIC, version = SAVESTATE_VERSION;
+   memcpy(p, &magic, 4); p += 4;
+   memcpy(p, &version, 4); p += 4;
+   for (size_t i=0; i<SAVE_BLOCK_COUNT; i++) {
+      memcpy(p, save_blocks[i].ptr, save_blocks[i].size);
+      p += save_blocks[i].size;
+   }
+   return true;
 }
 
 bool retro_unserialize(const void *data_, size_t size)
 {
-   (void)data_;
-   (void)size;
-   return false;
+   if (size < retro_serialize_size()) return false;
+   const uint8_t *p = data_;
+   uint32_t magic, version;
+   memcpy(&magic, p, 4); p += 4;
+   memcpy(&version, p, 4); p += 4;
+   if (magic != SAVESTATE_MAGIC || version != SAVESTATE_VERSION)
+      return false;
+   for (size_t i=0; i<SAVE_BLOCK_COUNT; i++) {
+      memcpy(save_blocks[i].ptr, p, save_blocks[i].size);
+      p += save_blocks[i].size;
+   }
+   return true;
 }
 
 void *retro_get_memory_data(unsigned id)

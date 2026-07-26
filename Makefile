@@ -49,8 +49,17 @@ core/fsp.gfx: bmptogfx $(fsp_input)
 core/hsp.gfx: bmptogfx $(hsp_input)
 	./bmptogfx $(hsp_input) core/hsp.gfx 2
 
+# Headless test: drives the core through 30s of gameplay plus a
+# save-state round trip under AddressSanitizer. No RetroArch, no libxmp.
+test: GFX
+	cc -g -O1 -fsanitize=address -std=gnu99 -Icore \
+		-o core/test_harness test/harness.c core/libretro-core.c
+	cd core && ./test_harness
+
 clean:
 	rm -f core/*.o
 	rm -f core/*.so core/*.dylib
 	rm -f core/*.gfx
+	rm -f core/test_harness
+	rm -rf core/test_harness.dSYM
 	rm -f bmptogfx

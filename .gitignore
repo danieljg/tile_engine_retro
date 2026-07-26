@@ -6,3 +6,6 @@ core/tile_engine_retro_libretro.so
 core/tile_engine_retro_libretro.dylib
 
 bmptogfx
+
+core/test_harness
+core/test_harness.dSYM/

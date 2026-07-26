@@ -19,7 +19,7 @@ make clean      # removes core/*.o, core/*.so, core/*.gfx
 - Music via libxmp is optional: auto-detected with `pkg-config libxmp`, overridable with `make HAVE_XMP=0/1`. Without it the core builds silent (all xmp code is behind `#ifdef HAVE_XMP`).
 - The core is a `.dylib` on macOS and `.so` elsewhere; the root Makefile picks the right name via `uname`.
 - 3DS: `core/build_3ds.sh` (requires devkitARM, produces a static `.a` with `-D_3DS`).
-- There are no tests and no linter.
+- `make test` runs the headless ASan harness (see `test/harness.c` below). There is no linter.
 
 ## Asset pipeline
 
@@ -44,7 +44,8 @@ The whole core is a **single translation unit**: `core/libretro-core.c` directly
   - Sprite transforms (`set_fsp_effects`/`set_hsp_effects`): h-flip and rotation select pre-computed tileset variants generated at load time (`tile_h`, `tile_r`, `tile_rh` — memory for speed); v-flip and double-size are computed at render time. `rotation+h_flip+v_flip` = rotate −90°.
   - `read_gfx_data(file, gfxtype)` parses `.gfx` files into these structs (gfxtype 0/1 = BG0/BG1, 2 = fsp, 3 = hsp) and regenerates the transform variants.
 - **`game2.h`** — the game logic, structure-of-arrays style: each entity kind (players, enemies, player/enemy projectiles, power-ups) is one struct of parallel arrays whose elements are bit-packed words (`base` holds state/lives/input, `xdata`/`ydata` hold position+velocity). Includes AABB collisions (`check_collisions`), firing, an enemy wave spawner, and the HUD (which owns hsp slots 0–15 by allocation order — fragile, don't reorder `add_hud`). The old AoS `game.h` was deleted in 2026.
-- **`core/libretro-core.c`** — libretro entry points. `retro_init` initializes engine structs, loads `.gfx` assets and music; `retro_run` polls input, steps game state, calls `render_frame()` (software-composites both backgrounds per pixel, then both sprite layers via the generic `render_sprite_layer()`) and pushes audio frames from libxmp.
+- **`core/libretro-core.c`** — libretro entry points. `retro_init` initializes engine structs, loads `.gfx` assets and music; `retro_run` polls input, steps game state, calls `render_frame()` (software-composites both backgrounds per pixel, then both sprite layers via the generic `render_sprite_layer()`) and pushes audio frames from libxmp. Save states walk the `save_blocks[]` manifest — anything new that mutates after load (including function-`static` state, which must be promoted to file scope) must be added to that table or save states will silently miss it.
+- **`test/harness.c`** — headless test, run with `make test`: drives the core through 1800 frames plus a save-state serialize/restore/replay round-trip under AddressSanitizer, no RetroArch or libxmp needed. Run it after any engine or game-logic change.
 - **`bmp_to_gfx.c` + `qdbmp.c/h`** — standalone host-side asset converter (qdbmp is a vendored BMP reader).
 
 Comments are a mix of English and Spanish; both are fine.
