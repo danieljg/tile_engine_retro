@@ -337,17 +337,21 @@ static void update_game(void) {
 
 }
 
-//the bg0 tileset is organized in three animation bands: tiles 0-6, 8-14 and
-//17-19 are frames of the same block; entries outside the bands stay static
+//the bg0 tileset is organized in animation bands: tiles 0-5 (conduit),
+//8-14 (porthole), 17-19 (plasma) and 16,20,21 (glimmer panel) are frames
+//of the same block; entries outside the bands (6, 7, 15) stay static
 static void animate_bg0_blocks(void) {
   for (uint16_t i=0; i<layer_tile_number_x*layer_tile_number_y; i++) {
     uint16_t entry = bg[0].tilemap[i];
     if (entry & Mask_bgtm_disable) continue;
     uint16_t idx = entry & Mask_bgtm_index;
     uint16_t next;
-    if      (idx <= 6)              next = (idx + 1) % 7;
-    else if (idx >= 8 && idx <= 14) next = ((idx - 8 + 1) % 7) + 8;
+    if      (idx <= 5)               next = (idx + 1) % 6;
+    else if (idx >= 8 && idx <= 14)  next = ((idx - 8 + 1) % 7) + 8;
     else if (idx >= 17 && idx <= 19) next = ((idx - 17 + 1) % 3) + 17;
+    else if (idx == 16)              next = 20;
+    else if (idx == 20)              next = 21;
+    else if (idx == 21)              next = 16;
     else continue;
     bg[0].tilemap[i] = (entry & (~Mask_bgtm_index)) | next;
   }
