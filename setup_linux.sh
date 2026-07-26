@@ -65,7 +65,11 @@ printf "Proceed? [y/N] "
 read -r answer
 case "$answer" in
     y|Y|yes|YES)
-        sudo apt-get update && sudo apt-get install -y $MISSING_PKGS \
+        # A failing third-party repo (Spotify et al.) must not block us:
+        # refresh what refreshes, then install from the main repos.
+        sudo apt-get update || \
+            echo "(some unrelated repository failed to refresh -- continuing)"
+        sudo apt-get install -y $MISSING_PKGS \
             || { echo "Install failed."; exit 1; }
         ;;
     *)
