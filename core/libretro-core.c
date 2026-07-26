@@ -358,9 +358,9 @@ static const uint8_t seq_conduit[] = //power surges ebb and flow
 static const uint8_t seq_porthole[] = //radar blip: breathe in, double-pulse
   {8,8,9,10,11,12,13,14,13,12,11,10,9,8,8,10,12,14,12,10,8,9,11,13,14,14,13,11,9,8};
 static const uint8_t seq_plasma[] = //unstable flicker
-  {17,18,19,18,17,18,17,19,18,19,17,18,19,19,18,17};
+  {17,18,18,17,19,17,17,18,19,18,18,18,19,17,19,18,17,18,18,18,19,17,19,19};
 static const uint8_t seq_glimmer[] = //slow rotation with stutters
-  {16,20,21,16,20,21,21,16,20,16,21,20};
+  {16,16,20,16,20,21,20,20,21,21,16,21,20,16,21,20,16,21,20,21,21,20,20,16};
 
 static uint32_t bg0_anim_step = 0;
 
