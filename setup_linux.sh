@@ -57,6 +57,10 @@ echo "The following command will be run to install what is missing:"
 echo
 echo "    sudo apt-get install -y $MISSING_PKGS"
 echo
+echo "(apt-get update only refreshes the package catalog first. Nothing"
+echo " already installed on this system gets upgraded or changed -- only"
+echo " the packages listed above and their dependencies are added.)"
+echo
 printf "Proceed? [y/N] "
 read -r answer
 case "$answer" in
