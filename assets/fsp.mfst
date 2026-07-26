@@ -7,3 +7,8 @@ palette assets/fsp_pal1.png alpha=9,10,11,12
 palette assets/fsp_pal2.png alpha=9,10,11,12
 palette assets/fsp_pal3.png alpha=9,10,11,12
 palette assets/fsp_pal4.png alpha=9,10,11,12
+tileset assets/koi_tiles.png
+palette assets/koi_pal0.png
+palette assets/koi_pal1.png
+tileset assets/pad_fsp_tiles.png
+palette assets/leaf_pal.png alpha=7

@@ -1,9 +1,18 @@
-//headless libretro harness: init + N frames with A+RIGHT held
+//headless libretro harness: init + N frames with A+RIGHT held.
+//Set HARNESS_DUMP=<prefix> to also write the CRC frames as PNGs — the
+//engine running with no frontend at all.
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include "libretro.h"
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_STATIC
+#include "../tools/stb_image_write.h"
+
+static const char* dump_prefix;
 
 //frame CRCs at fixed points make renderer changes verifiable: run before
 //and after and compare (frames past the boot fade so output is steady)
@@ -16,6 +25,21 @@ static void vid(const void *data, unsigned w, unsigned h, size_t pitch){
     uint32_t crc = 2166136261u;
     for (size_t i=0; i<(size_t)h*pitch; i++) { crc ^= p[i]; crc *= 16777619u; }
     printf("frame %u crc %08x\n", (unsigned)frame_no, crc);
+    if (dump_prefix) { //0RGB1555 -> RGB PNG
+      unsigned char* rgb = malloc((size_t)w*h*3);
+      const uint16_t* px = data;
+      for (size_t i=0; i<(size_t)w*h; i++) {
+        uint16_t c = px[(i/w)*(pitch/2) + (i%w)];
+        rgb[3*i]   = (unsigned char)(((c>>10)&31)<<3);
+        rgb[3*i+1] = (unsigned char)(((c>>5)&31)<<3);
+        rgb[3*i+2] = (unsigned char)((c&31)<<3);
+      }
+      char name[512];
+      snprintf(name, sizeof(name), "%s_frame%u.png", dump_prefix,
+               (unsigned)frame_no);
+      stbi_write_png(name, (int)w, (int)h, 3, rgb, (int)w*3);
+      free(rgb);
+    }
   }
 }
 static void aud(int16_t l, int16_t r){ (void)l;(void)r; }
@@ -38,6 +62,7 @@ static bool env(unsigned cmd, void *data){
 #include <string.h>
 
 int main(void){
+  dump_prefix = getenv("HARNESS_DUMP");
   retro_set_environment(env);
   retro_set_video_refresh(vid);
   retro_set_audio_sample(aud);

@@ -1,0 +1,8 @@
+# Applied gradually: format files as you touch them, don't mass-reformat.
+BasedOnStyle: LLVM
+IndentWidth: 2
+ColumnLimit: 80
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+PointerAlignment: Left
+SortIncludes: false

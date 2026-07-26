@@ -106,8 +106,8 @@ else
    CFLAGS += -O3
 endif
 
-OBJECTS := libretro-core.o
-CFLAGS += -I../../libretro-common/include -Wall -pedantic $(fpic)
+OBJECTS := libretro-core.o gfx_engine.o
+CFLAGS += -I../../libretro-common/include -Wall -Wextra -pedantic $(fpic)
 
 ifneq (,$(findstring qnx,$(platform)))
 CFLAGS += -Wc,-std=c99
@@ -133,3 +133,6 @@ clean:
 	rm -f $(OBJECTS) $(TARGET)
 
 .PHONY: clean
+
+gfx_engine.o: ../gfx_engine.c ../gfx_engine.h
+	$(CC) $(CFLAGS) $(fpic) -c -o $@ $<

@@ -1,0 +1,4 @@
+# scene3 surface (bg0): pads, reeds, light (tools/gen_scene3.py)
+type background
+tileset assets/scene3_surface_tiles.png
+palette assets/scene3_surface_pal0.png alpha=8,9

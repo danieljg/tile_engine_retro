@@ -75,22 +75,36 @@ Goal: back from the graveyard, nice demo for Luis in a few weeks.
 [x] Validation everywhere: unknown colors (with pixel position), bad
     dimensions, tile overflow, unknown directives — all fail loudly
 
-== 5. STRUCTURE & LONGEVITY ==
+== 5. STRUCTURE & LONGEVITY == (all done; refactor verified pixel-identical
+                                 by frame CRCs)
 
-[ ] Split headers into .h/.c so the engine links as a library
-[ ] Pass state explicitly (gfx_context*) instead of globals
-[ ] Tests for the pure parts: bit-pack accessors, GFX parser round-trip,
-    average_colors
-[ ] SDL2 or PNG-out harness: run the engine without RetroArch (kills the
-    debug-by-commit loop of Feb 2018)
-[ ] Events/timeline system: "at frame N spawn wave X" (events.h successor —
-    Luis's old department)
-[ ] Audio engine proper: audio_batch_cb, SFX mixing, sane sample rate
-[ ] -Wall -Wextra clean, clang-format, README with build-and-run GIF
+[x] Engine split into gfx_engine.h (interface) + gfx_engine.c (library);
+    the core links two objects now
+[x] All engine state in an explicit gfx_context; the engine has no globals
+    of its own (the app owns one instance, GFX, in game2.h)
+[x] test/units.c, run by make test: 67 checks over bit-pack accessors,
+    AABB, color math, tile packing, GFX/MAP parser round trips, transform
+    variant involutions, the OAM free list
+[x] PNG-out harness: HARNESS_DUMP=<prefix> make the harness write frames
+    as PNGs — the engine runs and screenshots with no frontend at all
+[x] Timeline system (game2.h tl_event): scripted "at frame N do X" with
+    looping waves, replacing the hard-coded spawner cadence-exactly
+[x] Audio proper: 44.1 kHz stereo via audio_batch_cb, four synthesized
+    SFX voices (laser, boom, plop, blip) mixed over the libxmp music
+[x] -Wall -Wextra -pedantic clean; .clang-format added (apply to files as
+    you touch them); README.md with build/run + screenshots (a GIF wants
+    a capture tool — PNGs for now)
 
 == DEMO TARGET (Readme "Roadmap to 0.1", the unfinished half) ==
 
-[ ] Collisions
-[ ] Sprites for ships, explosions and bullets
-[ ] Audio for bullets and hits
-[ ] One level and boss
+[x] Collisions
+[ ] Sprites for ships, explosions and bullets (dedicated art)
+[x] Audio for bullets and hits (synthesized; sampled SFX later maybe)
+[ ] One level and boss (the timeline system is the tool for this)
+
+== SCENES ==
+
+1 Asteroid Run (shmup, the original), 2 Crystal Cavern (shmup, generated
+art), 3 Koi Pond (top-down zen pond: rotation as fish headings, scanline
+sine warp as refraction, semitransparent ripples/light, palette-rotated
+caustics). Scene kinds live in core/libretro-core.c scene_defs.

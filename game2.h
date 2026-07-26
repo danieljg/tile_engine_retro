@@ -9,6 +9,10 @@
 
 #include "gfx_engine.h"
 
+//the single engine instance this game drives (game2.h is app-layer:
+//it may use globals; the engine itself takes the context explicitly)
+static gfx_context GFX;
+
 #define MAX_PLAYERS 4
 #define MAX_ENEMIES 16
 #define MAX_PPROJECTILES 32  // max player projectiles
@@ -105,13 +109,39 @@ static void inline animation_advance(uint32_t* anim) {
           | (*anim&(~MASK_ANIMATION_CURRFRM));
   else
     *anim = *anim&(~MASK_ANIMATION_CURRFRM);
-  set_fsp(*anim&MASK_ANIMATION_SPINDEX,
+  set_fsp(&GFX, *anim&MASK_ANIMATION_SPINDEX,
            ((*anim&MASK_ANIMATION_TLESTRT)>>8)
           +((*anim&MASK_ANIMATION_CURRFRM)>>24) );
 }
 
 static uint8_t inline animation_sprite(const uint32_t* anim) {
   return *anim & MASK_ANIMATION_SPINDEX;
+}
+
+/* ---- sound effects: synthesized voices, mixed over the music by the
+   frontend layer. sfx_play just claims a voice; rendering happens in the
+   audio callback. ---- */
+#define SFX_VOICES 4
+#define SFX_NONE  0
+#define SFX_LASER 1
+#define SFX_BOOM  2
+#define SFX_PLOP  3
+#define SFX_BLIP  4
+
+typedef struct { uint8_t type; uint32_t t; uint32_t seed; } sfx_voice;
+static sfx_voice sfx[SFX_VOICES];
+
+static void sfx_play(uint8_t type) {
+  //take a free voice, or steal the oldest one
+  uint8_t best = 0;
+  uint32_t best_t = 0;
+  for (uint8_t i=0; i<SFX_VOICES; i++) {
+    if (sfx[i].type == SFX_NONE) { best = i; break; }
+    if (sfx[i].t >= best_t) { best_t = sfx[i].t; best = i; }
+  }
+  sfx[best].type = type;
+  sfx[best].t = 0;
+  sfx[best].seed = 0x12345678u + type;
 }
 
 #define MASK_PLAYER_BASE_RES1  0xC000
@@ -269,13 +299,13 @@ static void inline initialize_players(void) {
 
 static uint8_t add_player(uint8_t player_id, uint16_t pos_x, uint16_t pos_y) {
   if (player_id >= MAX_PLAYERS) return 0;
-  uint8_t sp_id = add_fsp(
+  uint8_t sp_id = add_fsp(&GFX, 
     PLAYER_START_TILE,
     player_id+1, // sprite palette (palettes 1-4 are ship palettes)
     (pos_x+4)>>3, (pos_y+4)>>3
   );
   if (sp_id >= fsp_count) return 0; //no free sprite slot
-  set_fsp_effects(sp_id, 0, 0, 1, 0); //rotate +90: ship faces right
+  set_fsp_effects(&GFX, sp_id, 0, 0, 1, 0); //rotate +90: ship faces right
   players.base[player_id] =
     (STATE_SPAWNING<<12) |
     (START_LIVES<<8);
@@ -314,11 +344,11 @@ static uint8_t add_enemy(uint16_t pos_x_px, uint16_t pos_y_px,
                          uint8_t double_size) {
   for (uint8_t i=0; i<MAX_ENEMIES; i++) {
     if (enemy_state(i) != STATE_IDLE) continue;
-    uint8_t sp_id = add_fsp(ENEMY_START_TILE, ENEMY_PALETTE,
+    uint8_t sp_id = add_fsp(&GFX, ENEMY_START_TILE, ENEMY_PALETTE,
                             pos_x_px, pos_y_px);
     if (sp_id >= fsp_count) return 0;
     //rotation+h_flip+v_flip = rotate -90: enemies face left
-    set_fsp_effects(sp_id, 1, 1, 1, double_size);
+    set_fsp_effects(&GFX, sp_id, 1, 1, 1, double_size);
     enemies.base[i] = STATE_ALIVE<<12;
     enemies.xdata[i] = 0; enemies.ydata[i] = 0;
     body_set_pos(&enemies.xdata[i], pos_x_px<<3);
@@ -332,7 +362,7 @@ static uint8_t add_enemy(uint16_t pos_x_px, uint16_t pos_y_px,
 }
 
 static void kill_enemy(uint8_t id) {
-  delete_fsp(animation_sprite(&enemies.animation[id]));
+  delete_fsp(&GFX, animation_sprite(&enemies.animation[id]));
   enemies.base[id] = 0x0000;
   enemies.animation[id] = 0x00000000;
 }
@@ -346,7 +376,7 @@ static void update_enemies(void) {
       body_set_pos(&enemies.xdata[i], 310<<3);
       x = body_get_pos(&enemies.xdata[i]);
     }
-    set_pos_fsp(animation_sprite(&enemies.animation[i]),
+    set_pos_fsp(&GFX, animation_sprite(&enemies.animation[i]),
                 (x+4)>>3, (body_get_pos(&enemies.ydata[i])+4)>>3);
   }
 }
@@ -378,7 +408,7 @@ static void fire_pprojectile(uint8_t owner) {
     if (pprojectile_state(i) != STATE_IDLE) continue;
     uint16_t bx = (body_get_pos(&players.xdata[owner]) + (17<<3)) & MASK_XDATA_POS;
     uint16_t by = (body_get_pos(&players.ydata[owner]) + (4<<3)) & MASK_YDATA_POS;
-    uint8_t sp_id = add_hsp(PPROJECTILE_TILE, PPROJECTILE_PALETTE,
+    uint8_t sp_id = add_hsp(&GFX, PPROJECTILE_TILE, PPROJECTILE_PALETTE,
                             (bx+4)>>3, (by+4)>>3);
     if (sp_id >= hsp_count) return;
     pprojectiles.base[i] = (owner<<14) | (STATE_ALIVE<<12)
@@ -389,12 +419,13 @@ static void fire_pprojectile(uint8_t owner) {
     body_set_pos(&pprojectiles.ydata[i], by);
     body_set_vel(&pprojectiles.xdata[i], PPROJECTILE_SPEED);
     pprojectiles.dimensions[i] = (6<<8) | 6;
+    sfx_play(SFX_LASER);
     return;
   }
 }
 
 static void kill_pprojectile(uint8_t id) {
-  delete_hsp(pprojectiles.sprite_id[id]);
+  delete_hsp(&GFX, pprojectiles.sprite_id[id]);
   pprojectiles.base[id] = 0x0000;
 }
 
@@ -407,7 +438,7 @@ static void update_pprojectiles(void) {
       kill_pprojectile(i);
       continue;
     }
-    set_pos_hsp(pprojectiles.sprite_id[i],
+    set_pos_hsp(&GFX, pprojectiles.sprite_id[i],
                 (x+4)>>3, (body_get_pos(&pprojectiles.ydata[i])+4)>>3);
   }
 }
@@ -469,23 +500,23 @@ static void default_scores(void) {
 #define ASCII0 48
 
 static void inline add_hud(void) {
-  for (uint8_t ii=0; ii<5; ii++) add_hsp('0', 0, 204+ii*8, 230);
-  for (uint8_t ii=0; ii<5; ii++) add_hsp('0', 0, 252+ii*8, 230);
+  for (uint8_t ii=0; ii<5; ii++) add_hsp(&GFX, '0', 0, 204+ii*8, 230);
+  for (uint8_t ii=0; ii<5; ii++) add_hsp(&GFX, '0', 0, 252+ii*8, 230);
   //hi-score digits (slots 10 to 15)
-  for (uint8_t ii=0; ii<6; ii++) add_hsp('0', 0, 84+ii*8, 5);
-  draw_text("Hi-Score", 4, 4, 2);
+  for (uint8_t ii=0; ii<6; ii++) add_hsp(&GFX, '0', 0, 84+ii*8, 5);
+  draw_text(&GFX, "Hi-Score", 4, 4, 2);
 }
 
 static void inline update_score_hud(void) {
   uint32_t s = players.score[0];
-  for (uint8_t i=0; i<5; i++) { set_hsp(4-i, ASCII0 + s%10); s/=10; }
+  for (uint8_t i=0; i<5; i++) { set_hsp(&GFX, 4-i, ASCII0 + s%10); s/=10; }
   s = players.score[1];
-  for (uint8_t i=0; i<5; i++) { set_hsp(9-i, ASCII0 + s%10); s/=10; }
+  for (uint8_t i=0; i<5; i++) { set_hsp(&GFX, 9-i, ASCII0 + s%10); s/=10; }
 }
 
 static void inline update_hiscore(uint32_t score) {
   for (uint8_t i=0; i<6; i++) {
-    set_hsp(15-i, ASCII0 + score%10);
+    set_hsp(&GFX, 15-i, ASCII0 + score%10);
     score/=10;
   }
 }
@@ -526,7 +557,7 @@ static void update_player(uint8_t id) {
   else body_set_vel(&players.xdata[id], 0);
 
   body_update(&players.xdata[id], &players.ydata[id]);
-  set_pos_fsp(animation_sprite(&players.animation[id]),
+  set_pos_fsp(&GFX, animation_sprite(&players.animation[id]),
               (body_get_pos(&players.xdata[id])+4)>>3,
               (body_get_pos(&players.ydata[id])+4)>>3);
 
@@ -551,6 +582,7 @@ static void check_collisions(void) {
         uint8_t owner = (pprojectiles.base[p] & MASK_PPROJECTILE_BASE_OWNER)>>14;
         players.score[owner] += 100;
         kill_enemy(e);
+        sfx_play(SFX_BOOM);
         kill_pprojectile(p);
         break;
       }
@@ -567,22 +599,53 @@ static void check_collisions(void) {
         uint8_t lives = player_lives(i);
         if (lives > 0) player_set_lives(i, lives-1);
         kill_enemy(e);
+        sfx_play(SFX_BOOM);
       }
     }
   }
 }
 
-//keeps the wave populated: an idle slot respawns every couple of seconds
-//(state at file scope so save states can capture it)
-static uint16_t spawner_wait = 0;
-static uint8_t spawner_lane = 0;
+/* ---- timeline: "at frame N, do X" (the events.h successor) ----
+   Each scene plays a scripted event list against the play-relative frame
+   counter. TL_LOOP rebases time and restarts the list, so waves repeat. */
+#define TL_END   0
+#define TL_ENEMY 1 //a = x, b = y, c = double_size
+#define TL_LOOP  2 //restart the timeline, rebasing time at this frame
 
-static void update_enemy_spawner(void) {
-  spawner_wait++;
-  if (spawner_wait < 120) return;
-  spawner_wait = 0;
-  spawner_lane = (spawner_lane+1) & 0x3;
-  add_enemy(300+(spawner_lane<<1), 40+spawner_lane*40, spawner_lane==3);
+typedef struct {
+  uint16_t frame;
+  uint8_t op;
+  int16_t a, b;
+  uint8_t c;
+} tl_event;
+
+//reinforcement waves for the shmup scenes (same cadence the old
+//120-frame spawner had: lanes 1, 2, 3-heavy, 0, then loop)
+static const tl_event shmup_timeline[] = {
+  {120, TL_ENEMY, 302,  80, 0},
+  {240, TL_ENEMY, 304, 120, 0},
+  {360, TL_ENEMY, 306, 160, 1},
+  {480, TL_ENEMY, 300,  40, 0},
+  {480, TL_LOOP,    0,   0, 0},
+};
+
+static uint16_t tl_index = 0;
+static uint32_t tl_base = 0;
+
+//executes every event whose time has come
+static void update_timeline(const tl_event* tl, uint32_t frame) {
+  for (;;) {
+    tl_event e = tl[tl_index];
+    if (e.op == TL_END) return;
+    if (frame - tl_base < e.frame) return;
+    if (e.op == TL_LOOP) {
+      tl_base += e.frame;
+      tl_index = 0;
+      continue;
+    }
+    if (e.op == TL_ENEMY) add_enemy((uint16_t)e.a, (uint16_t)e.b, e.c);
+    tl_index++;
+  }
 }
 
 static void inline update_animations(void) {
@@ -596,13 +659,288 @@ static void inline update_animations(void) {
   }
 }
 
-/* ---- game modes: scene-select menu and play ---- */
-
+/* game modes (shared by the pond and the shmup scenes) */
 #define MODE_MENU    0
 #define MODE_PLAYING 1
-#define SCENE_COUNT  2
-
 static uint8_t game_mode = MODE_MENU;
+
+/* ---- koi pond (scene kind POND): a wholly different use of the same
+   engine. Top-down water; koi are full sprites whose heading is expressed
+   through the OAM transforms (art faces right: L = h-flip, D = rotation,
+   U = rotation+h+v = -90). Ripples and pellets are half sprites; ripple
+   rings are drawn in a semitransparent color so they blend with the
+   water. The frontend layer adds per-scanline sine warping and caustic
+   palette rotation on top. ---- */
+
+#define MAX_KOI 5
+#define MAX_PELLETS 6
+#define MAX_RIPPLES 8
+#define KOI_TILE 18        //2 frames: 18 tail up, 19 tail down
+#define KOI_PAL_ORANGE 5
+#define KOI_PAL_CALICO 6
+#define RIPPLE_TILE 128    //3 growth stages: 128..130
+#define PELLET_TILE 131
+
+/* Lily pads are full sprites: they bob and drift as whole objects (motion
+   without deformation) and, allocated before the koi, they draw ON TOP of
+   the fish — the koi swim under the leaves. Each leaf casts a
+   semitransparent shadow sprite allocated after the koi (under the fish).*/
+#define MAX_LEAVES 10
+#define LEAF_TILE_SMALL  20
+#define LEAF_TILE_MEDIUM 21
+#define LEAF_TILE_LOTUS  22
+#define LEAF_TILE_TINY   23
+#define LEAF_TILE_SHADOW 24
+#define LEAF_PAL 7
+
+typedef struct {
+  uint8_t sprite[MAX_LEAVES];
+  uint8_t shadow[MAX_LEAVES];
+  uint16_t base_x[MAX_LEAVES]; //anchor, pixels
+  uint16_t base_y[MAX_LEAVES];
+  uint8_t phase[MAX_LEAVES];
+} leaf_struct;
+static leaf_struct leaves;
+
+typedef struct { uint16_t x, y; uint8_t tile; uint8_t big; } leaf_def;
+static const leaf_def leaf_defs[MAX_LEAVES] = {
+  { 96,  84, LEAF_TILE_MEDIUM, 1 }, //the grand pad
+  {232, 152, LEAF_TILE_MEDIUM, 1 },
+  { 56,  40, LEAF_TILE_SMALL,  0 },
+  {176,  48, LEAF_TILE_LOTUS,  0 },
+  {268,  64, LEAF_TILE_SMALL,  0 },
+  { 40, 152, LEAF_TILE_LOTUS,  0 },
+  {148, 128, LEAF_TILE_SMALL,  0 },
+  {208, 100, LEAF_TILE_TINY,   0 },
+  {120, 192, LEAF_TILE_MEDIUM, 0 },
+  {284, 200, LEAF_TILE_TINY,   0 },
+};
+
+//gentle circular drift, a quarter phase apart on each axis
+static const int8_t bob_table[16] =
+  {0, 1, 1, 2, 2, 2, 1, 1, 0, -1, -1, -2, -2, -2, -1, -1};
+
+static void update_leaves(uint32_t frame) {
+  for (uint8_t i=0; i<MAX_LEAVES; i++) {
+    uint8_t t = (uint8_t)(((frame>>3) + leaves.phase[i]) & 15);
+    int16_t lx = (int16_t)(leaves.base_x[i] + bob_table[t]);
+    int16_t ly = (int16_t)(leaves.base_y[i] + bob_table[(t+4)&15]);
+    set_pos_fsp(&GFX, leaves.sprite[i], lx, ly);
+    set_pos_fsp(&GFX, leaves.shadow[i], (int16_t)(lx+3), (int16_t)(ly+3));
+  }
+}
+
+#define HEAD_R 0
+#define HEAD_L 1
+#define HEAD_D 2
+#define HEAD_U 3
+
+typedef struct {
+  uint8_t sprite[MAX_KOI];
+  uint8_t heading[MAX_KOI];
+  uint8_t phase[MAX_KOI];
+  uint32_t xdata[MAX_KOI];
+  uint32_t ydata[MAX_KOI];
+} koi_struct;
+static koi_struct koi;
+
+typedef struct {
+  uint8_t state[MAX_PELLETS];
+  uint8_t sprite[MAX_PELLETS];
+  uint32_t xdata[MAX_PELLETS];
+  uint32_t ydata[MAX_PELLETS];
+} pellet_struct;
+static pellet_struct pellets;
+
+typedef struct {
+  uint8_t age[MAX_RIPPLES]; //0 = free slot
+  uint8_t sprite[MAX_RIPPLES];
+} ripple_struct;
+static ripple_struct ripples;
+
+static uint32_t hand_x, hand_y; //feeding cursor, 1/8 px units
+static uint8_t hand_sprite;
+static uint8_t pond_prev_input;
+
+static void koi_face(uint8_t i) {
+  uint8_t h = koi.heading[i];
+  set_fsp_effects(&GFX, koi.sprite[i],
+                  (h==HEAD_L) || (h==HEAD_U),  //h-flip
+                  h==HEAD_U,                   //v-flip
+                  h>=HEAD_D,                   //rotation
+                  0);
+}
+
+static void spawn_ripple(uint16_t x_px, uint16_t y_px) {
+  for (uint8_t i=0; i<MAX_RIPPLES; i++) {
+    if (ripples.age[i]) continue;
+    uint8_t sp = add_hsp(&GFX, RIPPLE_TILE, 1, x_px-4, y_px-4);
+    if (sp >= hsp_count) return;
+    ripples.age[i] = 1;
+    ripples.sprite[i] = sp;
+    return;
+  }
+}
+
+static void update_ripples(void) {
+  for (uint8_t i=0; i<MAX_RIPPLES; i++) {
+    if (!ripples.age[i]) continue;
+    ripples.age[i]++;
+    if (ripples.age[i] >= 48) {
+      delete_hsp(&GFX, ripples.sprite[i]);
+      ripples.age[i] = 0;
+      continue;
+    }
+    set_hsp(&GFX, ripples.sprite[i],
+            (int16_t)(RIPPLE_TILE + (ripples.age[i]>>4)));
+  }
+}
+
+static void drop_pellet(uint16_t x_px, uint16_t y_px) {
+  for (uint8_t i=0; i<MAX_PELLETS; i++) {
+    if (pellets.state[i]) continue;
+    uint8_t sp = add_hsp(&GFX, PELLET_TILE, 0, x_px-4, y_px-4);
+    if (sp >= hsp_count) return;
+    pellets.state[i] = 1;
+    pellets.sprite[i] = sp;
+    pellets.xdata[i] = 0; pellets.ydata[i] = 0;
+    body_set_pos(&pellets.xdata[i], (uint16_t)(x_px<<3));
+    body_set_pos(&pellets.ydata[i], (uint16_t)(y_px<<3));
+    sfx_play(SFX_PLOP);
+    spawn_ripple(x_px, y_px);
+    return;
+  }
+}
+
+#define KOI_SPEED 10 //1/8 px units per frame
+
+static void update_koi(uint32_t frame) {
+  for (uint8_t i=0; i<MAX_KOI; i++) {
+    uint16_t x = body_get_pos(&koi.xdata[i]);
+    uint16_t y = body_get_pos(&koi.ydata[i]);
+    //find the nearest pellet
+    int8_t target = -1;
+    int32_t best = 0x7FFFFFFF;
+    for (uint8_t p=0; p<MAX_PELLETS; p++) {
+      if (!pellets.state[p]) continue;
+      int32_t dx = (int32_t)body_get_pos(&pellets.xdata[p]) - x;
+      int32_t dy = (int32_t)body_get_pos(&pellets.ydata[p]) - y;
+      int32_t d = (dx<0?-dx:dx) + (dy<0?-dy:dy);
+      if (d < best) { best = d; target = (int8_t)p; }
+    }
+    uint8_t heading = koi.heading[i];
+    if (target >= 0) {
+      //steer toward the pellet along the dominant axis
+      int32_t dx = (int32_t)body_get_pos(&pellets.xdata[target]) - x;
+      int32_t dy = (int32_t)body_get_pos(&pellets.ydata[target]) - y;
+      if ((dx<0?-dx:dx) >= (dy<0?-dy:dy)) heading = dx >= 0 ? HEAD_R : HEAD_L;
+      else                                heading = dy >= 0 ? HEAD_D : HEAD_U;
+      if (best < (10<<3)) { //close enough: eat
+        delete_hsp(&GFX, pellets.sprite[target]);
+        pellets.state[target] = 0;
+        sfx_play(SFX_BLIP);
+        spawn_ripple((uint16_t)(x>>3), (uint16_t)(y>>3));
+      }
+    }
+    else if (((frame + (uint32_t)koi.phase[i]*37u) % 96u) == 0) {
+      //lazy deterministic wandering
+      heading = (uint8_t)(((frame/96u)*2654435761u + koi.phase[i]*97u) & 3u);
+    }
+    //keep to the pond: turn away from the edges
+    if (x < (24<<3) && heading == HEAD_L) heading = HEAD_R;
+    if (x > (288<<3) && heading == HEAD_R) heading = HEAD_L;
+    if (y < (24<<3) && heading == HEAD_U) heading = HEAD_D;
+    if (y > (208<<3) && heading == HEAD_D) heading = HEAD_U;
+    if (heading != koi.heading[i]) {
+      koi.heading[i] = heading;
+      koi_face(i);
+    }
+    //swim
+    int8_t vx = heading==HEAD_R ? KOI_SPEED : heading==HEAD_L ? -KOI_SPEED : 0;
+    int8_t vy = heading==HEAD_D ? KOI_SPEED : heading==HEAD_U ? -KOI_SPEED : 0;
+    body_set_vel(&koi.xdata[i], vx);
+    body_set_vel(&koi.ydata[i], vy);
+    body_update(&koi.xdata[i], &koi.ydata[i]);
+    set_pos_fsp(&GFX, koi.sprite[i],
+                (int16_t)((body_get_pos(&koi.xdata[i])+4)>>3),
+                (int16_t)((body_get_pos(&koi.ydata[i])+4)>>3));
+    //tail flap, phase-shifted per fish
+    set_fsp(&GFX, koi.sprite[i],
+            (int16_t)(KOI_TILE + (((frame>>3) + koi.phase[i]) & 1)));
+  }
+}
+
+static void update_pond(uint32_t frame) {
+  uint8_t input = players.base[0] & MASK_PLAYER_BASE_INPUT;
+  uint8_t edge = input & (uint8_t)(~pond_prev_input);
+  pond_prev_input = input;
+  //the feeding hand
+  if (input & MASK_INPUT_LEFT)  hand_x -= 24;
+  if (input & MASK_INPUT_RIGHT) hand_x += 24;
+  if (input & MASK_INPUT_UP)    hand_y -= 24;
+  if (input & MASK_INPUT_DOWN)  hand_y += 24;
+  if ((int32_t)hand_x < (12<<3)) hand_x = 12<<3;
+  if (hand_x > (306<<3)) hand_x = 306<<3;
+  if ((int32_t)hand_y < (12<<3)) hand_y = 12<<3;
+  if (hand_y > (226<<3)) hand_y = 226<<3;
+  set_pos_hsp(&GFX, hand_sprite,
+              (int16_t)((hand_x>>3)-4), (int16_t)((hand_y>>3)-4));
+  if (edge & MASK_INPUT_A) {
+    drop_pellet((uint16_t)(hand_x>>3), (uint16_t)(hand_y>>3));
+  }
+  update_koi(frame);
+  update_leaves(frame);
+  update_ripples();
+}
+
+static void begin_pond(void) {
+  clear_all_fsp(&GFX);
+  clear_all_hsp(&GFX);
+  initialize_players(); //players idle; only the input byte is used
+  //leaves first: lowest OAM slots render on top of everything after them
+  for (uint8_t i=0; i<MAX_LEAVES; i++) {
+    const leaf_def* d = &leaf_defs[i];
+    uint8_t sp = add_fsp(&GFX, d->tile, LEAF_PAL, d->x, d->y);
+    if (d->big) set_fsp_effects(&GFX, sp, 0, 0, 0, 1);
+    leaves.sprite[i] = sp;
+    leaves.base_x[i] = d->x;
+    leaves.base_y[i] = d->y;
+    leaves.phase[i] = (uint8_t)(i*5+2);
+  }
+  for (uint8_t i=0; i<MAX_KOI; i++) {
+    uint16_t px = (uint16_t)(50 + i*52);
+    uint16_t py = (uint16_t)(60 + ((i*77)%120));
+    uint8_t sp = add_fsp(&GFX, KOI_TILE,
+                         (i&1) ? KOI_PAL_CALICO : KOI_PAL_ORANGE, px, py);
+    koi.sprite[i] = sp;
+    koi.heading[i] = (i&1) ? HEAD_L : HEAD_R;
+    koi.phase[i] = (uint8_t)(i*3+1);
+    koi.xdata[i] = 0; koi.ydata[i] = 0;
+    body_set_pos(&koi.xdata[i], (uint16_t)(px<<3));
+    body_set_pos(&koi.ydata[i], (uint16_t)(py<<3));
+    koi_face(i);
+  }
+  //leaf shadows last: highest OAM slots render beneath the koi
+  for (uint8_t i=0; i<MAX_LEAVES; i++) {
+    const leaf_def* d = &leaf_defs[i];
+    uint8_t sh = add_fsp(&GFX, LEAF_TILE_SHADOW, LEAF_PAL,
+                         (uint16_t)(d->x+3), (uint16_t)(d->y+3));
+    if (d->big) set_fsp_effects(&GFX, sh, 0, 0, 0, 1);
+    leaves.shadow[i] = sh;
+  }
+  for (uint8_t i=0; i<MAX_PELLETS; i++) pellets.state[i] = 0;
+  for (uint8_t i=0; i<MAX_RIPPLES; i++) ripples.age[i] = 0;
+  hand_x = 160<<3;
+  hand_y = 120<<3;
+  hand_sprite = add_hsp(&GFX, '+', 2, 156, 116);
+  pond_prev_input = 0xFF;
+  game_mode = MODE_PLAYING;
+}
+
+/* ---- scene-select menu ---- */
+
+#define SCENE_COUNT  3
+
 static uint8_t menu_cursor = 0;
 static uint8_t current_scene = 0;
 static uint8_t menu_prev_input = 0;
@@ -615,13 +953,21 @@ static uint8_t menu_cursor_sprite = 0;
 
 //the menu draws over whatever background is loaded, which keeps scrolling
 static void enter_menu(void) {
-  clear_all_fsp();
-  clear_all_hsp();
-  draw_text("TILE ENGINE RETRO", 92, 60, 2);
-  draw_text("ASTEROID RUN", MENU_OPT_X, MENU_OPT_Y, 0);
-  draw_text("CRYSTAL CAVERN", MENU_OPT_X, MENU_OPT_Y+MENU_OPT_SPACING, 0);
-  draw_text("DANIEL AND LUIS 2017-2026", 60, 208, 1);
-  menu_cursor_sprite = add_hsp('>', 2, MENU_OPT_X-12,
+  clear_all_fsp(&GFX);
+  clear_all_hsp(&GFX);
+  draw_text(&GFX, "TILE ENGINE RETRO", 92, 60, 2);
+  draw_text(&GFX, "ASTEROID RUN", MENU_OPT_X, MENU_OPT_Y, 0);
+  draw_text(&GFX, "CRYSTAL CAVERN", MENU_OPT_X, MENU_OPT_Y+MENU_OPT_SPACING, 0);
+  draw_text(&GFX, "KOI POND", MENU_OPT_X, MENU_OPT_Y+2*MENU_OPT_SPACING, 0);
+  //tight 7 px advance: the full credit fits the 320 px viewport
+  {
+    const char* credit = "POR DANIEL JIMENEZ Y LUIS NAVARRO 2017-2026";
+    int16_t cx = 10;
+    for (const char* p = credit; *p; p++, cx += 7) {
+      if (*p != ' ') add_hsp(&GFX, (uint16_t)*p, 1, (uint16_t)cx, 208);
+    }
+  }
+  menu_cursor_sprite = add_hsp(&GFX, '>', 2, MENU_OPT_X-12,
                                MENU_OPT_Y + menu_cursor*MENU_OPT_SPACING);
   menu_prev_input = 0xFF; //swallow buttons held on entry
   game_mode = MODE_MENU;
@@ -636,7 +982,7 @@ static uint8_t update_menu(void) {
     menu_cursor = (menu_cursor + SCENE_COUNT - 1) % SCENE_COUNT;
   if (edge & MASK_INPUT_DOWN)
     menu_cursor = (menu_cursor + 1) % SCENE_COUNT;
-  set_pos_hsp(menu_cursor_sprite, MENU_OPT_X-12,
+  set_pos_hsp(&GFX, menu_cursor_sprite, MENU_OPT_X-12,
               MENU_OPT_Y + menu_cursor*MENU_OPT_SPACING);
   if (edge & (MASK_INPUT_A | MASK_INPUT_START)) return menu_cursor;
   return 0xFF;
@@ -652,15 +998,15 @@ static uint8_t play_wants_menu(void) {
 
 //spawns everything for a fresh play session (scene assets already loaded)
 static void begin_play(void) {
-  clear_all_fsp();
-  clear_all_hsp();
+  clear_all_fsp(&GFX);
+  clear_all_hsp(&GFX);
   initialize_players();
   initialize_enemies();
   initialize_player_projectiles();
   initialize_enemy_projectiles();
   initialize_powerups();
-  spawner_wait = 0;
-  spawner_lane = 0;
+  tl_index = 0;
+  tl_base = 0;
   add_hud();
   add_player(0, 20<<3, 200<<3);
   add_player(1, 60<<3, 200<<3);

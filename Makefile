@@ -28,7 +28,9 @@ gfxtool: tools/gfxtool.c tools/qdbmp.c tools/stb_image.h tools/stb_image_write.h
 	cc -O2 -std=gnu99 -o gfxtool tools/gfxtool.c tools/qdbmp.c -lm
 
 GFX: core/bg0.gfx core/bg1.gfx core/fsp.gfx core/hsp.gfx \
-     core/scene2.gfx core/scene2.map
+     core/scene2.gfx core/scene2.map \
+     core/scene3_surface.gfx core/scene3_surface.map \
+     core/scene3_depths.gfx core/scene3_depths.map core/scene3_lights.map
 
 core/bg0.gfx: gfxtool assets/bg0.mfst bmp/bg0.bmp assets/bg0_pal0.png
 	./gfxtool build assets/bg0.mfst core/bg0.gfx
@@ -51,15 +53,41 @@ core/scene2.gfx: gfxtool assets/scene2.mfst assets/scene2_tiles.png \
 core/scene2.map: assets/scene2.map
 	cp assets/scene2.map core/scene2.map
 
-# Regenerate the generated scene 2 art (requires python3 + Pillow)
+core/scene3_surface.gfx: gfxtool assets/scene3_surface.mfst \
+                         assets/scene3_surface_tiles.png \
+                         assets/scene3_surface_pal0.png
+	./gfxtool build assets/scene3_surface.mfst core/scene3_surface.gfx
+
+core/scene3_depths.gfx: gfxtool assets/scene3_depths.mfst \
+                        assets/scene3_depths_tiles.png \
+                        assets/scene3_depths_pal0.png
+	./gfxtool build assets/scene3_depths.mfst core/scene3_depths.gfx
+
+core/scene3_surface.map: assets/scene3_surface.map
+	cp assets/scene3_surface.map core/scene3_surface.map
+
+core/scene3_depths.map: assets/scene3_depths.map
+	cp assets/scene3_depths.map core/scene3_depths.map
+
+core/scene3_lights.map: assets/scene3_lights.map
+	cp assets/scene3_lights.map core/scene3_lights.map
+
+# Regenerate the generated scene art (requires python3 + Pillow)
 scene2-assets:
 	python3 tools/gen_scene2.py
 
-# Headless test: drives the core through 30s of gameplay plus a
-# save-state round trip under AddressSanitizer. No RetroArch, no libxmp.
+scene3-assets:
+	python3 tools/gen_scene3.py
+
+# Headless tests: unit tests for the pure parts, then a 30s gameplay run
+# plus a save-state round trip. All under AddressSanitizer; no RetroArch,
+# no libxmp. Set HARNESS_DUMP=<prefix> to also dump frames as PNGs.
 test: GFX
+	cc -g -O1 -fsanitize=address -std=gnu99 -Wall -Wextra \
+		-o core/test_units test/units.c gfx_engine.c
+	cd core && ./test_units
 	cc -g -O1 -fsanitize=address -std=gnu99 -Icore \
-		-o core/test_harness test/harness.c core/libretro-core.c
+		-o core/test_harness test/harness.c core/libretro-core.c gfx_engine.c
 	cd core && ./test_harness
 
 clean:
