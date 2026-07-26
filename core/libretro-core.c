@@ -116,6 +116,8 @@ static uint32_t scrolling_tilemap_index=0;
 static void animate_bg0_blocks(void);
 static void save_ship_palettes(void);
 static void shimmer_ship_palettes(void);
+static void save_bg0_palette(void);
+static void pulse_bg0_palette(void);
 
 //loads a gfx file from the frontend's working directory (core/ via make run)
 static void load_gfx(const char* path, int gfxtype)
@@ -141,6 +143,7 @@ void retro_init(void)
   load_gfx("fsp.gfx", 2);
   load_gfx("hsp.gfx", 3);
   save_ship_palettes();
+  save_bg0_palette();
   initialize_game();
   default_scores();
 #ifdef HAVE_XMP
@@ -333,27 +336,49 @@ static void update_game(void) {
     update_animations();
     animate_bg0_blocks();
     shimmer_ship_palettes();
+    pulse_bg0_palette();
   }
 
 }
 
-//the bg0 tileset is organized in animation bands: tiles 0-5 (conduit),
-//8-14 (porthole), 17-19 (plasma) and 16,20,21 (glimmer panel) are frames
-//of the same block; entries outside the bands (6, 7, 15) stay static
+/* bg0 block animation: each band plays a scripted sequence instead of a
+   plain cycle. A cell's band is identified by its current tile (band tile
+   sets are disjoint), and its phase is offset by its tilemap position, so
+   surges travel across neighboring cells. Tiles 6, 7 and 15 stay static. */
+static const uint8_t seq_conduit[] = //power surges ebb and flow
+  {0,1,2,3,2,3,4,3,5,4,5,5,4,3,4,3,2,3,3,4,5,4,3,2,4,3,2,3,2,1,2,1};
+static const uint8_t seq_porthole[] = //radar blip: breathe in, double-pulse
+  {8,8,9,10,11,12,13,14,13,12,11,10,9,8,8,10,12,14,12,10,8,9,11,13,14,14,13,11,9,8};
+static const uint8_t seq_plasma[] = //unstable flicker
+  {17,18,19,18,17,18,17,19,18,19,17,18,19,19,18,17};
+static const uint8_t seq_glimmer[] = //slow rotation with stutters
+  {16,20,21,16,20,21,21,16,20,16,21,20};
+
+static uint32_t bg0_anim_step = 0;
+
 static void animate_bg0_blocks(void) {
+  bg0_anim_step++;
   for (uint16_t i=0; i<layer_tile_number_x*layer_tile_number_y; i++) {
     uint16_t entry = bg[0].tilemap[i];
     if (entry & Mask_bgtm_disable) continue;
     uint16_t idx = entry & Mask_bgtm_index;
-    uint16_t next;
-    if      (idx <= 5)               next = (idx + 1) % 6;
-    else if (idx >= 8 && idx <= 14)  next = ((idx - 8 + 1) % 7) + 8;
-    else if (idx >= 17 && idx <= 19) next = ((idx - 17 + 1) % 3) + 17;
-    else if (idx == 16)              next = 20;
-    else if (idx == 20)              next = 21;
-    else if (idx == 21)              next = 16;
+    const uint8_t* seq;
+    uint8_t len;
+    if (idx <= 5) {
+      seq = seq_conduit;  len = sizeof(seq_conduit);
+    }
+    else if (idx >= 8 && idx <= 14) {
+      seq = seq_porthole; len = sizeof(seq_porthole);
+    }
+    else if (idx >= 17 && idx <= 19) {
+      seq = seq_plasma;   len = sizeof(seq_plasma);
+    }
+    else if (idx == 16 || idx == 20 || idx == 21) {
+      seq = seq_glimmer;  len = sizeof(seq_glimmer);
+    }
     else continue;
-    bg[0].tilemap[i] = (entry & (~Mask_bgtm_index)) | next;
+    bg[0].tilemap[i] = (entry & (~Mask_bgtm_index))
+                     | seq[(bg0_anim_step + i) % len];
   }
 }
 
@@ -363,6 +388,16 @@ static fsp_palette ship_palette_base[4];
 
 static void save_ship_palettes(void) {
   for (uint8_t p=0; p<4; p++) ship_palette_base[p] = fsp.palette[1+p];
+}
+
+//bg0 palette pulse: the colors participating in the block animations
+//(indices 6-15; 0-5 are backdrop and structural grays) breathe +/-1
+//around their loaded values, each index offset in phase
+static bg_palette bg0_palette_base;
+static uint8_t bg0_pulse_phase = 0;
+
+static void save_bg0_palette(void) {
+  bg0_palette_base = bg[0].palette[0];
 }
 
 static color_16bit inline shift_brightness(color_16bit c, int8_t d) {
@@ -375,15 +410,26 @@ static color_16bit inline shift_brightness(color_16bit c, int8_t d) {
   return (c&Mask_alpha) | (r<<10) | (g<<5) | b;
 }
 
+static uint8_t shimmer_phase = 0;
+
 static void shimmer_ship_palettes(void) {
-  static uint8_t phase = 0;
-  phase = (phase+1) & 3;
-  int8_t delta = (phase==1) - (phase==3); // 0,+1,0,-1
+  shimmer_phase = (shimmer_phase+1) & 3;
+  int8_t delta = (shimmer_phase==1) - (shimmer_phase==3); // 0,+1,0,-1
   for (uint8_t p=0; p<4; p++) {
     for (uint8_t c=1; c<fsp_palette_color_count; c++) { //index 0 is transparent
       fsp.palette[1+p].color[c] =
         shift_brightness(ship_palette_base[p].color[c], delta);
     }
+  }
+}
+
+static void pulse_bg0_palette(void) {
+  static const int8_t deltas[4] = {0, 1, 0, -1};
+  bg0_pulse_phase = (bg0_pulse_phase+1) & 3;
+  for (uint8_t c=6; c<bg_palette_color_count; c++) {
+    bg[0].palette[0].color[c] =
+      shift_brightness(bg0_palette_base.color[c],
+                       deltas[(bg0_pulse_phase + c) & 3]);
   }
 }
 
