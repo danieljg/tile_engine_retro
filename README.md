@@ -27,11 +27,16 @@ Optional: `libxmp` for module music (auto-detected via pkg-config;
 without it the core builds silent), `python3` + Pillow to regenerate the
 generated scene art.
 
+On Linux Mint / Ubuntu, `./setup_linux.sh` checks for the requirements,
+shows what it wants to install, and asks before installing. On macOS use
+MacPorts/Homebrew for `libxmp` and RetroArch.
+
 ```sh
-make        # builds the core, the gfxtool asset pipeline and all assets
-make run    # launches RetroArch with the core
-make test   # unit tests + 30s headless gameplay + save-state round trip,
-            # all under AddressSanitizer (no RetroArch needed)
+./setup_linux.sh   # Linux only: install requirements (asks first)
+make               # builds the core, the gfxtool pipeline and all assets
+make run           # launches RetroArch with the core
+make test          # unit tests + 30s headless gameplay + save-state
+                   # round trip, all under AddressSanitizer
 ```
 
 ## Controls

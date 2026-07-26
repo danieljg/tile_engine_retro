@@ -18,6 +18,9 @@ core_source = \
 all: $(CORE) GFX
 
 run: $(CORE) GFX
+	@test -n "$(RETROARCH)" || { \
+	  echo "RetroArch not found. On Linux Mint/Ubuntu run ./setup_linux.sh"; \
+	  exit 1; }
 	cd core && "$(RETROARCH)" -L ./$(notdir $(CORE))
 
 $(CORE): $(core_source)
