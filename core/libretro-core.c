@@ -239,6 +239,16 @@ static void start_scene(uint8_t id)
   bg_cache_dirty = 1;
   set_fade(0);
   frame_counter = 0; //replays the fade-in
+  if (id == 1) { //the cavern is metroid territory
+    enemy_skin_tile = 0;
+    enemy_skin_frames = 6;
+    enemy_skin_rotates = 0;
+  }
+  else { //everywhere else flies the 2018 ships
+    enemy_skin_tile = 12;
+    enemy_skin_frames = 3;
+    enemy_skin_rotates = 1;
+  }
   if (scene_defs[id].kind == SCENE_KIND_POND) begin_pond();
   else begin_play();
 }
@@ -447,7 +457,7 @@ static void update_game(void) {
       update_player(i);
     }
     update_pprojectiles();
-    update_enemies();
+    update_enemies(frame_counter);
     update_timeline(shmup_timeline, frame_counter);
     check_collisions();
     update_hud();
@@ -1084,7 +1094,7 @@ bool retro_load_game_special(unsigned type, const struct retro_game_info *info, 
    but serializing them keeps the first frame after a load exact.
    Not endian-portable; music position is not saved. */
 #define SAVESTATE_MAGIC   0x30524554 // "TER0"
-#define SAVESTATE_VERSION 10
+#define SAVESTATE_VERSION 11
 
 typedef struct { void* ptr; size_t size; } save_block;
 
@@ -1100,6 +1110,9 @@ static const save_block save_blocks[] = {
   {&gamedata2, sizeof(gamedata2)},
   {&tl_index, sizeof(tl_index)},
   {&tl_base, sizeof(tl_base)},
+  {&enemy_skin_tile, sizeof(enemy_skin_tile)},
+  {&enemy_skin_frames, sizeof(enemy_skin_frames)},
+  {&enemy_skin_rotates, sizeof(enemy_skin_rotates)},
   {sfx, sizeof(sfx)},
   //pond state
   {&leaves, sizeof(leaves)},

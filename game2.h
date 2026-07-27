@@ -144,6 +144,26 @@ static void sfx_play(uint8_t type) {
   sfx[best].seed = 0x12345678u + type;
 }
 
+/* 8-bit angles: 256 units per turn, 0 = +x (right), 64 = +y (down).
+   sin in 1/64 units through a 32-entry table. */
+static const int8_t sin64[32] = {
+    0,  12,  24,  36,  45,  53,  59,  62,
+   63,  62,  59,  53,  45,  36,  24,  12,
+    0, -12, -24, -36, -45, -53, -59, -62,
+  -63, -62, -59, -53, -45, -36, -24, -12
+};
+static int8_t inline sin8(uint8_t a) { return sin64[(a>>3)&31]; }
+static int8_t inline cos8(uint8_t a) { return sin64[((a>>3)+8)&31]; }
+
+//coarse eight-direction angle toward (dx, dy), in 1/8 px units
+static uint8_t inline angle_toward(int32_t dx, int32_t dy) {
+  int32_t ax = dx<0?-dx:dx, ay = dy<0?-dy:dy;
+  if (ax > (ay<<1)) return dx>=0 ? 0 : 128;         //mostly horizontal
+  if (ay > (ax<<1)) return dy>=0 ? 64 : 192;        //mostly vertical
+  if (dx>=0) return dy>=0 ? 32 : 224;               //diagonals
+  return dy>=0 ? 96 : 160;
+}
+
 #define MASK_PLAYER_BASE_RES1  0xC000
 #define MASK_PLAYER_BASE_STATE 0x3000 //(2 bits) idle, spawning, alive, dying
 #define MASK_PLAYER_BASE_RES2  0x0800
@@ -334,8 +354,12 @@ static void inline initialize_enemies(void) {
   }
 }
 
-#define ENEMY_START_TILE 12
-#define ENEMY_FRAMES 3
+/* The enemy "skin" is per scene: Asteroid Run flies the 2018 ships,
+   Crystal Cavern hosts the six-frame metroid (fsp tiles 0-5) that sat
+   unused in the sheet since 2018. Floaters bob instead of rotating. */
+static uint16_t enemy_skin_tile = 12;
+static uint8_t enemy_skin_frames = 3;
+static uint8_t enemy_skin_rotates = 1; //ships face travel; floaters don't
 #define ENEMY_PALETTE 0
 
 //enemies fly in from the right facing left (h-flip via the pre-mirrored
@@ -344,18 +368,24 @@ static uint8_t add_enemy(uint16_t pos_x_px, uint16_t pos_y_px,
                          uint8_t double_size) {
   for (uint8_t i=0; i<MAX_ENEMIES; i++) {
     if (enemy_state(i) != STATE_IDLE) continue;
-    uint8_t sp_id = add_fsp(&GFX, ENEMY_START_TILE, ENEMY_PALETTE,
+    uint8_t sp_id = add_fsp(&GFX, enemy_skin_tile, ENEMY_PALETTE,
                             pos_x_px, pos_y_px);
     if (sp_id >= fsp_count) return 0;
-    //rotation+h_flip+v_flip = rotate -90: enemies face left
-    set_fsp_effects(&GFX, sp_id, 1, 1, 1, double_size);
+    if (enemy_skin_rotates) {
+      //rotation+h_flip+v_flip = rotate -90: ships face left
+      set_fsp_effects(&GFX, sp_id, 1, 1, 1, double_size);
+    }
+    else {
+      set_fsp_effects(&GFX, sp_id, 0, 0, 0, double_size);
+    }
     enemies.base[i] = STATE_ALIVE<<12;
     enemies.xdata[i] = 0; enemies.ydata[i] = 0;
     body_set_pos(&enemies.xdata[i], pos_x_px<<3);
     body_set_pos(&enemies.ydata[i], pos_y_px<<3);
     body_set_vel(&enemies.xdata[i], -3);
     enemies.dimensions[i] = double_size ? ((26<<8)|26) : ((13<<8)|13);
-    animation_init(&enemies.animation[i], ENEMY_FRAMES, ENEMY_START_TILE, sp_id);
+    animation_init(&enemies.animation[i], enemy_skin_frames,
+                   enemy_skin_tile, sp_id);
     return 1;
   }
   return 0;
@@ -367,7 +397,7 @@ static void kill_enemy(uint8_t id) {
   enemies.animation[id] = 0x00000000;
 }
 
-static void update_enemies(void) {
+static void update_enemies(uint32_t frame) {
   for (uint8_t i=0; i<MAX_ENEMIES; i++) {
     if (enemy_state(i) != STATE_ALIVE) continue;
     body_update(&enemies.xdata[i], &enemies.ydata[i]);
@@ -376,8 +406,13 @@ static void update_enemies(void) {
       body_set_pos(&enemies.xdata[i], 310<<3);
       x = body_get_pos(&enemies.xdata[i]);
     }
+    int16_t fy = (int16_t)((body_get_pos(&enemies.ydata[i])+4)>>3);
+    if (!enemy_skin_rotates) {
+      //floaters ride an invisible swell, phase-shifted per slot
+      fy = (int16_t)(fy + (sin8((uint8_t)((frame<<1) + i*43)) >> 4));
+    }
     set_pos_fsp(&GFX, animation_sprite(&enemies.animation[i]),
-                (x+4)>>3, (body_get_pos(&enemies.ydata[i])+4)>>3);
+                (int16_t)((x+4)>>3), fy);
   }
 }
 
@@ -831,26 +866,6 @@ static void update_leaves(uint32_t frame) {
 #define HEAD_L 1
 #define HEAD_D 2
 #define HEAD_U 3
-
-/* 8-bit angles: 256 units per turn, 0 = +x (right), 64 = +y (down).
-   sin in 1/64 units through a 32-entry table. */
-static const int8_t sin64[32] = {
-    0,  12,  24,  36,  45,  53,  59,  62,
-   63,  62,  59,  53,  45,  36,  24,  12,
-    0, -12, -24, -36, -45, -53, -59, -62,
-  -63, -62, -59, -53, -45, -36, -24, -12
-};
-static int8_t inline sin8(uint8_t a) { return sin64[(a>>3)&31]; }
-static int8_t inline cos8(uint8_t a) { return sin64[((a>>3)+8)&31]; }
-
-//coarse eight-direction angle toward (dx, dy), in 1/8 px units
-static uint8_t inline angle_toward(int32_t dx, int32_t dy) {
-  int32_t ax = dx<0?-dx:dx, ay = dy<0?-dy:dy;
-  if (ax > (ay<<1)) return dx>=0 ? 0 : 128;         //mostly horizontal
-  if (ay > (ax<<1)) return dy>=0 ? 64 : 192;        //mostly vertical
-  if (dx>=0) return dy>=0 ? 32 : 224;               //diagonals
-  return dy>=0 ? 96 : 160;
-}
 
 typedef struct {
   uint8_t sprite[MAX_KOI];
