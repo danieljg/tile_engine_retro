@@ -8,6 +8,36 @@ void initialize_viewport(gfx_context* g) {
  g->viewport.height 	= full_tile_size*vp_tile_number_y;
  g->viewport.x_origin	= vp_x_origin;
  g->viewport.y_origin	= vp_y_origin;
+ set_blend(g, 8, 8); //the historical 50/50
+}
+
+void set_blend(gfx_context* g, uint8_t eva, uint8_t evb) {
+  g->blend_eva = eva > 16 ? 16 : eva;
+  g->blend_evb = evb > 16 ? 16 : evb;
+  g->blend_clamp = (uint8_t)(g->blend_eva + g->blend_evb > 16);
+}
+
+/* GBA formula, per 5-bit channel; a multiply beats a table on anything
+   built after the actual GBA */
+static inline color_16bit blend_px(const gfx_context* g,
+                                   color_16bit a, color_16bit b) {
+  uint16_t r = (uint16_t)((((a&Mask_red)>>10)*g->blend_eva
+                          + ((b&Mask_red)>>10)*g->blend_evb) >> 4);
+  uint16_t gr = (uint16_t)((((a&Mask_green)>>5)*g->blend_eva
+                           + ((b&Mask_green)>>5)*g->blend_evb) >> 4);
+  uint16_t bl = (uint16_t)(((a&Mask_blue)*g->blend_eva
+                           + (b&Mask_blue)*g->blend_evb) >> 4);
+  if (g->blend_clamp) {
+    if (r > 31) r = 31;
+    if (gr > 31) gr = 31;
+    if (bl > 31) bl = 31;
+  }
+  return (color_16bit)((r<<10) | (gr<<5) | bl);
+}
+
+color_16bit gfx_blend_colors(const gfx_context* g,
+                             color_16bit a, color_16bit b) {
+  return blend_px(g, a, b);
 }
 
 void initialize_bg(gfx_context* g)
@@ -115,6 +145,11 @@ void set_fsp_effects(gfx_context* g, uint8_t sp_id, uint8_t h_flip,
   g->fsp.oam2[sp_id] = o2;
 }
 
+void set_fsp_blend(gfx_context* g, uint8_t sp_id, uint8_t on) {
+  if (on) g->fsp.oam[sp_id] |= Mask_fsp_oam_effects;
+  else g->fsp.oam[sp_id] &= (uint16_t)(~Mask_fsp_oam_effects);
+}
+
 void set_fsp_priority(gfx_context* g, uint8_t sp_id, uint8_t prio) {
   g->fsp.oam3[sp_id] = (uint16_t)((g->fsp.oam3[sp_id]
                                    & (~Mask_fsp_oam3_priority))
@@ -192,6 +227,11 @@ void set_hsp_effects(gfx_context* g, uint8_t sp_id, uint8_t h_flip,
   if (rotate)      o2 |= Mask_hsp_oam2_rotation;
   if (double_size) o2 |= Mask_hsp_oam2_double;
   g->hsp.oam2[sp_id] = o2;
+}
+
+void set_hsp_blend(gfx_context* g, uint8_t sp_id, uint8_t on) {
+  if (on) g->hsp.oam[sp_id] |= Mask_hsp_oam_effects;
+  else g->hsp.oam[sp_id] &= (uint16_t)(~Mask_hsp_oam_effects);
 }
 
 void set_hsp_priority(gfx_context* g, uint8_t sp_id, uint8_t prio) {
@@ -384,7 +424,7 @@ static void render_bg_scanline(gfx_context* g, uint16_t* line, uint32_t yy,
         if (pix) {
           color_16bit c = g->bg[layer].palette[pal].color[pix];
           if (c < 0x8000) line[xx] = c;
-          else line[xx] = average_colors(c, line[xx]);//semitransparent
+          else line[xx] = blend_px(g, c, line[xx]);//semitransparent
         }
         xx++;
       }
@@ -447,6 +487,7 @@ static void render_sprite_layer(
       continue;
     uint8_t pal = (o & Mask_fsp_oam_palette)>>10;
     uint16_t o2 = oam2[slot];
+    uint8_t force_blend = (o & Mask_fsp_oam_effects) != 0;
     uint8_t vfl = (o2 & Mask_fsp_oam2_v_flip) != 0;
     uint8_t hfl = (o2 & Mask_fsp_oam2_h_flip) != 0;
     uint8_t rot = (o2 & Mask_fsp_oam2_rotation) != 0;
@@ -503,11 +544,11 @@ static void render_sprite_layer(
           uint8_t pix = (group >> (4*(7-(src_col&7)))) & 0x0F;
           if (pix==0) continue;
           color_16bit c = palette_colors[(uint16_t)(pal*colors_per_palette) + pix];
-          if (c < 0x8000) {
+          if (c < 0x8000 && !force_blend) {
             line[xx] = c;
           }
           else {
-            line[xx] = average_colors(c, line[xx]);//semitransparent
+            line[xx] = blend_px(g, c, line[xx]);//semitransparent
           }
         }
       }

@@ -175,8 +175,46 @@ static void test_animation_word(void)
   CHECK((GFX.fsp.oam[sp] & Mask_fsp_oam_index) == 12);
 }
 
+static void test_blending(void)
+{
+  //identity coefficients pass one side through untouched
+  set_blend(&GFX, 16, 0);
+  CHECK(gfx_blend_colors(&GFX, 0x7FFF, 0x0000) == 0x7FFF);
+  set_blend(&GFX, 0, 16);
+  CHECK(gfx_blend_colors(&GFX, 0x7FFF, 0x1234) == 0x1234);
+  //8/8 is bit-identical to the historical average
+  set_blend(&GFX, 8, 8);
+  int ok = 1;
+  uint32_t s = 12345;
+  for (int i = 0; i < 500; i++) {
+    s = s * 1664525u + 1013904223u;
+    color_16bit a = (color_16bit)(s & 0x7FFF);
+    color_16bit b = (color_16bit)((s >> 16) & 0x7FFF);
+    if (gfx_blend_colors(&GFX, a, b) != average_colors(a, b)) ok = 0;
+  }
+  CHECK(ok);
+  //additive coefficients clamp at white
+  set_blend(&GFX, 16, 16);
+  CHECK(gfx_blend_colors(&GFX, 0x7FFF, 0x7FFF) == 0x7FFF);
+  CHECK(gfx_blend_colors(&GFX, 0x7FFF, 0x0000) == 0x7FFF);
+  //half + half of mid grey adds up, no clamp needed
+  set_blend(&GFX, 8, 8);
+  CHECK(gfx_blend_colors(&GFX, (15<<10), (15<<10)) == (15<<10));
+  //fresh sprites carry no blend flag; the setter flips only that bit
+  clear_all_fsp(&GFX);
+  uint8_t sp = add_fsp(&GFX, 1, 0, 10, 10);
+  CHECK((GFX.fsp.oam[sp] & Mask_fsp_oam_effects) == 0);
+  set_fsp_blend(&GFX, sp, 1);
+  CHECK((GFX.fsp.oam[sp] & Mask_fsp_oam_effects) != 0);
+  CHECK((GFX.fsp.oam[sp] & Mask_fsp_oam_index) == 1);
+  set_fsp_blend(&GFX, sp, 0);
+  CHECK((GFX.fsp.oam[sp] & Mask_fsp_oam_effects) == 0);
+  set_blend(&GFX, 8, 8); //leave defaults for other tests
+}
+
 int main(void)
 {
+  test_blending();
   test_body_packing();
   test_aabb();
   test_average_colors();

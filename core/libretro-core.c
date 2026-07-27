@@ -938,6 +938,7 @@ static void render_frame(void)
   }
   else {
     //shmup path: backgrounds from the cache, recomposed only when dirty
+    set_blend(&GFX, 8, 8); //top-of-pass discipline
     if (bg_cache_dirty) {
       gfx_render_backgrounds(&GFX, bg_cache);
       bg_cache_dirty = 0;
@@ -1094,7 +1095,7 @@ bool retro_load_game_special(unsigned type, const struct retro_game_info *info, 
    but serializing them keeps the first frame after a load exact.
    Not endian-portable; music position is not saved. */
 #define SAVESTATE_MAGIC   0x30524554 // "TER0"
-#define SAVESTATE_VERSION 12
+#define SAVESTATE_VERSION 13
 
 typedef struct { void* ptr; size_t size; } save_block;
 
@@ -1181,6 +1182,11 @@ static const save_block save_blocks[] = {
   {GFX.bg[4].offset_x, sizeof(GFX.bg[4].offset_x)},
   {GFX.bg[4].offset_y, sizeof(GFX.bg[4].offset_y)},
   {GFX.bg[4].palette, sizeof(GFX.bg[4].palette)},
+  //blend registers (per-pass discipline makes these cosmetic, but
+  //serializing them keeps restores honest)
+  {&GFX.blend_eva, sizeof(GFX.blend_eva)},
+  {&GFX.blend_evb, sizeof(GFX.blend_evb)},
+  {&GFX.blend_clamp, sizeof(GFX.blend_clamp)},
   //palette derivation state (bases are re-based on scene loads)
   {fsp_palette_base, sizeof(fsp_palette_base)},
   {hsp_palette_base, sizeof(hsp_palette_base)},

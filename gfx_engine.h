@@ -89,7 +89,7 @@ typedef struct {
 //Full sprite Object Attribute Memory bitmasks
 #define Mask_fsp_oam_in_use   0x8000 //signals if slot is occupied
 #define Mask_fsp_oam_enable   0x4000 //enable rendering of sprite
-#define Mask_fsp_oam_effects  0x2000 //enable rendering of sprite effects
+#define Mask_fsp_oam_effects  0x2000 //whole sprite blends (GBA semi-OBJ)
 #define Mask_fsp_oam_palette  0x1C00 //select among 8 palettes
 #define Mask_fsp_oam_index    0x03FF //10 bits for tileset index
 //OAM2 bitmasks
@@ -168,6 +168,13 @@ typedef struct {
   bg_struct bg[bg_layer_count];
   fsp_struct fsp;
   hsp_struct hsp;
+  /* GBA-style alpha blending: out = min(31, A*eva/16 + B*evb/16) per
+     channel, where A is the incoming (alpha-flagged or force-blended)
+     pixel and B is whatever the framebuffer already holds. 8/8 is
+     bit-identical to the historical 50/50 average. Set per pass. */
+  uint8_t blend_eva;   //source coefficient, 0..16
+  uint8_t blend_evb;   //destination coefficient, 0..16
+  uint8_t blend_clamp; //derived: eva+evb > 16, channels may overflow
 } gfx_context;
 
 /* Tiles pack 8 pixels (4 bits each) per 32 bit word, leftmost pixel in the
@@ -201,6 +208,7 @@ void set_pos_fsp(gfx_context* g, int16_t sp_id, int16_t pos_x, int16_t pos_y);
 void set_fsp_effects(gfx_context* g, uint8_t sp_id, uint8_t h_flip,
                      uint8_t v_flip, uint8_t rotate, uint8_t double_size);
 void set_fsp_priority(gfx_context* g, uint8_t sp_id, uint8_t prio);
+void set_fsp_blend(gfx_context* g, uint8_t sp_id, uint8_t on);
 
 uint8_t add_hsp(gfx_context* g, uint16_t sp_index, uint8_t pal_index,
                 uint16_t x_pos, uint16_t y_pos);
@@ -211,6 +219,7 @@ void set_pos_hsp(gfx_context* g, int16_t sp_id, int16_t pos_x, int16_t pos_y);
 void set_hsp_effects(gfx_context* g, uint8_t sp_id, uint8_t h_flip,
                      uint8_t v_flip, uint8_t rotate, uint8_t double_size);
 void set_hsp_priority(gfx_context* g, uint8_t sp_id, uint8_t prio);
+void set_hsp_blend(gfx_context* g, uint8_t sp_id, uint8_t on);
 
 /* half-sprite text: tiles indexed by ASCII code, spaces skipped */
 void draw_text(gfx_context* g, const char* label,
@@ -235,6 +244,11 @@ void gfx_render_bg_layer(gfx_context* g, uint16_t* buf, uint8_t layer,
                          uint8_t as_base);
 void gfx_render_fsp_pass(gfx_context* g, uint16_t* buf, uint8_t prio);
 void gfx_render_hsp_pass(gfx_context* g, uint16_t* buf, uint8_t prio);
+
+/* blending */
+void set_blend(gfx_context* g, uint8_t eva, uint8_t evb);
+color_16bit gfx_blend_colors(const gfx_context* g,
+                             color_16bit a, color_16bit b);
 color_16bit average_colors(color_16bit color1, color_16bit color2);
 
 #endif //GFX_ENGINE_H
