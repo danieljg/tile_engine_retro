@@ -402,7 +402,11 @@ static void update_enemies(uint32_t frame) {
     if (enemy_state(i) != STATE_ALIVE) continue;
     body_update(&enemies.xdata[i], &enemies.ydata[i]);
     uint16_t x = body_get_pos(&enemies.xdata[i]);
-    if ((x>>3) < 8) { //recycle beyond the right edge, out of sight
+    /* Exiting left, the sprite slides out across the 512 wrap (positions
+       run 6,5,...,0,511,510,...) and is fully invisible only once even a
+       double-size body fits between the screen edge and the wrap:
+       x in (430..476). Recycling there is never witnessed. */
+    if ((x>>3) > 430 && (x>>3) < 476) {
       body_set_pos(&enemies.xdata[i], 420<<3);
       x = body_get_pos(&enemies.xdata[i]);
     }
