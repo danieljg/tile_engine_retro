@@ -74,7 +74,7 @@ static pond_tune_t tune = { 1, 2, 1, 4, 1,
                             2, 6,
                             2,
                             1, 12, 0, 5,
-                            2, 8, 10,
+                            2, 8, 7,
                             2, 0 };
 
 //push the tuner's game-side values into game2.h's hint globals
@@ -962,12 +962,12 @@ static void render_frame(void)
     gfx_render_fsp_pass(&GFX, buf, PRIO_SHADOW);
     set_blend(&GFX, 8, 8);
     gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_DEEP);
-    set_blend(&GFX, (uint8_t)(4 + 2*tune.veil_density
-                              + (tune.veil_eva>>1)), 12); //water veils
+    set_blend(&GFX, tune.veil_eva, 12);              //lower water column
     gfx_render_bg_layer(&GFX, buf, 2, 0);            //depth veil 2
     set_blend(&GFX, 8, 8);
     gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_MID);
-    set_blend(&GFX, tune.veil_eva, 12);
+    set_blend(&GFX, (uint8_t)(tune.veil_eva > 2 ? tune.veil_eva - 2 : 0),
+              12);                                   //upper water column
     gfx_render_bg_layer(&GFX, buf, 1, 0);            //depth veil 1
     set_blend(&GFX, 8, 8);
     gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_SHALLOW);

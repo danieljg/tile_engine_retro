@@ -89,8 +89,8 @@ DPAL = [
 #  8 bank interior    9 bank edge N     10 bank edge S    11 bank edge W
 # 12 bank edge E     13 debris          14 weed tuft      15 weed tall lower
 # 16 weed tall upper 17 veil sparse     18 veil medium    19 veil dense
-# 20 veil feather
-N_D = 21
+# 20 veil feather    21 water veil A (upper) 22 water veil B (lower)
+N_D = 23
 dt = [new_tile() for _ in range(N_D)]
 
 
@@ -223,6 +223,15 @@ for n, (lo, hi, core) in ((17, (10, 26, 3)), (18, (26, 52, 4)),
                               3 if core == 3 else core - 1
 
 
+# full-coverage water veils: organic dither, no checker; A lighter, B
+# fuller — stacked, they grade everything below them progressively
+for n, (dens, mix) in ((21, (100, 255)), (22, (130, 90))):
+    for y in range(T):
+        for x in range(T):
+            h = h8(x, y, n * 13)
+            if h < dens:
+                dt[n][y][x] = 4 if h < dens - mix else 3
+
 # ---- floor map: banks with classified edges, dune flows, dressing ----
 FM = [[0] * 32 for _ in range(32)]
 for y in range(32):
@@ -283,12 +292,12 @@ def veil_blob(m, cx, cy, r, dense):
                 m[y][x] = 20
 
 #depth 1: sparse upper veil clouds (organic dither, no checker)
-D1 = [[OFF] * 32 for _ in range(32)]
+D1 = [[21] * 32 for _ in range(32)]  #the upper water column
 for cx, cy, r in ((6, 8, 3.2), (20, 5, 2.8), (27, 16, 3.4), (10, 22, 3.0),
                   (22, 27, 3.2)):
     veil_blob(D1, cx, cy, r, dense=False)
 
-D2 = [[OFF] * 32 for _ in range(32)]
+D2 = [[22] * 32 for _ in range(32)]  #the lower water column
 for cx, cy, r in ((13, 7, 4.2), (27, 9, 3.2), (5, 14, 3.6), (18, 18, 4.6),
                   (28, 23, 3.4), (9, 28, 4.0), (23, 30, 2.8), (1, 4, 2.7)):
     veil_blob(D2, cx, cy, r, dense=True)
@@ -337,9 +346,9 @@ for f in range(NFRAME):
                 wx, wy = cx * 16 + x, cy * 16 + y
                 ds = sorted(torus_d(wx, wy, px, py) for px, py in pts)
                 gap = ds[1] - ds[0]
-                if gap < 0.42:
-                    t[y][x] = 3 if gap < 0.16 else 2
-                elif gap < 0.75 and h8(wx, wy, f) < 26:
+                if gap < 0.55:
+                    t[y][x] = 3 if gap < 0.20 else 2
+                elif gap < 0.90 and h8(wx, wy, f) < 46:
                     t[y][x] = 1
 
 # light pools (after the animation bank) and a sparkle tile
@@ -386,14 +395,17 @@ WPAL = [
 #tiles 0..511: 8 frames x 64 positions over a 128px field. The tint is
 #smooth blobs (dither only at their edges — no checkerboard wash), the
 #contours drift on looping phase shifts.
-N_W = NFRAME * NPOS + 2
-REED_A = NFRAME * NPOS
+SFRAME = 8   # the surface keeps its own geometry: 8 frames x 64
+SPOS = 64    # positions over a 128px period (512-tile bank)
+SPER = 128
+N_W = SFRAME * SPOS + 2
+REED_A = SFRAME * SPOS
 REED_B = REED_A + 1
 wt = [new_tile() for _ in range(N_W)]
-W128 = 2 * math.pi / PER
-for f in range(NFRAME):
-    fp = 2 * math.pi * f / NFRAME
-    for v in range(NPOS):
+W128 = 2 * math.pi / SPER
+for f in range(SFRAME):
+    fp = 2 * math.pi * f / SFRAME
+    for v in range(SPOS):
         vx, vy = v % 8, v // 8
         t = wt[f * NPOS + v]
         for y in range(T):

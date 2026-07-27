@@ -865,14 +865,17 @@ static void update_leaves(uint32_t frame) {
                      ? RING_SM_TILE : RING_TILE;
     set_fsp(&GFX, leaves.ring[i],
             (int16_t)(ringt + (((frame>>4) + i) & 1)));
+    //pads ride the surface, above even the shallowest fish, so their
+    //shadows displace farthest of all — same light, same direction
+    int16_t lgap = (int16_t)((leaf_shadow_gap * 4) / 3);
     int16_t sx, sy;
     if (leaf_shadow_anim == 2) { //anchored: the leaf bobs over its shadow
-      sx = (int16_t)(leaves.base_x[i] + leaf_shadow_gap);
-      sy = (int16_t)(leaves.base_y[i] + leaf_shadow_gap);
+      sx = (int16_t)(leaves.base_x[i] + lgap);
+      sy = (int16_t)(leaves.base_y[i] + lgap);
     }
     else {
-      sx = (int16_t)(lx + leaf_shadow_gap);
-      sy = (int16_t)(ly + leaf_shadow_gap);
+      sx = (int16_t)(lx + lgap);
+      sy = (int16_t)(ly + lgap);
       if (leaf_shadow_anim == 1) //swaying: light refracts, shadow slides
         sx = (int16_t)(sx + (bob_table[((frame>>2)+i) & 15] >> 1));
     }
