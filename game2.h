@@ -713,7 +713,7 @@ static uint8_t game_mode = MODE_MENU;
    water. The frontend layer adds per-scanline sine warping and caustic
    palette rotation on top. ---- */
 
-#define MAX_KOI 5
+#define MAX_KOI 10
 #define MAX_PELLETS 6
 #define MAX_RIPPLES 8
 #define KOI_TILE 18        //2 frames: 18 tail up, 19 tail down
@@ -742,9 +742,10 @@ static uint8_t game_mode = MODE_MENU;
 #define LEAF_TILE_TINY   23
 #define LEAF_TILE_SHADOW 24
 #define KOI_TILE_SHADOW  25
-#define RING_TILE        26
-#define FROND_TILE_A     27
-#define FROND_TILE_B     28
+#define RING_TILE        26 //+1 = second animation frame
+#define FROND_TILE_A     28
+#define FROND_TILE_B     29
+#define RING_SM_TILE     30 //+1 = second animation frame
 #define LEAF_PAL 7
 
 typedef struct {
@@ -821,9 +822,12 @@ static void update_fronds(uint32_t frame) {
 
 
 static uint8_t tune_shadows_hint = 1; //mirrors the tuner's SHADOWS flag
-static uint8_t leaf_bob_amp = 2;    //0..4, x/2 scale on bob_table
-static uint8_t leaf_shadow_gap = 4; //shadow offset in pixels
-static uint8_t leaf_shadow_anim = 1;//0 rigid, 1 swaying, 2 anchored
+static uint8_t leaf_bob_amp = 2;    //0..4; big pads bob at half of it
+static uint8_t leaf_shadow_gap = 12;//shadow offset in pixels (up to 36)
+static uint8_t leaf_shadow_anim = 0;//0 rigid, 1 swaying, 2 anchored
+static uint8_t koi_count_hint = 8;  //active fish in the pool
+static uint8_t koi_speed_hint = 10; //swim speed, 1/8 px units
+static uint8_t river_flow_hint = 2; //current strength, 0..6
 
 //enable/disable a full sprite without releasing its OAM slot
 static void inline fsp_set_enabled(uint8_t sp_id, uint8_t enabled) {
@@ -835,7 +839,8 @@ static void update_leaves(uint32_t frame) {
   for (uint8_t i=0; i<MAX_LEAVES; i++) {
     //downstream drift; past the bottom margin the pad slips away and a
     //fresh one enters above the top of the frame (positions wrap at 512)
-    leaves.dfrac[i] = (uint8_t)(leaves.dfrac[i] + leaves.drift[i]);
+    leaves.dfrac[i] = (uint8_t)(leaves.dfrac[i]
+                                + ((leaves.drift[i]*river_flow_hint)>>1));
     if (leaves.dfrac[i] >= 32) {
       leaves.dfrac[i] -= 32;
       leaves.base_y[i] = (uint16_t)((leaves.base_y[i] + 1) & 511);
@@ -844,15 +849,22 @@ static void update_leaves(uint32_t frame) {
       //448..471: even a big pad ends at 503, safely short of the wrap
       leaves.base_y[i] = (uint16_t)(448 + river_hash(frame, i) % 24);
       leaves.base_x[i] = leaf_spawn_x(i, frame + i * 7919u);
-      leaves.drift[i] = (uint8_t)(2 + river_hash(frame, i + 40) % 3);
+      leaves.drift[i] = 3; //one current for everyone: spacing persists
     }
     uint8_t t = (uint8_t)(((frame>>3) + leaves.phase[i]) & 15);
-    int16_t lx = (int16_t)(leaves.base_x[i]
-                           + ((bob_table[t]*leaf_bob_amp)>>1));
+    //big pads sit heavier in the water: half the bob of the small ones
+    uint8_t amp = leaf_defs[i].big ? (uint8_t)(leaf_bob_amp>>1)
+                                   : leaf_bob_amp;
+    int16_t lx = (int16_t)(leaves.base_x[i] + ((bob_table[t]*amp)>>1));
     int16_t ly = (int16_t)(leaves.base_y[i]
-                           + ((bob_table[(t+4)&15]*leaf_bob_amp)>>1));
+                           + ((bob_table[(t+4)&15]*amp)>>1));
     set_pos_fsp(&GFX, leaves.sprite[i], lx, ly);
     set_pos_fsp(&GFX, leaves.ring[i], lx, (int16_t)(ly+1));
+    //the ring ripples: two dash frames, sized to the pad
+    uint16_t ringt = (leaf_defs[i].tile == LEAF_TILE_TINY)
+                     ? RING_SM_TILE : RING_TILE;
+    set_fsp(&GFX, leaves.ring[i],
+            (int16_t)(ringt + (((frame>>4) + i) & 1)));
     int16_t sx, sy;
     if (leaf_shadow_anim == 2) { //anchored: the leaf bobs over its shadow
       sx = (int16_t)(leaves.base_x[i] + leaf_shadow_gap);
@@ -878,6 +890,7 @@ typedef struct {
   uint8_t shadow[MAX_KOI]; //floor shadow; its offset tracks depth
   uint8_t heading[MAX_KOI]; //displayed cardinal (nearest to theta)
   uint8_t phase[MAX_KOI];
+  uint8_t big[MAX_KOI];   //a few larger fish (double-size render)
   uint8_t depth[MAX_KOI]; //0 shallow, 1 mid, 2 deep (under both veils)
   uint8_t theta[MAX_KOI];  //actual swim direction, 8-bit angle
   uint8_t target[MAX_KOI]; //general direction being followed
@@ -997,7 +1010,8 @@ static void update_koi(uint32_t frame) {
   for (uint8_t p=0; p<MAX_PELLETS; p++) {
     if (!pellets.state[p]) continue;
     body_set_pos(&pellets.ydata[p],
-                 (uint16_t)(body_get_pos(&pellets.ydata[p]) + 1));
+                 (uint16_t)(body_get_pos(&pellets.ydata[p])
+                            + (river_flow_hint>>1)));
     set_pos_hsp(&GFX, pellets.sprite[p],
                 (int16_t)((body_get_pos(&pellets.xdata[p])>>3)-4),
                 (int16_t)((body_get_pos(&pellets.ydata[p])>>3)-4));
@@ -1013,6 +1027,16 @@ static void update_koi(uint32_t frame) {
     }
   }
   for (uint8_t i=0; i<MAX_KOI; i++) {
+    //the tuner's KOI COUNT benches everyone above the line
+    if (i >= koi_count_hint) {
+      if (koi.wait[i] == 0) {
+        koi.wait[i] = 0xFFFF;
+        fsp_set_enabled(koi.sprite[i], 0);
+        fsp_set_enabled(koi.shadow[i], 0);
+      }
+      continue;
+    }
+    if (koi.wait[i] == 0xFFFF) koi.wait[i] = 60; //benched fish return
     //offstage fish wait in the wings, then slip in from an edge —
     //usually upstream, sometimes a side or from below
     if (koi.wait[i]) {
@@ -1120,20 +1144,27 @@ static void update_koi(uint32_t frame) {
       koi.heading[i] = head;
       koi_face(i);
     }
-    //swim along theta (speed scaled from the 1/64-unit sine table)
-    int8_t vx = (int8_t)(((int16_t)cos8(th) * KOI_SPEED) >> 6);
-    int8_t vy = (int8_t)(((int16_t)sin8(th) * KOI_SPEED) >> 6);
+    //swim along theta (speed scaled from the 1/64-unit sine table);
+    //the big ones cruise a touch slower and statelier
+    uint8_t spd = koi.big[i] ? (uint8_t)(koi_speed_hint - 2)
+                             : koi_speed_hint;
+    int8_t vx = (int8_t)(((int16_t)cos8(th) * spd) >> 6);
+    int8_t vy = (int8_t)(((int16_t)sin8(th) * spd) >> 6);
     body_set_vel(&koi.xdata[i], vx);
     body_set_vel(&koi.ydata[i], vy);
     body_update(&koi.xdata[i], &koi.ydata[i]);
     //the current carries every fish a little downstream
     body_set_pos(&koi.ydata[i],
-                 (uint16_t)(body_get_pos(&koi.ydata[i]) + 1));
+                 (uint16_t)(body_get_pos(&koi.ydata[i])
+                            + (river_flow_hint>>1)));
     int16_t fx = (int16_t)((body_get_pos(&koi.xdata[i])+4)>>3);
     int16_t fy = (int16_t)((body_get_pos(&koi.ydata[i])+4)>>3);
     set_pos_fsp(&GFX, koi.sprite[i], fx, fy);
-    //the shadow falls farther from the fish the nearer the surface it is
-    int16_t off = (int16_t)(6 - 2*koi.depth[i]);
+    //the shadow falls farther from the fish the nearer the surface it
+    //is: full displacement shallow, 2/3 mid, 1/3 deep — rising and
+    //diving reads directly off the shadow's travel
+    int16_t off = (int16_t)((leaf_shadow_gap
+                             * (uint8_t)(3 - koi.depth[i])) / 3);
     set_pos_fsp(&GFX, koi.shadow[i],
                 (int16_t)(fx + off), (int16_t)(fy + off));
     //tail flap, phase-shifted per fish
@@ -1185,14 +1216,17 @@ static void begin_pond(void) {
     if (leaves.base_y[i] > 264 && leaves.base_y[i] < 440)
       leaves.base_y[i] = (uint16_t)(leaves.base_y[i] + 200) & 511;
     leaves.base_x[i] = leaf_spawn_x(i, i * 7919u);
-    leaves.drift[i] = (uint8_t)(2 + river_hash(11u, i) % 3);
+    leaves.drift[i] = 3;
     leaves.dfrac[i] = 0;
     uint8_t sp = add_fsp(&GFX, d->tile, LEAF_PAL,
                          leaves.base_x[i], leaves.base_y[i]);
     if (d->big) set_fsp_effects(&GFX, sp, 0, 0, 0, 1);
     set_fsp_priority(&GFX, sp, PRIO_LEAF);
     leaves.sprite[i] = sp;
-    uint8_t rg = add_fsp(&GFX, RING_TILE, LEAF_PAL,
+    uint8_t rg = add_fsp(&GFX,
+                         (d->tile == LEAF_TILE_TINY) ? RING_SM_TILE
+                                                     : RING_TILE,
+                         LEAF_PAL,
                          leaves.base_x[i], (uint16_t)(leaves.base_y[i]+1));
     if (d->big) set_fsp_effects(&GFX, rg, 0, 0, 0, 1);
     set_fsp_priority(&GFX, rg, PRIO_SPARKLE);
@@ -1210,6 +1244,11 @@ static void begin_pond(void) {
                           (uint16_t)(px+6), (uint16_t)(py+6));
     set_fsp_priority(&GFX, ksh, PRIO_SHADOW);
     koi.shadow[i] = ksh;
+    koi.big[i] = (uint8_t)((i % 3) == 2); //every third fish is a big one
+    if (koi.big[i]) {
+      set_fsp_effects(&GFX, sp, 0, 0, 0, 1);
+      set_fsp_effects(&GFX, ksh, 0, 0, 0, 1);
+    }
     koi.wait[i] = (uint16_t)((i >= 3) ? 120 + i*90 : 0); //staggered entries
     if (koi.wait[i]) {
       fsp_set_enabled(sp, 0);

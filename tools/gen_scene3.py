@@ -366,11 +366,7 @@ CM = [[0] * 32 for _ in range(32)]
 for y in range(32):
     for x in range(32):
         CM[y][x] = (x & 3) + (y & 3) * 4   #position variant, frame 0
-for cx, cy in ((5, 7), (16, 3), (26, 12), (9, 19), (21, 23), (29, 27)):
-    CM[cy][cx] = POOL_A
-    if cx + 1 < 32: CM[cy][cx + 1] = POOL_B
-for x, y in ((11, 8), (24, 15), (5, 22), (18, 28), (28, 8)):
-    CM[y][x] = SPARK_C
+#the light layer is light and nothing else: no pools, no specks
 
 # ================= surface: Wind Waker water =============================
 #Full-coverage animated surface: a translucent base tint (organic dither,
@@ -414,10 +410,8 @@ for f in range(NFRAME):
                     #one soft color; the rare crest pixels go bright
                     t[y][x] = 3 if (abs(c) < 0.03
                                     and h8(wx, wy, 9) < 90) else 2
-                elif g > 0.75:
-                    t[y][x] = 1
-                elif g > 0.15 and h8(wx, wy, 30) < (g + 0.2) * 130:
-                    t[y][x] = 1
+                else:
+                    t[y][x] = 1  #the film covers every pixel
 for n, seed in ((REED_A, 0), (REED_B, 5)):  # reed clusters
     for s, hgt, lean in ((4, 14, 0.9), (9, 16, -0.7), (13, 11, 0.5)):
         for k in range(hgt):
@@ -432,11 +426,7 @@ WM = [[0] * 32 for _ in range(32)]
 for y in range(32):
     for x in range(32):
         WM[y][x] = (x & 7) + (y & 7) * 8   #position variant, frame 0
-for x, y, t_ in ((0, 29, REED_A), (1, 30, REED_B), (2, 29, REED_A),
-                 (29, 29, REED_B), (30, 30, REED_A), (31, 29, REED_B),
-                 (0, 1, REED_B), (1, 0, REED_A), (30, 0, REED_B),
-                 (31, 1, REED_A)):
-    WM[y][x] = t_
+#the water layer is water and nothing else: reeds retired from the map
 
 #SPAL remains the sprite color table for pads/rings/fronds (not a bg pal)
 SPAL = [
@@ -517,12 +507,19 @@ for y in range(T):
         if math.hypot((x - 8 + .5) / 5.0, (y - 8 + .5) / 2.6) < 1.0 \
            and h8(x, y, 5) < 118:
             fish_shadow[y][x] = 9
-ring_tile = new_tile()  # contact ring, tracks its pad as a sprite
-for y in range(T):
-    for x in range(T):
-        d = math.hypot(x - 8 + .5, y - 8 + .5)
-        if abs(d - 7.1) < 0.55 and h8(x, y, 33) < 210:
-            ring_tile[y][x] = 8
+def make_ring(r, seed):
+    t = new_tile()
+    for y in range(T):
+        for x in range(T):
+            d = math.hypot(x - 8 + .5, y - 8 + .5)
+            if abs(d - r) < 0.55 and h8(x, y, seed) < 205:
+                t[y][x] = 8
+    return t
+
+ring_tile = make_ring(7.1, 33)   # frame A
+ring_tile_b = make_ring(7.35, 77)# frame B: breathes outward
+ring_sm = make_ring(5.1, 33)
+ring_sm_b = make_ring(5.35, 77)
 frond_a = new_tile()    # upper weed fronds, two sway frames
 frond_b = new_tile()
 for tgt, sway in ((frond_a, 1.0), (frond_b, -1.0)):
@@ -613,7 +610,8 @@ pimg.save('assets/pond_hsp_tiles.png')
 
 # ============== lily pads onto the fsp palette (index remap) ==============
 PAD_TILES = [pad_small, pad_med, pad_lotus, pad_tiny, shadow_tile,
-             fish_shadow, ring_tile, frond_a, frond_b]
+             fish_shadow, ring_tile, ring_tile_b, frond_a, frond_b,
+             ring_sm, ring_sm_b]
 need = sorted({v for t in PAD_TILES for row in t for v in row})
 first = []
 seen = set()

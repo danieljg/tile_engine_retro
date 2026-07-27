@@ -42,28 +42,51 @@ typedef struct {
   uint8_t floor_amp;    //0..6  floor warp amplitude (x/4 of wave_table)
   uint8_t floor_freq;   //0..3  floor warp frequency (scanline stride)
   uint8_t floor_drift;  //0..4  floor current drift speed
-  uint8_t floor_dir;    //0/1   floor drift direction
-  uint8_t floor_caustic;//0/1   slow color rotation on the lit floor cells
+  uint8_t floor_dir;    //0..15 drift heading, 16 compass steps
+  uint8_t floor_caustic;//0/1   color shimmer on the lit floor cells
   uint8_t light_amp;    //0..6  caustic-layer warp amplitude
   uint8_t light_freq;   //0..3  caustic-layer warp frequency
   uint8_t light_drift;  //0..4  caustic-layer drift speed
-  uint8_t light_dir;    //0/1   caustic-layer drift direction
-  uint8_t light_sweep;  //0..3  caustic palette+frame sweep: off/12/6/3
+  uint8_t light_dir;    //0..15 drift heading, 16 compass steps
+  uint8_t light_sweep;  //0..3  caustic frame clock: off/12/6/3
+  uint8_t light_eva;    //0..16 caustic source coefficient (additive glow)
   uint8_t surface_on;   //0/1   surface texture layer visible
   uint8_t surface_bob;  //0..4  whole-surface bob amplitude
-  uint8_t leaf_bob;     //0..4  leaf drift amplitude
-  uint8_t shadows_on;   //0/1   leaf shadows
-  uint8_t shadow_disp;  //0..6  shadow displacement in pixels
+  uint8_t surface_eva;  //0..10 surface film strength
+  uint8_t glint;        //0..3  crest glint pulse strength
+  uint8_t veil_density; //0..2  veil clouds: off / half / full
+  uint8_t veil_eva;     //0..10 veil tint strength
+  uint8_t leaf_bob;     //0..4  leaf bob (big pads use half)
+  uint8_t shadows_on;   //0/1   all shadows
+  uint8_t shadow_disp;  //0..36 shadow displacement in pixels
   uint8_t shadow_anim;  //0..2  rigid / swaying / anchored
-  uint8_t veil_density; //0..2  upper veil clouds: off / half / full
+  uint8_t shadow_eva;   //0..10 shadow darkness
+  uint8_t river_flow;   //0..6  current strength (water + drifters)
+  uint8_t koi_count;    //1..10 fish in the water
+  uint8_t koi_speed;    //4..16 swim speed
   uint8_t vaporwave;    //0..6  music slowdown, 6%% per step (to -36%%)
   uint8_t music;        //track index into music_tracks[]
 } pond_tune_t;
 
-static pond_tune_t tune = { 4, 2, 2, 0, 1,
-                            2, 2, 1, 1, 2,
-                            1, 2, 2, 1, 4, 1,
-                            2, 2, 0 };
+static pond_tune_t tune = { 1, 2, 1, 4, 1,
+                            1, 2, 1, 4, 2, 12,
+                            1, 2, 5, 1,
+                            2, 6,
+                            2,
+                            1, 12, 0, 5,
+                            2, 8, 10,
+                            2, 0 };
+
+//push the tuner's game-side values into game2.h's hint globals
+static void tune_sync_hints(void) {
+  tune_shadows_hint = tune.shadows_on;
+  leaf_bob_amp = tune.leaf_bob;
+  leaf_shadow_gap = tune.shadow_disp;
+  leaf_shadow_anim = tune.shadow_anim;
+  koi_count_hint = tune.koi_count;
+  koi_speed_hint = tune.koi_speed;
+  river_flow_hint = tune.river_flow;
+}
 
 #define MUSIC_TRACK_COUNT 2
 static const char* const music_files[MUSIC_TRACK_COUNT] =
@@ -297,6 +320,7 @@ void retro_init(void)
   load_gfx("fsp.gfx", 2);
   load_gfx("hsp.gfx", 3);
   save_base_palettes();
+  tune_sync_hints();
   initialize_game();
   default_scores();
 #ifdef HAVE_XMP
@@ -514,7 +538,10 @@ static void update_game(void) {
     update_animations();
     shimmer_ship_palettes();
     if (scene_defs[current_scene].kind == SCENE_KIND_POND) {
-      if (tune.floor_caustic) pond_caustic_shimmer();
+      if (tune.floor_caustic) {
+        pond_caustic_shimmer();
+        pond_caustic_shimmer(); //two steps: a shimmer you can see
+      }
     }
     else {
       animate_bg0_blocks(); //the block bands belong to the shmup tilesets
@@ -667,10 +694,13 @@ static void pond_water_warp(void) {
      with the current. */
   uint8_t fsh = (uint8_t)(4 - tune.floor_freq); //scanline stride shifts
   uint8_t lsh = (uint8_t)(4 - tune.light_freq);
-  int32_t fdrift = (int32_t)((frame_counter*tune.floor_drift)>>6);
-  if (tune.floor_dir) fdrift = -fdrift;
-  int32_t ldrift = (int32_t)((frame_counter*tune.light_drift)>>6);
-  if (tune.light_dir) ldrift = -ldrift;
+  //drift headings: 16 compass steps around the circle
+  int32_t fbase = (int32_t)((frame_counter*tune.floor_drift)>>6);
+  int32_t fdrift  = (fbase * cos8((uint8_t)(tune.floor_dir<<4))) >> 6;
+  int32_t fdrifty = (fbase * sin8((uint8_t)(tune.floor_dir<<4))) >> 6;
+  int32_t lbase = (int32_t)((frame_counter*tune.light_drift)>>6);
+  int32_t ldrift  = (lbase * cos8((uint8_t)(tune.light_dir<<4))) >> 6;
+  int32_t ldrifty = (lbase * sin8((uint8_t)(tune.light_dir<<4))) >> 6;
   int32_t sway0 =
     ((int32_t)wave_table[(frame_counter>>3) & 31] * tune.surface_bob) >> 2;
   for (uint32_t yy=0; yy<GFX.viewport.height; yy++) {
@@ -685,12 +715,14 @@ static void pond_water_warp(void) {
     GFX.bg[3].offset_x[yy] = (uint32_t)(wlight + ldrift);        //caustics
     GFX.bg[4].offset_x[yy] = (uint32_t)(wfloor + fdrift);        //floor
     //the current: water planes stream downhill (positive offset_y
-    //translates the pattern downward); the riverbed stays
-    GFX.bg[0].offset_y[yy] = frame_counter>>2;
-    GFX.bg[1].offset_y[yy] = frame_counter>>3;
-    GFX.bg[2].offset_y[yy] = frame_counter>>3;
-    GFX.bg[3].offset_y[yy] = (frame_counter*3)>>4;
-    GFX.bg[4].offset_y[yy] = 0;
+    //translates the pattern downward), scaled by RIVER FLOW; drift
+    //headings add their vertical component; the riverbed stays put
+    uint32_t flow = (frame_counter * tune.river_flow) >> 3;
+    GFX.bg[0].offset_y[yy] = flow;
+    GFX.bg[1].offset_y[yy] = flow>>1;
+    GFX.bg[2].offset_y[yy] = flow>>1;
+    GFX.bg[3].offset_y[yy] = (uint32_t)((int32_t)((flow*3)>>2) + ldrifty);
+    GFX.bg[4].offset_y[yy] = (uint32_t)fdrifty;
   }
   bg_cache_dirty = 1;
 }
@@ -728,7 +760,8 @@ static void pond_surface_anim(void) {
   static const int8_t pulse[8] = { 0, 1, 2, 1, 0, -1, -2, -1 };
   GFX.bg[0].palette[0].color[3] =
     apply_fade(shift_brightness(bg_palette_base[0].color[3],
-                                pulse[pond_surface_phase]));
+                                (int8_t)(pulse[pond_surface_phase]
+                                         * tune.glint)));
   bg_cache_dirty = 1;
 }
 
@@ -757,29 +790,37 @@ static void pond_caustic_shimmer(void) {
 typedef struct {
   const char* name;
   uint8_t* value;
-  uint8_t max;      //values run 0..max; max 1 renders as OFF/ON
+  uint8_t min, max; //min..max; a 0..1 range renders as OFF/ON
 } tune_entry;
 
 static const tune_entry tune_entries[] = {
-  { "FLOOR WARP AMP",  &tune.floor_amp,     6 },
-  { "FLOOR WARP FREQ", &tune.floor_freq,    3 },
-  { "FLOOR DRIFT",     &tune.floor_drift,   4 },
-  { "FLOOR DRIFT DIR", &tune.floor_dir,     1 },
-  { "FLOOR CAUSTIC",   &tune.floor_caustic, 1 },
-  { "LIGHT WARP AMP",  &tune.light_amp,     6 },
-  { "LIGHT WARP FREQ", &tune.light_freq,    3 },
-  { "LIGHT DRIFT",     &tune.light_drift,   4 },
-  { "LIGHT DRIFT DIR", &tune.light_dir,     1 },
-  { "LIGHT SWEEP",     &tune.light_sweep,   3 },
-  { "SURFACE LAYER",   &tune.surface_on,    1 },
-  { "SURFACE BOB",     &tune.surface_bob,   4 },
-  { "LEAF BOB",        &tune.leaf_bob,      4 },
-  { "SHADOWS",         &tune.shadows_on,    1 },
-  { "SHADOW DISP",     &tune.shadow_disp,   6 },
-  { "SHADOW ANIM",     &tune.shadow_anim,   2 },
-  { "VEIL DENSITY",    &tune.veil_density,  2 },
-  { "VAPORWAVE",       &tune.vaporwave,     6 },
-  { "MUSIC",           &tune.music,         MUSIC_TRACK_COUNT-1 },
+  { "FLOOR WARP AMP",  &tune.floor_amp,     0, 6 },
+  { "FLOOR WARP FREQ", &tune.floor_freq,    0, 3 },
+  { "FLOOR DRIFT",     &tune.floor_drift,   0, 4 },
+  { "FLOOR DRIFT DIR", &tune.floor_dir,     0, 15 },
+  { "FLOOR CAUSTIC",   &tune.floor_caustic, 0, 1 },
+  { "LIGHT WARP AMP",  &tune.light_amp,     0, 6 },
+  { "LIGHT WARP FREQ", &tune.light_freq,    0, 3 },
+  { "LIGHT DRIFT",     &tune.light_drift,   0, 4 },
+  { "LIGHT DRIFT DIR", &tune.light_dir,     0, 15 },
+  { "LIGHT SWEEP",     &tune.light_sweep,   0, 3 },
+  { "LIGHT GLOW",      &tune.light_eva,     0, 16 },
+  { "SURFACE LAYER",   &tune.surface_on,    0, 1 },
+  { "SURFACE BOB",     &tune.surface_bob,   0, 4 },
+  { "SURFACE FILM",    &tune.surface_eva,   0, 10 },
+  { "GLINT PULSE",     &tune.glint,         0, 3 },
+  { "VEIL DENSITY",    &tune.veil_density,  0, 2 },
+  { "VEIL TINT",       &tune.veil_eva,      0, 10 },
+  { "LEAF BOB",        &tune.leaf_bob,      0, 4 },
+  { "SHADOWS",         &tune.shadows_on,    0, 1 },
+  { "SHADOW DISP",     &tune.shadow_disp,   0, 36 },
+  { "SHADOW ANIM",     &tune.shadow_anim,   0, 2 },
+  { "SHADOW DARK",     &tune.shadow_eva,    0, 10 },
+  { "RIVER FLOW",      &tune.river_flow,    0, 6 },
+  { "KOI COUNT",       &tune.koi_count,     1, 10 },
+  { "KOI SPEED",       &tune.koi_speed,     4, 16 },
+  { "VAPORWAVE",       &tune.vaporwave,     0, 6 },
+  { "MUSIC",           &tune.music,         0, MUSIC_TRACK_COUNT-1 },
 };
 #define TUNE_ENTRY_COUNT (sizeof(tune_entries)/sizeof(tune_entries[0]))
 
@@ -815,8 +856,11 @@ static void tune_draw(void) {
     tune_add_text(v ? "< ON >" : "< OFF >", 24, 28, 0);
   }
   else {
-    line[0]='<'; line[1]=' '; line[2]=(char)('0'+v); line[3]=' ';
-    line[4]='>'; line[5]=0;
+    uint8_t k = 0;
+    line[k++]='<'; line[k++]=' ';
+    if (v >= 10) line[k++]=(char)('0'+v/10);
+    line[k++]=(char)('0'+v%10);
+    line[k++]=' '; line[k++]='>'; line[k]=0;
     tune_add_text(line, 24, 28, 0);
   }
 }
@@ -839,20 +883,10 @@ static void tune_apply(uint8_t sel) {
     else disable_bg_layer(&GFX, 0);
   }
   else if (tune_entries[sel].value == &tune.shadows_on) {
-    tune_shadows_hint = tune.shadows_on;
     for (uint8_t i=0; i<MAX_LEAVES; i++)
       fsp_set_enabled(leaves.shadow[i], tune.shadows_on);
     for (uint8_t i=0; i<MAX_KOI; i++)
       fsp_set_enabled(koi.shadow[i], tune.shadows_on && !koi.wait[i]);
-  }
-  else if (tune_entries[sel].value == &tune.leaf_bob) {
-    leaf_bob_amp = tune.leaf_bob;
-  }
-  else if (tune_entries[sel].value == &tune.shadow_disp) {
-    leaf_shadow_gap = tune.shadow_disp;
-  }
-  else if (tune_entries[sel].value == &tune.shadow_anim) {
-    leaf_shadow_anim = tune.shadow_anim;
   }
   else if (tune_entries[sel].value == &tune.veil_density) {
     if (tune.veil_density == 0) {
@@ -874,6 +908,7 @@ static void tune_apply(uint8_t sel) {
       apply_pond_caustics();
     }
   }
+  tune_sync_hints();
   bg_cache_dirty = 1;
 }
 
@@ -899,8 +934,8 @@ static uint8_t update_pond_tuner(void) {
   if (edge & (MASK_INPUT_LEFT | MASK_INPUT_RIGHT)) {
     const tune_entry* e = &tune_entries[tune_sel];
     uint8_t v = *e->value;
-    if (edge & MASK_INPUT_RIGHT) v = (v >= e->max) ? 0 : (uint8_t)(v+1);
-    else v = (v == 0) ? e->max : (uint8_t)(v-1);
+    if (edge & MASK_INPUT_RIGHT) v = (v >= e->max) ? e->min : (uint8_t)(v+1);
+    else v = (v <= e->min) ? e->max : (uint8_t)(v-1);
     *e->value = v;
     tune_apply(tune_sel);
   }
@@ -923,21 +958,22 @@ static void render_frame(void)
     uint16_t* buf = frame_buf;
     set_blend(&GFX, 8, 8);
     gfx_render_bg_layer(&GFX, buf, 4, 1);            //floor (base)
-    set_blend(&GFX, 12, 16);                         //light ADDS energy
-    gfx_render_bg_layer(&GFX, buf, 3, 0);            //caustics
-    set_blend(&GFX, 5, 12);                          //soft 25% shadows
+    set_blend(&GFX, tune.shadow_eva, 12);            //soft shadows
     gfx_render_fsp_pass(&GFX, buf, PRIO_SHADOW);
     set_blend(&GFX, 8, 8);
     gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_DEEP);
-    set_blend(&GFX, 6, 12);                          //gentle water veils
+    set_blend(&GFX, (uint8_t)(4 + 2*tune.veil_density
+                              + (tune.veil_eva>>1)), 12); //water veils
     gfx_render_bg_layer(&GFX, buf, 2, 0);            //depth veil 2
     set_blend(&GFX, 8, 8);
     gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_MID);
-    set_blend(&GFX, 6, 12);
+    set_blend(&GFX, tune.veil_eva, 12);
     gfx_render_bg_layer(&GFX, buf, 1, 0);            //depth veil 1
     set_blend(&GFX, 8, 8);
     gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_SHALLOW);
-    set_blend(&GFX, 5, 13);                          //thin surface film
+    set_blend(&GFX, tune.light_eva, 16);             //light ADDS energy,
+    gfx_render_bg_layer(&GFX, buf, 3, 0);            //right below the pads
+    set_blend(&GFX, tune.surface_eva, 13);           //thin surface film
     gfx_render_bg_layer(&GFX, buf, 0, 0);            //surface texture
     set_blend(&GFX, 10, 14);                         //glowing accents
     gfx_render_fsp_pass(&GFX, buf, PRIO_SPARKLE);    //contact rings
@@ -1019,7 +1055,7 @@ static void audio_callback(void)
       uint32_t need = (uint32_t)((((uint64_t)SAMPLES_PER_FRAME*step)>>16) + 2);
       while (music_fifo_w - music_fifo_r < need) {
          int16_t chunk[512*2];
-         xmp_play_buffer(ctx, chunk, sizeof(chunk), 1);
+         xmp_play_buffer(ctx, chunk, sizeof(chunk), 0); //0: loop forever
          for (uint32_t k=0; k<512; k++) {
             uint32_t slot = (music_fifo_w + k) & (MUSIC_FIFO_FRAMES-1);
             music_fifo[slot*2]   = chunk[k*2];
@@ -1106,7 +1142,7 @@ bool retro_load_game_special(unsigned type, const struct retro_game_info *info, 
    but serializing them keeps the first frame after a load exact.
    Not endian-portable; music position is not saved. */
 #define SAVESTATE_MAGIC   0x30524554 // "TER0"
-#define SAVESTATE_VERSION 13
+#define SAVESTATE_VERSION 14
 
 typedef struct { void* ptr; size_t size; } save_block;
 
@@ -1260,6 +1296,7 @@ bool retro_unserialize(const void *data_, size_t size)
       }
    }
    refresh_palettes();
+   tune_sync_hints();
    apply_shimmer();
    if (scene_defs[current_scene].kind == SCENE_KIND_POND) {
       apply_pond_caustics();
