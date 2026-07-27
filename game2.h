@@ -402,8 +402,8 @@ static void update_enemies(uint32_t frame) {
     if (enemy_state(i) != STATE_ALIVE) continue;
     body_update(&enemies.xdata[i], &enemies.ydata[i]);
     uint16_t x = body_get_pos(&enemies.xdata[i]);
-    if ((x>>3) < 8) { //wrap back to the right edge
-      body_set_pos(&enemies.xdata[i], 310<<3);
+    if ((x>>3) < 8) { //recycle beyond the right edge, out of sight
+      body_set_pos(&enemies.xdata[i], 420<<3);
       x = body_get_pos(&enemies.xdata[i]);
     }
     int16_t fy = (int16_t)((body_get_pos(&enemies.ydata[i])+4)>>3);
@@ -471,7 +471,7 @@ static void update_pprojectiles(void) {
     if (pprojectile_state(i) != STATE_ALIVE) continue;
     body_update(&pprojectiles.xdata[i], &pprojectiles.ydata[i]);
     uint16_t x = body_get_pos(&pprojectiles.xdata[i]);
-    if ((x>>3) > 336) { //off the right edge
+    if ((x>>3) > 410) { //off the right edge
       kill_pprojectile(i);
       continue;
     }
@@ -659,10 +659,10 @@ typedef struct {
 //reinforcement waves for the shmup scenes (same cadence the old
 //120-frame spawner had: lanes 1, 2, 3-heavy, 0, then loop)
 static const tl_event shmup_timeline[] = {
-  {120, TL_ENEMY, 302,  80, 0},
-  {240, TL_ENEMY, 304, 120, 0},
-  {360, TL_ENEMY, 306, 160, 1},
-  {480, TL_ENEMY, 300,  40, 0},
+  {120, TL_ENEMY, 412,  80, 0},
+  {240, TL_ENEMY, 414, 120, 0},
+  {360, TL_ENEMY, 416, 160, 1},
+  {480, TL_ENEMY, 410,  40, 0},
   {480, TL_LOOP,    0,   0, 0},
 };
 
@@ -764,12 +764,12 @@ static uint32_t river_hash(uint32_t a, uint32_t b) {
 //a spawn x that keeps clear water between this leaf and the others
 static uint16_t leaf_spawn_x(uint8_t self, uint32_t seed) {
   for (uint8_t attempt = 0; attempt < 8; attempt++) {
-    uint16_t x = (uint16_t)(20 + river_hash(seed, attempt) % 270);
+    uint16_t x = (uint16_t)(20 + river_hash(seed, attempt) % 350);
     uint8_t ok = 1;
     for (uint8_t j = 0; j < MAX_LEAVES; j++) {
       if (j == self) continue;
       int16_t dx = (int16_t)(x - leaves.base_x[j]);
-      int16_t dy = (int16_t)(leaves.base_y[j] - 480); //vs entry band
+      int16_t dy = (int16_t)(leaves.base_y[j] - 458); //vs entry band
       if (dx < 0) dx = -dx;
       if (dy < 0) dy = -dy;
       if (dy > 256) dy = (int16_t)(512 - dy);
@@ -777,7 +777,7 @@ static uint16_t leaf_spawn_x(uint8_t self, uint32_t seed) {
     }
     if (ok) return x;
   }
-  return (uint16_t)(20 + river_hash(seed, 99) % 270);
+  return (uint16_t)(20 + river_hash(seed, 99) % 350);
 }
 
 //in the river the positions are rolled at spawn; defs give each slot its
@@ -796,10 +796,11 @@ static const int8_t bob_table[16] =
 
 /* weeds: rooted tuft on the floor map + a swaying frond sprite above it,
    in tandem — anchors match the tuft cells the generator paints */
-#define MAX_FRONDS 8
+#define MAX_FRONDS 10
 static const uint16_t frond_sites[MAX_FRONDS][2] = {
   {2*16, 3*16}, {3*16, 11*16}, {10*16, 2*16}, {17*16, 8*16},
   {12*16, 13*16}, {18*16, 13*16}, {1*16, 7*16}, {8*16, 9*16},
+  {22*16, 5*16}, {24*16, 12*16},
 };
 static uint8_t frond_sprite[MAX_FRONDS];
 
@@ -836,7 +837,8 @@ static void update_leaves(uint32_t frame) {
       leaves.base_y[i] = (uint16_t)((leaves.base_y[i] + 1) & 511);
     }
     if (leaves.base_y[i] > 264 && leaves.base_y[i] < 440) {
-      leaves.base_y[i] = (uint16_t)(460 + river_hash(frame, i) % 40);
+      //448..471: even a big pad ends at 503, safely short of the wrap
+      leaves.base_y[i] = (uint16_t)(448 + river_hash(frame, i) % 24);
       leaves.base_x[i] = leaf_spawn_x(i, frame + i * 7919u);
       leaves.drift[i] = (uint8_t)(2 + river_hash(frame, i + 40) % 3);
     }
@@ -891,8 +893,8 @@ typedef struct {
 } spark_struct;
 static spark_struct sparks;
 static const uint16_t spark_defs[MAX_SPARKS][2] = {
-  {36,20},{130,16},{226,60},{20,108},{92,152},
-  {202,156},{50,224},{154,232},{242,148},{284,36},
+  {36,20},{150,16},{262,60},{20,108},{104,152},
+  {228,164},{56,224},{330,52},{366,140},{312,216},
 };
 
 static void update_sparks(uint32_t frame) {
@@ -1015,14 +1017,18 @@ static void update_koi(uint32_t frame) {
         uint8_t side = (uint8_t)(h & 7);
         uint16_t sx, sy;
         uint8_t th;
-        if (side < 5)      { sx = (uint16_t)(30+(h>>4)%260); sy = 500;
-                             th = 64; }
-        else if (side == 5){ sx = 498; sy = (uint16_t)(30+(h>>4)%180);
-                             th = 0; }
-        else if (side == 6){ sx = 336; sy = (uint16_t)(30+(h>>4)%180);
-                             th = 128; }
-        else               { sx = (uint16_t)(30+(h>>4)%260); sy = 252;
-                             th = 192; }
+        if (side < 5)      { sx = (uint16_t)(30+(h>>4)%340);
+                             sy = (uint16_t)(450+((h>>12)%25));
+                             th = 64; }  //above the top, drifts in
+        else if (side == 5){ sx = (uint16_t)(460+((h>>12)%19));
+                             sy = (uint16_t)(30+(h>>4)%180);
+                             th = 0; }   //past the left edge
+        else if (side == 6){ sx = (uint16_t)(408+((h>>12)%12));
+                             sy = (uint16_t)(30+(h>>4)%180);
+                             th = 128; } //past the right edge
+        else               { sx = (uint16_t)(30+(h>>4)%340);
+                             sy = (uint16_t)(248+((h>>12)%10));
+                             th = 192; } //below the bottom
         body_set_pos(&koi.xdata[i], (uint16_t)(sx<<3));
         body_set_pos(&koi.ydata[i], (uint16_t)(sy<<3));
         koi.theta[i] = (uint8_t)(th + ((h>>12) & 31) - 16);
@@ -1038,7 +1044,7 @@ static void update_koi(uint32_t frame) {
     {
       uint16_t px = body_get_pos(&koi.xdata[i]) >> 3;
       uint16_t py = body_get_pos(&koi.ydata[i]) >> 3;
-      if ((px > 344 && px < 488) || (py > 264 && py < 488)) {
+      if ((px > 424 && px < 456) || (py > 264 && py < 440)) {
         //slipped out of frame: rest, then return
         koi.wait[i] = (uint16_t)(90 + river_hash(frame, i * 13u) % 300);
         fsp_set_enabled(koi.sprite[i], 0);
@@ -1147,7 +1153,7 @@ static void update_pond(uint32_t frame, uint8_t allow_input) {
     //clamped to the region the koi can actually reach (their edge
     //avoidance turns them at 24..288 x 24..208)
     if ((int32_t)hand_x < (20<<3)) hand_x = 20<<3;
-    if (hand_x > (292<<3)) hand_x = 292<<3;
+    if (hand_x > (372<<3)) hand_x = 372<<3;
     if ((int32_t)hand_y < (20<<3)) hand_y = 20<<3;
     if (hand_y > (204<<3)) hand_y = 204<<3;
     set_pos_hsp(&GFX, hand_sprite,
@@ -1258,7 +1264,7 @@ static uint8_t menu_prev_input = 0;
 static uint8_t play_prev_input = 0;
 static uint8_t menu_cursor_sprite = 0;
 
-#define MENU_OPT_X 112
+#define MENU_OPT_X 144
 #define MENU_OPT_Y 120
 #define MENU_OPT_SPACING 20
 
@@ -1266,14 +1272,14 @@ static uint8_t menu_cursor_sprite = 0;
 static void enter_menu(void) {
   clear_all_fsp(&GFX);
   clear_all_hsp(&GFX);
-  draw_text(&GFX, "TILE ENGINE RETRO", 92, 60, 2);
+  draw_text(&GFX, "TILE ENGINE RETRO", 132, 60, 2);
   draw_text(&GFX, "ASTEROID RUN", MENU_OPT_X, MENU_OPT_Y, 0);
   draw_text(&GFX, "CRYSTAL CAVERN", MENU_OPT_X, MENU_OPT_Y+MENU_OPT_SPACING, 0);
   draw_text(&GFX, "KOI POND", MENU_OPT_X, MENU_OPT_Y+2*MENU_OPT_SPACING, 0);
   //tight 7 px advance: the full credit fits the 320 px viewport
   {
     const char* credit = "POR DANIEL JIMENEZ Y LUIS NAVARRO 2017-2026";
-    int16_t cx = 10;
+    int16_t cx = 50;
     for (const char* p = credit; *p; p++, cx += 7) {
       if (*p != ' ') add_hsp(&GFX, (uint16_t)*p, 1, (uint16_t)cx, 208);
     }
@@ -1323,11 +1329,11 @@ static void begin_play(void) {
   add_player(1, 60<<3, 200<<3);
   add_player(2, 100<<3, 200<<3);
   add_player(3, 140<<3, 200<<3);
-  //first wave: three scouts and one double-size heavy
-  add_enemy(300,  40, 0);
-  add_enemy(310,  80, 0);
-  add_enemy(290, 120, 0);
-  add_enemy(305, 160, 1);
+  //first wave: three scouts and one double-size heavy, from off-screen
+  add_enemy(410,  40, 0);
+  add_enemy(420,  80, 0);
+  add_enemy(405, 120, 0);
+  add_enemy(415, 160, 1);
   play_prev_input = 0xFF; //swallow the button that started the scene
   game_mode = MODE_PLAYING;
 }

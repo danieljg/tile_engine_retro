@@ -24,12 +24,9 @@ typedef uint16_t color_16bit;
 #define layer_tile_number_x 32
 #define layer_tile_number_y 32
 
-//The viewport size is an integer number of tiles
-#if defined(_3DS)
+//The viewport size is an integer number of tiles: 400x240 everywhere
+//(matches the 3DS top screen; desktop displays it fine)
 #define vp_tile_number_x 25
-#else
-#define vp_tile_number_x 20
-#endif
 #define vp_tile_number_y 15
 #define vp_x_origin 0
 #define vp_y_origin 0

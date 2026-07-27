@@ -1094,7 +1094,7 @@ bool retro_load_game_special(unsigned type, const struct retro_game_info *info, 
    but serializing them keeps the first frame after a load exact.
    Not endian-portable; music position is not saved. */
 #define SAVESTATE_MAGIC   0x30524554 // "TER0"
-#define SAVESTATE_VERSION 11
+#define SAVESTATE_VERSION 12
 
 typedef struct { void* ptr; size_t size; } save_block;
 

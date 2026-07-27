@@ -21,7 +21,7 @@ layers. The default composition runs back to front: BG4 (base), then
 overlays BG3..BG0, then SP0, SP1 — but every sprite carries a 3-bit
 priority, and a scene may compose interleaved passes instead (the koi
 pond draws fish between the depth layers). Scenes may leave any bg
-layer disabled. The viewport is 320x240 (400x240 on 3DS).
+layer disabled. The viewport is 400x240.
 
 Background layers (BG0..BG4)
  - 512x512 pixels: 32x32 tilemap of 16x16 tiles. The power-of-two size
@@ -37,7 +37,7 @@ Background layers (BG0..BG4)
  - Tilemap entries can be rewritten at runtime for block animation.
 
 Sprite layers
- - SP0 "full sprites": 32 sprites of 16x16, 8 palettes of 16 colors.
+ - SP0 "full sprites": 128 sprites of 16x16, 8 palettes of 16 colors.
  - SP1 "half sprites": 128 sprites of 8x8, 8 palettes of 16 colors
    (used for bullets, score and HUD text; tiles indexed by ASCII code).
  - Palette index 0 is transparent on both sprite layers.
