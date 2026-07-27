@@ -71,7 +71,7 @@ typedef struct {
 } pond_tune_t;
 
 static const pond_tune_t tune_defaults = { 1, 2, 1, 4, 1,
-                                           1, 2, 1, 4, 2, 12,
+                                           1, 2, 1, 4, 2, 6,
                                            1, 2, 5, 1,
                                            2, 6,
                                            2,
@@ -79,7 +79,7 @@ static const pond_tune_t tune_defaults = { 1, 2, 1, 4, 1,
                                            2, 8, 7, 2, 6,
                                            2, 0 };
 static pond_tune_t tune = { 1, 2, 1, 4, 1,
-                            1, 2, 1, 4, 2, 12,
+                            1, 2, 1, 4, 2, 6,
                             1, 2, 5, 1,
                             2, 6,
                             2,
@@ -224,7 +224,7 @@ static const scene_def scene_defs[SCENE_COUNT] = {
       0 surface texture -> 1 depth veil 1 -> 2 depth veil 2 ->
       3 caustics -> 4 floor (sprite passes interleave between them) */
   { { "scene3_surface.gfx", "scene3_depths.gfx", "scene3_depths.gfx",
-      "scene3_caustics.gfx", "scene3_depths.gfx" },
+      "scene3_caustics.gfx", "scene3_floor.gfx" },
     { "scene3_surface.map", "scene3_depth1.map", "scene3_depth2.map",
       "scene3_caustics.map", "scene3_floor.map" },
     SCENE_KIND_POND },
@@ -810,9 +810,9 @@ static void pond_cycle_caustic_tiles(void) {
     uint16_t entry = GFX.bg[3].tilemap[i];
     if (entry & Mask_bgtm_disable) continue;
     uint16_t idx = entry & Mask_bgtm_index;
-    if (idx >= 384) continue; //pools and sparkles hold still
+    if (idx >= 768) continue; //pools and sparkles hold still
     GFX.bg[3].tilemap[i] = (uint16_t)((entry & ~Mask_bgtm_index)
-                                      | (uint16_t)((idx + 16) % 384));
+                                      | (uint16_t)((idx + 64) % 768));
   }
   bg_cache_dirty = 1;
 }
@@ -1089,7 +1089,7 @@ static void render_frame(void)
     gfx_render_bg_layer(&GFX, buf, 3, 0);            //right below the pads
     set_blend(&GFX, tune.surface_eva, 13);           //thin surface film
     gfx_render_bg_layer(&GFX, buf, 0, 0);            //surface texture
-    set_blend(&GFX, 10, 14);                         //glowing accents
+    set_blend(&GFX, 7, 14);                          //soft surface accents
     gfx_render_fsp_pass(&GFX, buf, PRIO_SPARKLE);    //contact rings
     gfx_render_hsp_pass(&GFX, buf, PRIO_SPARKLE);    //surface highlights
     set_blend(&GFX, 8, 8);

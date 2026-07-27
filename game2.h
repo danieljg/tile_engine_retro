@@ -1135,10 +1135,13 @@ static void update_koi(uint32_t frame) {
       koi.target[i] = angle_toward(dx, dy);
       want_depth = 0; //food floats: rise to the surface to eat
       if (best < ((10 + koi.size[i]*4)<<3)) { //bigger mouths reach farther
+        //the ripple belongs to the food, not to the fish's corner
+        uint16_t bite_x = (uint16_t)(body_get_pos(&pellets.xdata[target])>>3);
+        uint16_t bite_y = (uint16_t)(body_get_pos(&pellets.ydata[target])>>3);
         delete_hsp(&GFX, pellets.sprite[target]);
         pellets.state[target] = 0;
         sfx_play(SFX_BLIP);
-        spawn_ripple((uint16_t)(x>>3), (uint16_t)(y>>3));
+        spawn_ripple(bite_x, bite_y);
         //a well-fed koi grows: fry -> adult -> elder
         if (koi_growth_hint && koi.size[i] < 2
             && ++koi.fed[i] >= koi_growth_hint) {

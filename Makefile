@@ -34,7 +34,8 @@ GFX: core/bg0.gfx core/bg1.gfx core/fsp.gfx core/hsp.gfx \
      core/scene2.gfx core/scene2.map \
      core/scene3_surface.gfx core/scene3_surface.map \
      core/scene3_depths.gfx core/scene3_caustics.gfx \
-     core/scene3_floor.map core/scene3_depth1.map core/scene3_depth2.map \
+     core/scene3_floor.gfx core/scene3_floor.map \
+     core/scene3_depth1.map core/scene3_depth2.map \
      core/scene3_caustics.map
 
 core/bg0.gfx: gfxtool assets/bg0.mfst bmp/bg0.bmp assets/bg0_pal0.png
@@ -76,8 +77,11 @@ core/scene3_caustics.gfx: gfxtool assets/scene3_caustics.mfst \
                           assets/scene3_caustics_pal0.png
 	./gfxtool build assets/scene3_caustics.mfst core/scene3_caustics.gfx
 
-core/scene3_floor.map: assets/scene3_floor.map
-	cp assets/scene3_floor.map core/scene3_floor.map
+# the pond bed is a painted 512x512 scene, sliced and deduplicated
+core/scene3_floor.gfx core/scene3_floor.map: gfxtool \
+                       assets/scene3_floor.png assets/scene3_floor_pal.png
+	./gfxtool import-scene assets/scene3_floor.png \
+		assets/scene3_floor_pal.png core/scene3_floor.gfx core/scene3_floor.map
 
 core/scene3_depth1.map: assets/scene3_depth1.map
 	cp assets/scene3_depth1.map core/scene3_depth1.map

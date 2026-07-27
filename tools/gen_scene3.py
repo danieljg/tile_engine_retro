@@ -292,12 +292,12 @@ def veil_blob(m, cx, cy, r, dense):
                 m[y][x] = 20
 
 #depth 1: sparse upper veil clouds (organic dither, no checker)
-D1 = [[21] * 32 for _ in range(32)]  #the upper water column
+D1 = [[OFF] * 32 for _ in range(32)]  #sparse silt, not a blanket
 for cx, cy, r in ((6, 8, 3.2), (20, 5, 2.8), (27, 16, 3.4), (10, 22, 3.0),
                   (22, 27, 3.2)):
     veil_blob(D1, cx, cy, r, dense=False)
 
-D2 = [[22] * 32 for _ in range(32)]  #the lower water column
+D2 = [[OFF] * 32 for _ in range(32)]  #sparse silt, not a blanket
 for cx, cy, r in ((13, 7, 4.2), (27, 9, 3.2), (5, 14, 3.6), (18, 18, 4.6),
                   (28, 23, 3.4), (9, 28, 4.0), (23, 30, 2.8), (1, 4, 2.7)):
     veil_blob(D2, cx, cy, r, dense=True)
@@ -319,9 +319,9 @@ CPAL = [
 #torus. Ridges sit where the two nearest feature points are equidistant
 #(the cell walls of a real caustic); each point rides a small closed
 #orbit, so consecutive frames differ gently and frame 7 loops to 0.
-NFRAME = 24  # x3: the light breathes instead of stepping
-NPOS = 16    # 4x4 tiles per period (64px, the tile budget's price)
-PER = 64
+NFRAME = 12  # frames of a looping light dance
+NPOS = 64    # 8x8 tiles per period (128px)
+PER = 128
 N_C = NFRAME * NPOS + 3
 ct = [new_tile() for _ in range(N_C)]
 
@@ -331,25 +331,38 @@ def torus_d(ax, ay, bx, by):
     if dy > PER/2: dy = PER - dy
     return math.hypot(dx, dy)
 
-BASE_PTS = [((37 * k * k + 23 * k) % PER, (53 * k * k + 41 * k + 17) % PER)
-            for k in range(7)]
+# Sunlight through moving water is not a wireframe: it is a set of
+# overlapping bright pools with soft edges. Each pool drifts on its own
+# small closed orbit so the whole field breathes and loops.
+POOLS = [((41 * k * k + 29 * k) % PER, (67 * k * k + 53 * k + 19) % PER,
+          9.0 + (k % 5) * 3.0) for k in range(8)]
 for f in range(NFRAME):
     ph = 2 * math.pi * f / NFRAME
-    pts = [((bx + 5.0 * math.cos(ph + k)) % PER,
-            (by + 5.0 * math.sin(ph * (1 if k % 2 else -1) + k * 2)) % PER)
-           for k, (bx, by) in enumerate(BASE_PTS)]
+    live = [((bx + 8.0 * math.cos(ph + k * 0.9)) % PER,
+             (by + 8.0 * math.sin(ph * (1 if k % 2 else -1) + k * 1.7)) % PER,
+             r * (1.0 + 0.10 * math.sin(ph * 2 + k)))
+            for k, (bx, by, r) in enumerate(POOLS)]
     for v in range(NPOS):
-        cx, cy = v % 4, v // 4
+        cx, cy = v % 8, v // 8
         t = ct[f * NPOS + v]
         for y in range(T):
             for x in range(T):
                 wx, wy = cx * 16 + x, cy * 16 + y
-                ds = sorted(torus_d(wx, wy, px, py) for px, py in pts)
-                gap = ds[1] - ds[0]
-                if gap < 0.55:
-                    t[y][x] = 3 if gap < 0.20 else 2
-                elif gap < 0.90 and h8(wx, wy, f) < 46:
-                    t[y][x] = 1
+                inten = 0.0
+                for px, py, r in live:
+                    d = torus_d(wx, wy, px, py)
+                    if d < r:
+                        q = 1.0 - d / r
+                        inten += q * q          #smooth falloff
+                n = h8(wx, wy, f) / 255.0
+                if inten > 0.80:
+                    t[y][x] = 3                 #the hot core
+                elif inten > 0.58:
+                    t[y][x] = 3 if n < 0.18 else 2
+                elif inten > 0.40:
+                    t[y][x] = 2 if n < 0.30 else 1
+                elif inten > 0.26 and n < (inten - 0.26) * 5.0:
+                    t[y][x] = 1                 #dithered fringe
 
 # light pools (after the animation bank) and a sparkle tile
 POOL_A = NFRAME * NPOS
@@ -374,7 +387,7 @@ ct[SPARK_C][2][13] = 7
 CM = [[0] * 32 for _ in range(32)]
 for y in range(32):
     for x in range(32):
-        CM[y][x] = (x & 3) + (y & 3) * 4   #position variant, frame 0
+        CM[y][x] = (x & 7) + (y & 7) * 8   #position variant, frame 0
 #the light layer is light and nothing else: no pools, no specks
 
 # ================= surface: Wind Waker water =============================
@@ -526,11 +539,20 @@ for y in range(T):
            and h8(x, y, 15) < 104:
             fish_shadow_sm[y][x] = 9
 def make_ring(r, seed):
+    """A meniscus, not a decal: a broken, dithered arc that fades at the
+    sides — the water's surface tension catching the light."""
     t = new_tile()
     for y in range(T):
         for x in range(T):
-            d = math.hypot(x - 8 + .5, y - 8 + .5)
-            if abs(d - r) < 0.55 and h8(x, y, seed) < 205:
+            dx, dy = x - 8 + .5, y - 8 + .5
+            d = math.hypot(dx, dy)
+            if abs(d - r) > 0.85:
+                continue
+            #brightest where the light comes from (upper left), broken
+            #into dashes elsewhere
+            lit = (-dx - dy) / (r * 1.4)
+            thr = 90 + int(120 * (lit + 0.5))
+            if h8(x, y, seed) < thr:
                 t[y][x] = 8
     return t
 
@@ -693,10 +715,138 @@ mf.append('palette assets/leaf_pal.png '
 open('assets/fsp.mfst', 'w').write('\n'.join(mf) + '\n')
 print(f'pad sprites: shadow color slot {shadow_slot}')
 
+
+# ================= the pond floor: one painted 512x512 scene ============
+# Tile-based floors repeat; a painted scene does not. This paints the
+# whole bed — depth gradient, contour terraces, dune ripples, lit
+# patches, pebbles, weed roots — and gfxtool import-scene slices and
+# deduplicates it into a tileset + tilemap.
+FS = 512
+FPAL = [
+    (16, 28, 36),   # 0 deepest shadow (backdrop)
+    (28, 44, 52),   # 1 deep floor shadow / contour lines
+    (40, 60, 68),   # 2 deep floor
+    (56, 76, 76),   # 3 deep-mid
+    (76, 92, 84),   # 4 mid floor
+    (96, 108, 92),  # 5 mid floor light
+    (120, 124, 96), # 6 sunlit A } rotated 6..9 at runtime: the floor
+    (148, 148, 112),# 7 sunlit B } shimmers where the light pools
+    (180, 176, 132),# 8 sunlit C }
+    (216, 208, 160),# 9 sunlit D }
+    (112, 108, 84), # 10 shallow sand dark
+    (140, 132, 100),# 11 shallow sand
+    (172, 160, 124),# 12 shallow sand light
+    (208, 192, 148),# 13 sunlit shallows
+    (36, 56, 40),   # 14 weed root / debris dark
+    (72, 96, 56),   # 15 weed light
+]
+RAMP = [1, 2, 3, 4, 5, 10, 11, 12, 13]  # deep -> shallow
+
+A2P = 2 * math.pi / FS
+
+def fdepth(x, y):
+    """1 = deep, 0 = shallow. Periodic in both axes so the river wraps."""
+    d = 0.52
+    d += 0.30 * math.sin(A2P * x + 0.4)
+    d += 0.14 * math.sin(A2P * 3 * y + 1.1)
+    d += 0.10 * math.sin(A2P * 2 * (x + y) + 2.0)
+    d += 0.07 * math.sin(A2P * 5 * (x - 2 * y) - 0.7)
+    d += 0.05 * math.sin(A2P * 7 * (2 * x + y) + 1.7)
+    return 0.0 if d < 0.0 else (1.0 if d > 1.0 else d)
+
+fimg = [[0] * FS for _ in range(FS)]
+for y in range(FS):
+    for x in range(FS):
+        d = fdepth(x, y)
+        t = (1.0 - d) * (len(RAMP) - 1)
+        i0 = int(t)
+        if i0 > len(RAMP) - 2: i0 = len(RAMP) - 2
+        frac = t - i0
+        # dithered transition between ramp steps: no banding
+        idx = i0 + (1 if frac * 255 > h8(x, y, 3) else 0)
+        g = h8(x, y, 11)
+        if g < 16 and idx > 0: idx -= 1
+        elif g > 242 and idx + 1 < len(RAMP): idx += 1
+        c = RAMP[idx]
+        # dune ripples riding the depth contours
+        r = math.sin(d * 46.0 + A2P * 2 * y)
+        if r > 0.86 and h8(x, y, 5) < 200:
+            c = RAMP[min(idx + 1, len(RAMP) - 1)]
+        elif r < -0.90 and h8(x, y, 7) < 170:
+            c = RAMP[max(idx - 1, 0)]
+        # depth terraces: a dark contour where the bed steps down
+        for lvl in (0.34, 0.58, 0.78):
+            if abs(d - lvl) < 0.004 and h8(x, y, 13) < 210:
+                c = 1
+        # patches the sunlight actually reaches (runtime-rotated colors)
+        lit = (math.sin(A2P * 4 * x + 1.0) * math.sin(A2P * 3 * y - 2.0)
+               + 0.6 * math.sin(A2P * 6 * (x + y)))
+        if lit > 0.78 and d < 0.62 and h8(x, y, 21) < 150:
+            fimg[y][x] = 6 + (h8(x, y, 23) & 3)
+            continue
+        fimg[y][x] = c
+
+def fblob(cx, cy, r, painter):
+    for y in range(int(cy - r) - 1, int(cy + r) + 2):
+        for x in range(int(cx - r) - 1, int(cx + r) + 2):
+            dx, dy = x - cx, y - cy
+            d = math.hypot(dx, dy)
+            if d <= r:
+                painter(x % FS, y % FS, d / r, dx, dy)
+
+# pebble fields, sunk into the deeper water
+for k in range(26):
+    px = (k * 97 + 31) % FS
+    py = (k * 173 + 61) % FS
+    if fdepth(px, py) < 0.45:
+        continue
+    for j in range(5 + (k % 4)):
+        cx = px + ((h8(k, j, 1) % 40) - 20)
+        cy = py + ((h8(k, j, 2) % 40) - 20)
+        rr = 1.6 + (h8(k, j, 3) % 20) / 10.0
+        def peb(x, y, t, dx, dy, rr=rr):
+            fimg[y][x] = 1 if t > 0.72 else (2 if (dx + dy) > -rr * 0.4 else 3)
+        fblob(cx, cy, rr, peb)
+
+# weed roots and debris in the shallows
+for k in range(30):
+    px = (k * 211 + 17) % FS
+    py = (k * 139 + 83) % FS
+    if fdepth(px, py) > 0.5:
+        continue
+    for s in range(3 + (k % 3)):
+        sx = px + (h8(k, s, 4) % 14) - 7
+        for step in range(6 + (h8(k, s, 5) % 9)):
+            yy = (py - step) % FS
+            xx = (sx + int(1.8 * math.sin(step * 0.5 + s))) % FS
+            fimg[yy][xx] = 14 if step % 3 else 15
+            if step > 2 and (xx + 1) % FS != 0:
+                fimg[yy][(xx + 1) % FS] = 15 if step % 3 else 14
+
+# sunken twigs, a few, lying flat
+for k in range(9):
+    px = (k * 317 + 41) % FS
+    py = (k * 251 + 127) % FS
+    ln = 14 + (k % 12)
+    ang = (h8(k, 0, 9) % 256) / 256.0 * math.pi
+    for step in range(ln):
+        xx = int(px + step * math.cos(ang)) % FS
+        yy = int(py + step * math.sin(ang)) % FS
+        fimg[yy][xx] = 14
+        if step % 4 == 0:
+            fimg[(yy + 1) % FS][xx] = 1
+
+fim = Image.new('RGB', (FS, FS))
+for y in range(FS):
+    for x in range(FS):
+        fim.putpixel((x, y), FPAL[fimg[y][x]])
+fim.save('assets/scene3_floor.png')
+save_pal(FPAL, 'assets/scene3_floor_pal.png')
+print('floor scene painted: 512x512')
+
 # ================= write the background sets ==============================
 save_strip(dt, DPAL, 'assets/scene3_depths_tiles.png')
 save_pal(DPAL, 'assets/scene3_depths_pal0.png')
-save_map(FM, 'assets/scene3_floor.map')
 save_map(D1, 'assets/scene3_depth1.map')
 save_map(D2, 'assets/scene3_depth2.map')
 save_strip(ct, CPAL, 'assets/scene3_caustics_tiles.png')
