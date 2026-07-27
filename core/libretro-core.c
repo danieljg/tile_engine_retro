@@ -473,10 +473,10 @@ static void update_game(void) {
   //water moves every frame while the pond scene is loaded (menu included)
   if (scene_defs[current_scene].kind == SCENE_KIND_POND) {
     pond_water_warp();
-    if (tune.light_sweep) { //palette sweep + web frames on the caustics
+    if (tune.light_sweep) { //24 gentle web frames; palette sweeps slower
       static const uint8_t sweep_period[4] = { 0, 12, 6, 3 };
       uint8_t period = sweep_period[tune.light_sweep];
-      if (frame_counter % period == 0) {
+      if (frame_counter % (uint32_t)(period*4) == 0) {
         pond_light_phase = (pond_light_phase+1) & 3;
         apply_pond_caustics();
       }
@@ -724,11 +724,11 @@ static void pond_surface_anim(void) {
     GFX.bg[0].tilemap[i] = (uint16_t)((entry & ~Mask_bgtm_index)
                                       | ((idx + 64) & 511));
   }
-  pond_surface_phase = (uint8_t)((pond_surface_phase + 1) % 3);
-  for (uint8_t k=0; k<3; k++) {
-    GFX.bg[0].palette[0].color[2+k] =
-      apply_fade(bg_palette_base[0].color[2 + ((k + pond_surface_phase) % 3)]);
-  }
+  pond_surface_phase = (uint8_t)((pond_surface_phase + 1) & 7);
+  static const int8_t pulse[8] = { 0, 1, 2, 1, 0, -1, -2, -1 };
+  GFX.bg[0].palette[0].color[3] =
+    apply_fade(shift_brightness(bg_palette_base[0].color[3],
+                                pulse[pond_surface_phase]));
   bg_cache_dirty = 1;
 }
 
@@ -738,9 +738,9 @@ static void pond_cycle_caustic_tiles(void) {
     uint16_t entry = GFX.bg[3].tilemap[i];
     if (entry & Mask_bgtm_disable) continue;
     uint16_t idx = entry & Mask_bgtm_index;
-    if (idx >= 512) continue; //pools and sparkles hold still
+    if (idx >= 384) continue; //pools and sparkles hold still
     GFX.bg[3].tilemap[i] = (uint16_t)((entry & ~Mask_bgtm_index)
-                                      | ((idx + 64) & 511));
+                                      | (uint16_t)((idx + 16) % 384));
   }
   bg_cache_dirty = 1;
 }
@@ -921,17 +921,28 @@ static void render_frame(void)
        floor, caustics, shadows, deep koi, veil 2, mid koi, veil 1,
        shallow koi, surface texture, sparkles, leaves, top HUD */
     uint16_t* buf = frame_buf;
+    set_blend(&GFX, 8, 8);
     gfx_render_bg_layer(&GFX, buf, 4, 1);            //floor (base)
+    set_blend(&GFX, 12, 16);                         //light ADDS energy
     gfx_render_bg_layer(&GFX, buf, 3, 0);            //caustics
+    set_blend(&GFX, 5, 12);                          //soft 25% shadows
     gfx_render_fsp_pass(&GFX, buf, PRIO_SHADOW);
+    set_blend(&GFX, 8, 8);
     gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_DEEP);
+    set_blend(&GFX, 6, 12);                          //gentle water veils
     gfx_render_bg_layer(&GFX, buf, 2, 0);            //depth veil 2
+    set_blend(&GFX, 8, 8);
     gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_MID);
+    set_blend(&GFX, 6, 12);
     gfx_render_bg_layer(&GFX, buf, 1, 0);            //depth veil 1
+    set_blend(&GFX, 8, 8);
     gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_SHALLOW);
+    set_blend(&GFX, 5, 13);                          //thin surface film
     gfx_render_bg_layer(&GFX, buf, 0, 0);            //surface texture
+    set_blend(&GFX, 10, 14);                         //glowing accents
     gfx_render_fsp_pass(&GFX, buf, PRIO_SPARKLE);    //contact rings
     gfx_render_hsp_pass(&GFX, buf, PRIO_SPARKLE);    //surface highlights
+    set_blend(&GFX, 8, 8);
     gfx_render_fsp_pass(&GFX, buf, PRIO_LEAF);
     gfx_render_fsp_pass(&GFX, buf, 7);               //top full sprites
     gfx_render_hsp_pass(&GFX, buf, 7);               //hand/menu/tuner

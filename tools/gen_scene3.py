@@ -297,9 +297,9 @@ for cx, cy, r in ((13, 7, 4.2), (27, 9, 3.2), (5, 14, 3.6), (18, 18, 4.6),
 # ================= caustics layer: cellular webs + godrays =================
 CPAL = [
     (0, 0, 0),      # 0 transparent
-    (192, 184, 144),# 1 web dim      } warm light, swept 1..3
-    (224, 216, 168),# 2 web bright   }
-    (248, 244, 200),# 3 web glint    }
+    (96, 92, 72),   # 1 web dim      } warm light, swept 1..3 —
+    (136, 128, 96), # 2 web bright   } deliberately mid-value: the
+    (176, 168, 120),# 3 web glint    } additive blend doubles them
     (176, 164, 120),# 4 pool dim     } swept 4..6
     (208, 196, 144),# 5 pool mid     }
     (232, 224, 168),# 6 pool bright  }
@@ -310,9 +310,9 @@ CPAL = [
 #torus. Ridges sit where the two nearest feature points are equidistant
 #(the cell walls of a real caustic); each point rides a small closed
 #orbit, so consecutive frames differ gently and frame 7 loops to 0.
-NFRAME = 8
-NPOS = 64  # 8x8 tiles per period
-PER = 128
+NFRAME = 24  # x3: the light breathes instead of stepping
+NPOS = 16    # 4x4 tiles per period (64px, the tile budget's price)
+PER = 64
 N_C = NFRAME * NPOS + 3
 ct = [new_tile() for _ in range(N_C)]
 
@@ -323,14 +323,14 @@ def torus_d(ax, ay, bx, by):
     return math.hypot(dx, dy)
 
 BASE_PTS = [((37 * k * k + 23 * k) % PER, (53 * k * k + 41 * k + 17) % PER)
-            for k in range(17)]
+            for k in range(7)]
 for f in range(NFRAME):
     ph = 2 * math.pi * f / NFRAME
     pts = [((bx + 5.0 * math.cos(ph + k)) % PER,
             (by + 5.0 * math.sin(ph * (1 if k % 2 else -1) + k * 2)) % PER)
            for k, (bx, by) in enumerate(BASE_PTS)]
     for v in range(NPOS):
-        cx, cy = v % 8, v // 8
+        cx, cy = v % 4, v // 4
         t = ct[f * NPOS + v]
         for y in range(T):
             for x in range(T):
@@ -365,7 +365,7 @@ ct[SPARK_C][2][13] = 7
 CM = [[0] * 32 for _ in range(32)]
 for y in range(32):
     for x in range(32):
-        CM[y][x] = (x & 7) + (y & 7) * 8   #position variant, frame 0
+        CM[y][x] = (x & 3) + (y & 3) * 4   #position variant, frame 0
 for cx, cy in ((5, 7), (16, 3), (26, 12), (9, 19), (21, 23), (29, 27)):
     CM[cy][cx] = POOL_A
     if cx + 1 < 32: CM[cy][cx + 1] = POOL_B
@@ -380,9 +380,9 @@ for x, y in ((11, 8), (24, 15), (5, 22), (18, 28), (28, 8)):
 WPAL = [
     (0, 0, 0),      # 0 transparent
     (112, 168, 152),# 1 base water tint (semitransparent)
-    (168, 216, 200),# 2 contour dim   } rotated 2..4 at runtime:
-    (208, 240, 224),# 3 contour brightt} regions light up as
-    (248, 248, 232),# 4 reflection flash} the palette turns
+    (176, 216, 200),# 2 contour, one soft color (semitransparent)
+    (232, 240, 216),# 3 crest glint — pulsed at runtime (semitransparent)
+    (0, 0, 0),      # 4 unused
     (120, 144, 56), # 5 reed olive
     (84, 104, 40),  # 6 reed dark
 ] + [(0, 0, 0)] * 9
@@ -410,12 +410,13 @@ for f in range(NFRAME):
                 #smooth tint blobs, static across frames; dithered rim
                 g = (math.sin(wx * W128 + 1.1) + math.sin(wy * W128 * 2 + 0.4)
                      + math.sin((wx + wy) * W128 * 3 - 0.8))
-                if abs(c) < 0.10:
-                    r = h8(wx >> 3, wy >> 3, 9)
-                    t[y][x] = 2 if r < 150 else (3 if r < 216 else 4)
+                if abs(c) < 0.09:
+                    #one soft color; the rare crest pixels go bright
+                    t[y][x] = 3 if (abs(c) < 0.03
+                                    and h8(wx, wy, 9) < 90) else 2
                 elif g > 0.75:
                     t[y][x] = 1
-                elif g > 0.15 and h8(wx, wy, 30) < (g + 0.2) * 160:
+                elif g > 0.15 and h8(wx, wy, 30) < (g + 0.2) * 130:
                     t[y][x] = 1
 for n, seed in ((REED_A, 0), (REED_B, 5)):  # reed clusters
     for s, hgt, lean in ((4, 14, 0.9), (9, 16, -0.7), (13, 11, 0.5)):
