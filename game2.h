@@ -829,6 +829,12 @@ static uint8_t koi_count_hint = 8;  //active fish in the pool
 static uint8_t koi_speed_hint = 10; //swim speed, 1/8 px units
 static uint8_t river_flow_hint = 2; //current strength, 0..6
 
+//enable/disable a half sprite without releasing its OAM slot
+static void inline hsp_set_enabled(uint8_t sp_id, uint8_t enabled) {
+  if (enabled) GFX.hsp.oam[sp_id] |= Mask_hsp_oam_enable;
+  else GFX.hsp.oam[sp_id] &= (uint16_t)(~Mask_hsp_oam_enable);
+}
+
 //enable/disable a full sprite without releasing its OAM slot
 static void inline fsp_set_enabled(uint8_t sp_id, uint8_t enabled) {
   if (enabled) GFX.fsp.oam[sp_id] |= Mask_fsp_oam_enable;
@@ -1203,7 +1209,7 @@ static void update_pond(uint32_t frame, uint8_t allow_input) {
   update_koi(frame);
   update_leaves(frame);
   update_fronds(frame);
-  update_sparks(frame);
+  if (allow_input) update_sparks(frame); //paused under the debug menu
   update_ripples();
 }
 

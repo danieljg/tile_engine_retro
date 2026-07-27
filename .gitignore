@@ -12,3 +12,4 @@ core/test_harness.dSYM/
 core/*.map
 core/test_units
 core/test_units.dSYM/
+core/pond.tune

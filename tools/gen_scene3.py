@@ -407,7 +407,7 @@ for f in range(SFRAME):
     fp = 2 * math.pi * f / SFRAME
     for v in range(SPOS):
         vx, vy = v % 8, v // 8
-        t = wt[f * NPOS + v]
+        t = wt[f * SPOS + v]
         for y in range(T):
             for x in range(T):
                 wx, wy = vx * 16 + x, vy * 16 + y

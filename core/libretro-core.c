@@ -68,6 +68,14 @@ typedef struct {
   uint8_t music;        //track index into music_tracks[]
 } pond_tune_t;
 
+static const pond_tune_t tune_defaults = { 1, 2, 1, 4, 1,
+                                           1, 2, 1, 4, 2, 12,
+                                           1, 2, 5, 1,
+                                           2, 6,
+                                           2,
+                                           1, 12, 0, 5,
+                                           2, 8, 7,
+                                           2, 0 };
 static pond_tune_t tune = { 1, 2, 1, 4, 1,
                             1, 2, 1, 4, 2, 12,
                             1, 2, 5, 1,
@@ -76,6 +84,31 @@ static pond_tune_t tune = { 1, 2, 1, 4, 1,
                             1, 12, 0, 5,
                             2, 8, 7,
                             2, 0 };
+
+/* the tuning file: settings survive across runs */
+#define TUNE_FILE "pond.tune"
+#define TUNE_FILE_VERSION 1
+
+static void tune_save_file(void) {
+  FILE* f = fopen(TUNE_FILE, "wb");
+  if (!f) return;
+  uint8_t hdr[6] = { 'T','U','N','E', TUNE_FILE_VERSION, sizeof(tune) };
+  fwrite(hdr, 1, 6, f);
+  fwrite(&tune, 1, sizeof(tune), f);
+  fclose(f);
+}
+
+static void tune_load_file(void) {
+  FILE* f = fopen(TUNE_FILE, "rb");
+  if (!f) return;
+  uint8_t hdr[6];
+  if (fread(hdr, 1, 6, f) == 6 && memcmp(hdr, "TUNE", 4) == 0
+      && hdr[4] == TUNE_FILE_VERSION && hdr[5] == sizeof(tune)) {
+    if (fread(&tune, 1, sizeof(tune), f) != sizeof(tune))
+      tune = tune_defaults;
+  }
+  fclose(f);
+}
 
 //push the tuner's game-side values into game2.h's hint globals
 static void tune_sync_hints(void) {
@@ -96,7 +129,9 @@ static const char* const music_names[MUSIC_TRACK_COUNT] =
 static uint8_t tune_open = 0;
 static uint8_t tune_sel = 0;
 static uint8_t tune_prev_input = 0xFF;
-static uint8_t tune_slots[40];
+static uint8_t tune_hold_dir = 0;   //held left/right for auto-repeat
+static uint8_t tune_hold_frames = 0;
+static uint8_t tune_slots[150];
 static uint8_t tune_slot_count = 0;
 static uint8_t update_pond_tuner(void);
 static void pond_cycle_caustic_tiles(void);
@@ -320,6 +355,7 @@ void retro_init(void)
   load_gfx("fsp.gfx", 2);
   load_gfx("hsp.gfx", 3);
   save_base_palettes();
+  tune_load_file();
   tune_sync_hints();
   initialize_game();
   default_scores();
@@ -838,30 +874,46 @@ static void tune_add_text(const char* s, int16_t x, int16_t y, uint8_t pal) {
   }
 }
 
+/* THE DEBUG MENU: a paged list over the live scene. 6 rows per page,
+   up/down to move, left/right to adjust (hold to sweep), A next page,
+   START closes and saves pond.tune. The last row resets everything. */
+#define MENU_ROWS 6
+#define MENU_TOTAL (TUNE_ENTRY_COUNT + 1) //+1: RESET ALL
+#define MENU_PAGES ((MENU_TOTAL + MENU_ROWS - 1) / MENU_ROWS)
+
 static void tune_draw(void) {
   tune_clear_text();
-  const tune_entry* e = &tune_entries[tune_sel];
-  char line[8];
-  uint8_t v = *e->value;
-  tune_add_text(e->name, 24, 16, 2);
-  if (e->value == &tune.music) {
-    char nb[16];
-    nb[0]='<'; nb[1]=' ';
-    uint8_t k=2;
-    for (const char* s = music_names[v]; *s && k<12; s++) nb[k++]=*s;
-    nb[k++]=' '; nb[k++]='>'; nb[k]=0;
-    tune_add_text(nb, 24, 28, 0);
-  }
-  else if (e->max == 1) {
-    tune_add_text(v ? "< ON >" : "< OFF >", 24, 28, 0);
-  }
-  else {
-    uint8_t k = 0;
-    line[k++]='<'; line[k++]=' ';
-    if (v >= 10) line[k++]=(char)('0'+v/10);
-    line[k++]=(char)('0'+v%10);
-    line[k++]=' '; line[k++]='>'; line[k]=0;
-    tune_add_text(line, 24, 28, 0);
+  uint8_t page = (uint8_t)(tune_sel / MENU_ROWS);
+  char buf[8];
+  buf[0]='P'; buf[1]=(char)('1'+page); buf[2]='/';
+  buf[3]=(char)('0'+MENU_PAGES); buf[4]=0;
+  tune_add_text("DEBUG", 20, 12, 2);
+  tune_add_text(buf, 352, 12, 2);
+  for (uint8_t row = 0; row < MENU_ROWS; row++) {
+    uint8_t idx = (uint8_t)(page*MENU_ROWS + row);
+    if (idx >= MENU_TOTAL) break;
+    int16_t y = (int16_t)(28 + row*12);
+    if (idx == tune_sel) tune_add_text(">", 8, y, 2);
+    if (idx == TUNE_ENTRY_COUNT) {
+      tune_add_text("RESET ALL", 20, y, 1);
+      continue;
+    }
+    const tune_entry* e = &tune_entries[idx];
+    uint8_t v = *e->value;
+    tune_add_text(e->name, 20, y, (uint8_t)(idx == tune_sel ? 2 : 0));
+    if (e->value == &tune.music) {
+      tune_add_text(music_names[v], 320, y, 0);
+    }
+    else if (e->min == 0 && e->max == 1) {
+      tune_add_text(v ? "ON" : "OFF", 320, y, 0);
+    }
+    else {
+      uint8_t k = 0;
+      if (v >= 10) buf[k++]=(char)('0'+v/10);
+      buf[k++]=(char)('0'+v%10);
+      buf[k]=0;
+      tune_add_text(buf, 320, y, 0);
+    }
   }
 }
 
@@ -874,6 +926,13 @@ static void pond_reload_layer(uint8_t layer) {
     read_map_data(&GFX, mf, layer);
     fclose(mf);
   }
+}
+
+static void tune_apply(uint8_t sel);
+
+//re-applies every entry's side effects (after reset or file load)
+static void tune_apply_all(void) {
+  for (uint8_t i = 0; i < TUNE_ENTRY_COUNT; i++) tune_apply(i);
 }
 
 //applies side effects of the entry that just changed
@@ -912,35 +971,84 @@ static void tune_apply(uint8_t sel) {
   bg_cache_dirty = 1;
 }
 
-//pond input frame: returns 1 while the tuner owns the controls
+//one left/right step on the selected row
+static void tune_step(uint8_t right) {
+  if (tune_sel == TUNE_ENTRY_COUNT) { //RESET ALL
+    tune = tune_defaults;
+    tune_sync_hints();
+    tune_apply_all();
+    return;
+  }
+  const tune_entry* e = &tune_entries[tune_sel];
+  uint8_t v = *e->value;
+  if (right) v = (v >= e->max) ? e->min : (uint8_t)(v+1);
+  else v = (v <= e->min) ? e->max : (uint8_t)(v-1);
+  *e->value = v;
+  tune_apply(tune_sel);
+}
+
+static void debug_menu_open(void) {
+  tune_open = 1;
+  //quiet the stage: sparks off, hand hidden, transients cleared
+  for (uint8_t i=0; i<MAX_SPARKS; i++) hsp_set_enabled(sparks.sprite[i], 0);
+  hsp_set_enabled(hand_sprite, 0);
+  for (uint8_t i=0; i<MAX_PELLETS; i++)
+    if (pellets.state[i]) kill_pellet_quiet(i);
+  for (uint8_t i=0; i<MAX_RIPPLES; i++)
+    if (ripples.age[i]) { delete_hsp(&GFX, ripples.sprite[i]);
+                          ripples.age[i] = 0; }
+  tune_draw();
+}
+
+static void debug_menu_close(void) {
+  tune_open = 0;
+  tune_clear_text();
+  hsp_set_enabled(hand_sprite, 1);
+  tune_save_file(); //the session's numbers survive the session
+}
+
+//pond input frame: returns 1 while the debug menu owns the controls
 static uint8_t update_pond_tuner(void) {
   uint8_t input = players.base[0] & MASK_PLAYER_BASE_INPUT;
   uint8_t edge = input & (uint8_t)(~tune_prev_input);
   tune_prev_input = input;
   if (edge & MASK_INPUT_START) {
-    tune_open ^= 1;
-    if (tune_open) tune_draw();
-    else tune_clear_text();
+    if (tune_open) debug_menu_close();
+    else debug_menu_open();
     return tune_open;
   }
   if (!tune_open) {
     if (edge & MASK_INPUT_B) enter_menu();
     return 0;
   }
-  if (edge & MASK_INPUT_UP)
-    tune_sel = (uint8_t)((tune_sel + TUNE_ENTRY_COUNT - 1) % TUNE_ENTRY_COUNT);
-  if (edge & MASK_INPUT_DOWN)
-    tune_sel = (uint8_t)((tune_sel + 1) % TUNE_ENTRY_COUNT);
-  if (edge & (MASK_INPUT_LEFT | MASK_INPUT_RIGHT)) {
-    const tune_entry* e = &tune_entries[tune_sel];
-    uint8_t v = *e->value;
-    if (edge & MASK_INPUT_RIGHT) v = (v >= e->max) ? e->min : (uint8_t)(v+1);
-    else v = (v <= e->min) ? e->max : (uint8_t)(v-1);
-    *e->value = v;
-    tune_apply(tune_sel);
+  uint8_t dirty = 0;
+  if (edge & MASK_INPUT_UP) {
+    tune_sel = (uint8_t)((tune_sel + MENU_TOTAL - 1) % MENU_TOTAL);
+    dirty = 1;
   }
-  if (edge & (MASK_INPUT_UP|MASK_INPUT_DOWN|MASK_INPUT_LEFT|MASK_INPUT_RIGHT))
-    tune_draw();
+  if (edge & MASK_INPUT_DOWN) {
+    tune_sel = (uint8_t)((tune_sel + 1) % MENU_TOTAL);
+    dirty = 1;
+  }
+  if (edge & MASK_INPUT_A) { //next page
+    tune_sel = (uint8_t)((((tune_sel / MENU_ROWS) + 1) % MENU_PAGES)
+                         * MENU_ROWS);
+    dirty = 1;
+  }
+  //left/right: act on the edge, then auto-repeat while held
+  uint8_t held = input & (MASK_INPUT_LEFT | MASK_INPUT_RIGHT);
+  if (edge & MASK_INPUT_RIGHT) { tune_step(1); dirty = 1; }
+  else if (edge & MASK_INPUT_LEFT) { tune_step(0); dirty = 1; }
+  else if (held) {
+    tune_hold_frames++;
+    if (tune_hold_frames > 18 && (tune_hold_frames & 3) == 0) {
+      tune_step((held & MASK_INPUT_RIGHT) ? 1 : 0);
+      dirty = 1;
+    }
+  }
+  if (!held) tune_hold_frames = 0;
+  (void)tune_hold_dir;
+  if (dirty) tune_draw();
   return 1;
 }
 
@@ -1142,7 +1250,7 @@ bool retro_load_game_special(unsigned type, const struct retro_game_info *info, 
    but serializing them keeps the first frame after a load exact.
    Not endian-portable; music position is not saved. */
 #define SAVESTATE_MAGIC   0x30524554 // "TER0"
-#define SAVESTATE_VERSION 14
+#define SAVESTATE_VERSION 15
 
 typedef struct { void* ptr; size_t size; } save_block;
 
