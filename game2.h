@@ -716,7 +716,8 @@ static uint8_t game_mode = MODE_MENU;
 #define MAX_KOI 10
 #define MAX_PELLETS 6
 #define MAX_RIPPLES 8
-#define KOI_TILE 18        //2 frames: 18 tail up, 19 tail down
+#define KOI_TILE 18        //adult, 2 frames: 18 tail up, 19 tail down
+#define KOI_TILE_SM 20     //small fry, 2 frames: 20, 21
 #define KOI_PAL_ORANGE 5
 #define KOI_PAL_CALICO 6
 #define RIPPLE_TILE 128    //3 growth stages: 128..130
@@ -736,16 +737,17 @@ static uint8_t game_mode = MODE_MENU;
    the fish — the koi swim under the leaves. Each leaf casts a
    semitransparent shadow sprite allocated after the koi (under the fish).*/
 #define MAX_LEAVES 10
-#define LEAF_TILE_SMALL  20
-#define LEAF_TILE_MEDIUM 21
-#define LEAF_TILE_LOTUS  22
-#define LEAF_TILE_TINY   23
-#define LEAF_TILE_SHADOW 24
-#define KOI_TILE_SHADOW  25
-#define RING_TILE        26 //+1 = second animation frame
-#define FROND_TILE_A     28
-#define FROND_TILE_B     29
-#define RING_SM_TILE     30 //+1 = second animation frame
+#define LEAF_TILE_SMALL    22
+#define LEAF_TILE_MEDIUM   23
+#define LEAF_TILE_LOTUS    24
+#define LEAF_TILE_TINY     25
+#define LEAF_TILE_SHADOW   26
+#define KOI_TILE_SHADOW    27
+#define KOI_TILE_SHADOW_SM 28
+#define RING_TILE          29 //+1 = second animation frame
+#define FROND_TILE_A       31
+#define FROND_TILE_B       32
+#define RING_SM_TILE       33 //+1 = second animation frame
 #define LEAF_PAL 7
 
 typedef struct {
@@ -826,6 +828,7 @@ static uint8_t leaf_bob_amp = 2;    //0..4; big pads bob at half of it
 static uint8_t leaf_shadow_gap = 12;//shadow offset in pixels (up to 36)
 static uint8_t leaf_shadow_anim = 0;//0 rigid, 1 swaying, 2 anchored
 static uint8_t koi_count_hint = 8;  //active fish in the pool
+static uint8_t koi_growth_hint = 2; //meals per growth stage, 0 = off
 static uint8_t koi_speed_hint = 10; //swim speed, 1/8 px units
 static uint8_t river_flow_hint = 2; //current strength, 0..6
 
@@ -899,7 +902,8 @@ typedef struct {
   uint8_t shadow[MAX_KOI]; //floor shadow; its offset tracks depth
   uint8_t heading[MAX_KOI]; //displayed cardinal (nearest to theta)
   uint8_t phase[MAX_KOI];
-  uint8_t big[MAX_KOI];   //a few larger fish (double-size render)
+  uint8_t size[MAX_KOI];  //0 fry, 1 adult, 2 elder (double-size)
+  uint8_t fed[MAX_KOI];   //meals since the last growth spurt
   uint8_t depth[MAX_KOI]; //0 shallow, 1 mid, 2 deep (under both veils)
   uint8_t theta[MAX_KOI];  //actual swim direction, 8-bit angle
   uint8_t target[MAX_KOI]; //general direction being followed
@@ -958,11 +962,27 @@ static uint8_t pond_prev_input;
 
 static void koi_face(uint8_t i) {
   uint8_t h = koi.heading[i];
+  //NOTE: the double-size flag must be re-applied here — it lives in the
+  //same OAM word as the flips, so a turn used to silently shrink elders
   set_fsp_effects(&GFX, koi.sprite[i],
                   (h==HEAD_L) || (h==HEAD_U),  //h-flip
                   h==HEAD_U,                   //v-flip
                   h>=HEAD_D,                   //rotation
-                  0);
+                  koi.size[i] == 2);           //elders render double
+}
+
+/* The shadow answers to the fish above it: it turns with the heading
+   (a fish swimming up casts a shadow pointing up), shrinks with depth
+   and with the fish's own size. */
+static void koi_shadow_look(uint8_t i) {
+  uint8_t h = koi.heading[i];
+  uint8_t deep = (uint8_t)(koi.depth[i] == 2);
+  uint16_t tile = (koi.size[i] == 0 || deep) ? KOI_TILE_SHADOW_SM
+                                             : KOI_TILE_SHADOW;
+  set_fsp(&GFX, koi.shadow[i], (int16_t)tile);
+  set_fsp_effects(&GFX, koi.shadow[i], 0, 0,
+                  (uint8_t)(h >= HEAD_D),               //turn with the fish
+                  (uint8_t)(koi.size[i] == 2 && !deep));//elders cast wide
 }
 
 static void spawn_ripple(uint16_t x_px, uint16_t y_px) {
@@ -1114,11 +1134,20 @@ static void update_koi(uint32_t frame) {
       int32_t dy = (int32_t)body_get_pos(&pellets.ydata[target]) - y;
       koi.target[i] = angle_toward(dx, dy);
       want_depth = 0; //food floats: rise to the surface to eat
-      if (best < (10<<3)) { //close enough: eat
+      if (best < ((10 + koi.size[i]*4)<<3)) { //bigger mouths reach farther
         delete_hsp(&GFX, pellets.sprite[target]);
         pellets.state[target] = 0;
         sfx_play(SFX_BLIP);
         spawn_ripple((uint16_t)(x>>3), (uint16_t)(y>>3));
+        //a well-fed koi grows: fry -> adult -> elder
+        if (koi_growth_hint && koi.size[i] < 2
+            && ++koi.fed[i] >= koi_growth_hint) {
+          koi.fed[i] = 0;
+          koi.size[i]++;
+          koi_face(i);
+          koi_shadow_look(i);
+          sfx_play(SFX_PLOP);
+        }
       }
     }
     else if (((frame + (uint32_t)koi.phase[i]*53u) & 255u) == 0) {
@@ -1131,6 +1160,9 @@ static void update_koi(uint32_t frame) {
       koi.depth[i] = want_depth;
       set_fsp_priority(&GFX, koi.sprite[i],
                        (uint8_t)(PRIO_KOI_SHALLOW - want_depth));
+      //only submerged fish blend with the water; shallow ones stay crisp
+      set_fsp_blend(&GFX, koi.sprite[i], (uint8_t)(want_depth > 0));
+      koi_shadow_look(i);
     }
     //no walls in a river: gently favor swimming with the current
     if (target < 0 && ((frame + i*17u) & 63u) == 0
@@ -1152,11 +1184,12 @@ static void update_koi(uint32_t frame) {
     if (head != koi.heading[i]) {
       koi.heading[i] = head;
       koi_face(i);
+      koi_shadow_look(i);
     }
     //swim along theta (speed scaled from the 1/64-unit sine table);
     //the big ones cruise a touch slower and statelier
-    uint8_t spd = koi.big[i] ? (uint8_t)(koi_speed_hint - 2)
-                             : koi_speed_hint;
+    //fry dart, elders cruise
+    uint8_t spd = (uint8_t)(koi_speed_hint + 2 - 2*koi.size[i]);
     int8_t vx = (int8_t)(((int16_t)cos8(th) * spd) >> 6);
     int8_t vy = (int8_t)(((int16_t)sin8(th) * spd) >> 6);
     body_set_vel(&koi.xdata[i], vx);
@@ -1176,9 +1209,10 @@ static void update_koi(uint32_t frame) {
                              * (uint8_t)(3 - koi.depth[i])) / 3);
     set_pos_fsp(&GFX, koi.shadow[i],
                 (int16_t)(fx + off), (int16_t)(fy + off));
-    //tail flap, phase-shifted per fish
+    //tail flap, phase-shifted per fish; fry use the small frames
+    uint16_t base = koi.size[i] ? KOI_TILE : KOI_TILE_SM;
     set_fsp(&GFX, koi.sprite[i],
-            (int16_t)(KOI_TILE + (((frame>>3) + koi.phase[i]) & 1)));
+            (int16_t)(base + (((frame>>3) + koi.phase[i]) & 1)));
   }
 }
 
@@ -1253,11 +1287,9 @@ static void begin_pond(void) {
                           (uint16_t)(px+6), (uint16_t)(py+6));
     set_fsp_priority(&GFX, ksh, PRIO_SHADOW);
     koi.shadow[i] = ksh;
-    koi.big[i] = (uint8_t)((i % 3) == 2); //every third fish is a big one
-    if (koi.big[i]) {
-      set_fsp_effects(&GFX, sp, 0, 0, 0, 1);
-      set_fsp_effects(&GFX, ksh, 0, 0, 0, 1);
-    }
+    //a mixed school: fry, adults, and a couple of elders
+    koi.size[i] = (uint8_t)((i % 4 == 3) ? 2 : ((i % 4 == 0) ? 0 : 1));
+    koi.fed[i] = 0;
     koi.wait[i] = (uint16_t)((i >= 3) ? 120 + i*90 : 0); //staggered entries
     if (koi.wait[i]) {
       fsp_set_enabled(sp, 0);
@@ -1268,6 +1300,8 @@ static void begin_pond(void) {
     koi.theta[i] = (uint8_t)((i&1) ? 128 : 0);
     koi.target[i] = (uint8_t)(i * 51);
     koi.phase[i] = (uint8_t)(i*3+1);
+    koi_face(i);
+    koi_shadow_look(i);
     koi.xdata[i] = 0; koi.ydata[i] = 0;
     body_set_pos(&koi.xdata[i], (uint16_t)(px<<3));
     body_set_pos(&koi.ydata[i], (uint16_t)(py<<3));

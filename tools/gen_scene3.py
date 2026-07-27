@@ -519,6 +519,12 @@ for y in range(T):
         if math.hypot((x - 8 + .5) / 5.0, (y - 8 + .5) / 2.6) < 1.0 \
            and h8(x, y, 5) < 118:
             fish_shadow[y][x] = 9
+fish_shadow_sm = new_tile()   # fry, and any fish down in the deep
+for y in range(T):
+    for x in range(T):
+        if math.hypot((x - 8 + .5) / 3.4, (y - 8 + .5) / 1.9) < 1.0 \
+           and h8(x, y, 15) < 104:
+            fish_shadow_sm[y][x] = 9
 def make_ring(r, seed):
     t = new_tile()
     for y in range(T):
@@ -573,8 +579,30 @@ def draw_koi(tail_up):
     t[8][12] = 1
     return t
 
-koi_frames = [draw_koi(True), draw_koi(False)]
-kimg = Image.new('RGB', (32, 16), fsp_pal0[0])
+def draw_koi_small(tail_up):
+    """Small fry: the same fish at roughly two thirds scale."""
+    t = new_tile()
+    for y in range(T):
+        for x in range(T):
+            dx, dy = (x - 7.5) / 3.7, (y - 8) / 2.3
+            if dx * dx + dy * dy <= 1.0:
+                t[y][x] = 2 if dx * dx + dy * dy > 0.5 else 3
+    for x, y in ((6, 7), (7, 8), (9, 8)):
+        t[y][x] = 5
+    t[7][10] = 1
+    ty = 7 if tail_up else 9
+    for k in range(3):
+        x = 5 - k
+        for yy in range(8 - (k + 1) // 2, 9 + (k + 1) // 2):
+            y2 = yy + (ty - 8) * k // 2
+            if 0 <= y2 < T:
+                t[y2][x] = 4
+    t[8][11] = 1
+    return t
+
+koi_frames = [draw_koi(True), draw_koi(False),
+              draw_koi_small(True), draw_koi_small(False)]
+kimg = Image.new('RGB', (16 * len(koi_frames), 16), fsp_pal0[0])
 for n, t in enumerate(koi_frames):
     for y in range(T):
         for x in range(T):
@@ -622,8 +650,8 @@ pimg.save('assets/pond_hsp_tiles.png')
 
 # ============== lily pads onto the fsp palette (index remap) ==============
 PAD_TILES = [pad_small, pad_med, pad_lotus, pad_tiny, shadow_tile,
-             fish_shadow, ring_tile, ring_tile_b, frond_a, frond_b,
-             ring_sm, ring_sm_b]
+             fish_shadow, fish_shadow_sm, ring_tile, ring_tile_b,
+             frond_a, frond_b, ring_sm, ring_sm_b]
 need = sorted({v for t in PAD_TILES for row in t for v in row})
 first = []
 seen = set()

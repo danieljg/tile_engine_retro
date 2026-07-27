@@ -64,6 +64,8 @@ typedef struct {
   uint8_t river_flow;   //0..6  current strength (water + drifters)
   uint8_t koi_count;    //1..10 fish in the water
   uint8_t koi_speed;    //4..16 swim speed
+  uint8_t koi_growth;   //0..5  meals per growth stage (0 = no growing)
+  uint8_t depth_tint;   //0..10 how much the depths swallow a fish
   uint8_t vaporwave;    //0..6  music slowdown, 6%% per step (to -36%%)
   uint8_t music;        //track index into music_tracks[]
 } pond_tune_t;
@@ -74,7 +76,7 @@ static const pond_tune_t tune_defaults = { 1, 2, 1, 4, 1,
                                            2, 6,
                                            2,
                                            1, 12, 0, 5,
-                                           2, 8, 7,
+                                           2, 8, 7, 2, 6,
                                            2, 0 };
 static pond_tune_t tune = { 1, 2, 1, 4, 1,
                             1, 2, 1, 4, 2, 12,
@@ -82,12 +84,12 @@ static pond_tune_t tune = { 1, 2, 1, 4, 1,
                             2, 6,
                             2,
                             1, 12, 0, 5,
-                            2, 8, 7,
+                            2, 8, 7, 2, 6,
                             2, 0 };
 
 /* the tuning file: settings survive across runs */
 #define TUNE_FILE "pond.tune"
-#define TUNE_FILE_VERSION 1
+#define TUNE_FILE_VERSION 2
 
 static void tune_save_file(void) {
   FILE* f = fopen(TUNE_FILE, "wb");
@@ -118,6 +120,7 @@ static void tune_sync_hints(void) {
   leaf_shadow_anim = tune.shadow_anim;
   koi_count_hint = tune.koi_count;
   koi_speed_hint = tune.koi_speed;
+  koi_growth_hint = tune.koi_growth;
   river_flow_hint = tune.river_flow;
 }
 
@@ -855,6 +858,8 @@ static const tune_entry tune_entries[] = {
   { "RIVER FLOW",      &tune.river_flow,    0, 6 },
   { "KOI COUNT",       &tune.koi_count,     1, 10 },
   { "KOI SPEED",       &tune.koi_speed,     4, 16 },
+  { "KOI GROWTH",      &tune.koi_growth,    0, 5 },
+  { "DEPTH TINT",      &tune.depth_tint,    0, 10 },
   { "VAPORWAVE",       &tune.vaporwave,     0, 6 },
   { "MUSIC",           &tune.music,         0, MUSIC_TRACK_COUNT-1 },
 };
@@ -1068,17 +1073,18 @@ static void render_frame(void)
     gfx_render_bg_layer(&GFX, buf, 4, 1);            //floor (base)
     set_blend(&GFX, tune.shadow_eva, 12);            //soft shadows
     gfx_render_fsp_pass(&GFX, buf, PRIO_SHADOW);
-    set_blend(&GFX, 8, 8);
-    gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_DEEP);
+    set_blend(&GFX, (uint8_t)(16 - tune.depth_tint), tune.depth_tint);
+    gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_DEEP);   //deepest: swallowed
     set_blend(&GFX, tune.veil_eva, 12);              //lower water column
     gfx_render_bg_layer(&GFX, buf, 2, 0);            //depth veil 2
-    set_blend(&GFX, 8, 8);
-    gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_MID);
+    set_blend(&GFX, (uint8_t)(16 - (tune.depth_tint>>1)),
+              (uint8_t)(tune.depth_tint>>1));
+    gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_MID);    //mid: half swallowed
     set_blend(&GFX, (uint8_t)(tune.veil_eva > 2 ? tune.veil_eva - 2 : 0),
               12);                                   //upper water column
     gfx_render_bg_layer(&GFX, buf, 1, 0);            //depth veil 1
-    set_blend(&GFX, 8, 8);
-    gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_SHALLOW);
+    set_blend(&GFX, 16, 0);
+    gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_SHALLOW);//shallow: crisp
     set_blend(&GFX, tune.light_eva, 16);             //light ADDS energy,
     gfx_render_bg_layer(&GFX, buf, 3, 0);            //right below the pads
     set_blend(&GFX, tune.surface_eva, 13);           //thin surface film
@@ -1250,7 +1256,7 @@ bool retro_load_game_special(unsigned type, const struct retro_game_info *info, 
    but serializing them keeps the first frame after a load exact.
    Not endian-portable; music position is not saved. */
 #define SAVESTATE_MAGIC   0x30524554 // "TER0"
-#define SAVESTATE_VERSION 15
+#define SAVESTATE_VERSION 16
 
 typedef struct { void* ptr; size_t size; } save_block;
 
