@@ -66,6 +66,8 @@ typedef struct {
   uint8_t koi_speed;    //4..16 swim speed
   uint8_t koi_growth;   //0..5  meals per growth stage (0 = no growing)
   uint8_t depth_tint;   //0..10 how much the depths swallow a fish
+  uint8_t caustic_style;//0 pools 1 web 2 mixed 3 speckle
+  uint8_t surface_style;//0 contour 1 web glare 2 calm
   uint8_t vaporwave;    //0..6  music slowdown, 6%% per step (to -36%%)
   uint8_t music;        //track index into music_tracks[]
 } pond_tune_t;
@@ -76,7 +78,7 @@ static const pond_tune_t tune_defaults = { 1, 2, 1, 4, 1,
                                            2, 6,
                                            2,
                                            1, 12, 0, 5,
-                                           2, 8, 7, 2, 6,
+                                           2, 8, 7, 2, 6, 0, 0,
                                            2, 0 };
 static pond_tune_t tune = { 1, 2, 1, 4, 1,
                             1, 2, 1, 4, 2, 6,
@@ -84,12 +86,12 @@ static pond_tune_t tune = { 1, 2, 1, 4, 1,
                             2, 6,
                             2,
                             1, 12, 0, 5,
-                            2, 8, 7, 2, 6,
+                            2, 8, 7, 2, 6, 0, 0,
                             2, 0 };
 
 /* the tuning file: settings survive across runs */
 #define TUNE_FILE "pond.tune"
-#define TUNE_FILE_VERSION 2
+#define TUNE_FILE_VERSION 3
 
 static void tune_save_file(void) {
   FILE* f = fopen(TUNE_FILE, "wb");
@@ -138,6 +140,7 @@ static uint8_t tune_slots[150];
 static uint8_t tune_slot_count = 0;
 static uint8_t update_pond_tuner(void);
 static void pond_cycle_caustic_tiles(void);
+static void pond_apply_styles(void);
 static void pond_surface_anim(void);
 static struct retro_log_callback logging;
 static retro_log_printf_t log_cb;
@@ -223,8 +226,8 @@ static const scene_def scene_defs[SCENE_COUNT] = {
   /*2: Koi Pond, top to bottom:
       0 surface texture -> 1 depth veil 1 -> 2 depth veil 2 ->
       3 caustics -> 4 floor (sprite passes interleave between them) */
-  { { "scene3_surface.gfx", "scene3_depths.gfx", "scene3_depths.gfx",
-      "scene3_caustics.gfx", "scene3_floor.gfx" },
+  { { "scene3_surface0.gfx", "scene3_depths.gfx", "scene3_depths.gfx",
+      "scene3_caustics0.gfx", "scene3_floor.gfx" },
     { "scene3_surface.map", "scene3_depth1.map", "scene3_depth2.map",
       "scene3_caustics.map", "scene3_floor.map" },
     SCENE_KIND_POND },
@@ -310,7 +313,10 @@ static void start_scene(uint8_t id)
     enemy_skin_frames = 3;
     enemy_skin_rotates = 1;
   }
-  if (scene_defs[id].kind == SCENE_KIND_POND) begin_pond();
+  if (scene_defs[id].kind == SCENE_KIND_POND) {
+    pond_apply_styles();
+    begin_pond();
+  }
   else begin_play();
 }
 
@@ -860,6 +866,8 @@ static const tune_entry tune_entries[] = {
   { "KOI SPEED",       &tune.koi_speed,     4, 16 },
   { "KOI GROWTH",      &tune.koi_growth,    0, 5 },
   { "DEPTH TINT",      &tune.depth_tint,    0, 10 },
+  { "CAUSTIC STYLE",   &tune.caustic_style, 0, 3 },
+  { "SURFACE STYLE",   &tune.surface_style, 0, 2 },
   { "VAPORWAVE",       &tune.vaporwave,     0, 6 },
   { "MUSIC",           &tune.music,         0, MUSIC_TRACK_COUNT-1 },
 };
@@ -922,6 +930,22 @@ static void tune_draw(void) {
   }
 }
 
+//swap in the chosen caustic / surface tile banks
+static void pond_apply_styles(void) {
+  char path[40];
+  snprintf(path, sizeof(path), "scene3_caustics%u.gfx",
+           (unsigned)(tune.caustic_style & 3));
+  load_gfx(path, GFXTYPE_BG3);
+  bg_palette_base[3] = GFX.bg[3].palette[0];
+  snprintf(path, sizeof(path), "scene3_surface%u.gfx",
+           (unsigned)(tune.surface_style < 3 ? tune.surface_style : 0));
+  load_gfx(path, 0);
+  bg_palette_base[0] = GFX.bg[0].palette[0];
+  refresh_palettes();
+  apply_pond_caustics();
+  bg_cache_dirty = 1;
+}
+
 //reload a pond overlay layer's tilemap after re-enabling it
 static void pond_reload_layer(uint8_t layer) {
   const char* map = scene_defs[current_scene].map[layer];
@@ -965,6 +989,10 @@ static void tune_apply(uint8_t sel) {
         }
       }
     }
+  }
+  else if (tune_entries[sel].value == &tune.caustic_style
+           || tune_entries[sel].value == &tune.surface_style) {
+    pond_apply_styles();
   }
   else if (tune_entries[sel].value == &tune.floor_caustic) {
     if (!tune.floor_caustic) { //freeze the floor colors at base
@@ -1071,10 +1099,13 @@ static void render_frame(void)
     uint16_t* buf = frame_buf;
     set_blend(&GFX, 8, 8);
     gfx_render_bg_layer(&GFX, buf, 4, 1);            //floor (base)
+    gfx_render_fsp_pass(&GFX, buf, PRIO_BOTTOM);     //stones, roots, crate
     set_blend(&GFX, tune.shadow_eva, 12);            //soft shadows
     gfx_render_fsp_pass(&GFX, buf, PRIO_SHADOW);
     set_blend(&GFX, (uint8_t)(16 - tune.depth_tint), tune.depth_tint);
     gfx_render_fsp_pass(&GFX, buf, PRIO_KOI_DEEP);   //deepest: swallowed
+    set_blend(&GFX, 8, 8);
+    gfx_render_fsp_pass(&GFX, buf, PRIO_MIDGROUND);  //plant tops, post shaft
     set_blend(&GFX, tune.veil_eva, 12);              //lower water column
     gfx_render_bg_layer(&GFX, buf, 2, 0);            //depth veil 2
     set_blend(&GFX, (uint8_t)(16 - (tune.depth_tint>>1)),
@@ -1256,7 +1287,7 @@ bool retro_load_game_special(unsigned type, const struct retro_game_info *info, 
    but serializing them keeps the first frame after a load exact.
    Not endian-portable; music position is not saved. */
 #define SAVESTATE_MAGIC   0x30524554 // "TER0"
-#define SAVESTATE_VERSION 16
+#define SAVESTATE_VERSION 17
 
 typedef struct { void* ptr; size_t size; } save_block;
 

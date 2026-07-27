@@ -1,0 +1,4 @@
+# surface style 1 (tools/gen_scene3.py)
+type background
+tileset assets/scene3_surface1_tiles.png
+palette assets/scene3_surface_pal0.png alpha=1,2,3

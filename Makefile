@@ -32,8 +32,8 @@ gfxtool: tools/gfxtool.c tools/qdbmp.c tools/stb_image.h tools/stb_image_write.h
 
 GFX: core/bg0.gfx core/bg1.gfx core/fsp.gfx core/hsp.gfx \
      core/scene2.gfx core/scene2.map \
-     core/scene3_surface.gfx core/scene3_surface.map \
-     core/scene3_depths.gfx core/scene3_caustics.gfx \
+     $(CAUSTIC_STYLES) $(SURFACE_STYLES) core/scene3_surface.map \
+     core/scene3_depths.gfx \
      core/scene3_floor.gfx core/scene3_floor.map \
      core/scene3_depth1.map core/scene3_depth2.map \
      core/scene3_caustics.map
@@ -59,11 +59,6 @@ core/scene2.gfx: gfxtool assets/scene2.mfst assets/scene2_tiles.png \
 core/scene2.map: assets/scene2.map
 	cp assets/scene2.map core/scene2.map
 
-core/scene3_surface.gfx: gfxtool assets/scene3_surface.mfst \
-                         assets/scene3_surface_tiles.png \
-                         assets/scene3_surface_pal0.png
-	./gfxtool build assets/scene3_surface.mfst core/scene3_surface.gfx
-
 core/scene3_depths.gfx: gfxtool assets/scene3_depths.mfst \
                         assets/scene3_depths_tiles.png \
                         assets/scene3_depths_pal0.png
@@ -72,10 +67,20 @@ core/scene3_depths.gfx: gfxtool assets/scene3_depths.mfst \
 core/scene3_surface.map: assets/scene3_surface.map
 	cp assets/scene3_surface.map core/scene3_surface.map
 
-core/scene3_caustics.gfx: gfxtool assets/scene3_caustics.mfst \
-                          assets/scene3_caustics_tiles.png \
-                          assets/scene3_caustics_pal0.png
-	./gfxtool build assets/scene3_caustics.mfst core/scene3_caustics.gfx
+CAUSTIC_STYLES = core/scene3_caustics0.gfx core/scene3_caustics1.gfx \
+                 core/scene3_caustics2.gfx core/scene3_caustics3.gfx
+SURFACE_STYLES = core/scene3_surface0.gfx core/scene3_surface1.gfx \
+                 core/scene3_surface2.gfx
+
+core/scene3_caustics%.gfx: gfxtool assets/scene3_caustics%.mfst \
+                           assets/scene3_caustics%_tiles.png \
+                           assets/scene3_caustics_pal0.png
+	./gfxtool build assets/scene3_caustics$*.mfst core/scene3_caustics$*.gfx
+
+core/scene3_surface%.gfx: gfxtool assets/scene3_surface%.mfst \
+                          assets/scene3_surface%_tiles.png \
+                          assets/scene3_surface_pal0.png
+	./gfxtool build assets/scene3_surface$*.mfst core/scene3_surface$*.gfx
 
 # the pond bed is a painted 512x512 scene, sliced and deduplicated
 core/scene3_floor.gfx core/scene3_floor.map: gfxtool \

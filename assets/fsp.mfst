@@ -1,4 +1,5 @@
 # fsp asset pack (migrated from .pal/.clr sidecars)
+indexref assets/index16.png
 type fullsprite
 tileset bmp/fsp1.bmp
 tileset bmp/fsp2.bmp
@@ -11,4 +12,4 @@ tileset assets/koi_tiles.png
 palette assets/koi_pal0.png
 palette assets/koi_pal1.png
 tileset assets/pad_fsp_tiles.png
-palette assets/leaf_pal.png alpha=8,7
+palette assets/leaf_pal.png alpha=7,8

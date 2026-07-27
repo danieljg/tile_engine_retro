@@ -725,12 +725,14 @@ static uint8_t game_mode = MODE_MENU;
 
 /* Sprite render priorities for the pond compositor (7 = topmost is the
    default for every add): */
+#define PRIO_BOTTOM      0 //rocks, shells, crate, plant roots
 #define PRIO_SHADOW      1
 #define PRIO_KOI_DEEP    2
-#define PRIO_KOI_MID     3
-#define PRIO_KOI_SHALLOW 4
-#define PRIO_SPARKLE     5
-#define PRIO_LEAF        6
+#define PRIO_MIDGROUND   3 //plant tops, the post's submerged shaft
+#define PRIO_KOI_MID     4
+#define PRIO_KOI_SHALLOW 5
+#define PRIO_SPARKLE     6 //rings, glints, and whatever breaks the surface
+#define PRIO_LEAF        7
 
 /* Lily pads are full sprites: they bob and drift as whole objects (motion
    without deformation) and, allocated before the koi, they draw ON TOP of
@@ -748,7 +750,71 @@ static uint8_t game_mode = MODE_MENU;
 #define FROND_TILE_A       31
 #define FROND_TILE_B       32
 #define RING_SM_TILE       33 //+1 = second animation frame
+#define PLANT_BASE_TILE    35 //+1 = second sway frame
+#define PLANT_TOP_TILE     37 //+1
+#define BROAD_TILE         39 //+1
+#define ROCK_A_TILE        41
+#define ROCK_B_TILE        42
+#define SHELL_TILE         43
+#define CRATE_TILE         44
+#define POST_LOW_TILE      45
+#define POST_UP_TILE       46
+#define POST_TOP_TILE      47
+#define POST_SHADOW_TILE   48
 #define LEAF_PAL 7
+
+/* ---- the jetty post: a rotting piling driven into the bed, leaning,
+   with a collapsed crate beside it. Pinned — the river slides past it,
+   which is what makes the drift legible. Its pieces live on different
+   priorities: the crate under everything, the shaft among the fish, the
+   top drawn after the surface film so it reads as breaking the water. */
+#define POST_X 216
+#define POST_Y 120
+
+typedef struct {
+  uint8_t crate, shadow, low, up, top;
+} post_struct;
+static post_struct post;
+
+/* ---- rooted plants: a base on the bed and a top reaching up, swaying
+   in tandem, so they occupy the water column instead of lying on it ---- */
+#define MAX_PLANTS 6
+static const uint16_t plant_sites[MAX_PLANTS][2] = {
+  { 56, 176}, {128,  72}, {296,  92}, { 32,  64}, {248, 200}, {352, 152},
+};
+typedef struct {
+  uint8_t base[MAX_PLANTS];
+  uint8_t top[MAX_PLANTS];
+} plant_struct;
+static plant_struct plants;
+
+#define MAX_BROAD 4
+static const uint16_t broad_sites[MAX_BROAD][2] = {
+  { 96, 208}, {176, 160}, {320,  56}, { 20, 120},
+};
+static uint8_t broad_sprite[MAX_BROAD];
+
+/* ---- bottom dressing: rocks and a shell, still as stones ---- */
+#define MAX_DECOR 7
+static const uint16_t decor_defs[MAX_DECOR][3] = { //x, y, tile
+  { 72,  96, ROCK_A_TILE}, {264, 168, ROCK_B_TILE}, {152, 224, ROCK_A_TILE},
+  {336, 216, ROCK_B_TILE}, { 40, 224, SHELL_TILE},  {200,  40, SHELL_TILE},
+  {304, 120, ROCK_A_TILE},
+};
+static uint8_t decor_sprite[MAX_DECOR];
+
+static void update_plants(uint32_t frame) {
+  uint8_t f = (uint8_t)((frame >> 5) & 1);
+  for (uint8_t i = 0; i < MAX_PLANTS; i++) {
+    uint8_t g = (uint8_t)(((frame >> 5) + i) & 1); //neighbours out of step
+    set_fsp(&GFX, plants.base[i], (int16_t)(PLANT_BASE_TILE + g));
+    set_fsp(&GFX, plants.top[i], (int16_t)(PLANT_TOP_TILE + g));
+  }
+  for (uint8_t i = 0; i < MAX_BROAD; i++) {
+    set_fsp(&GFX, broad_sprite[i],
+            (int16_t)(BROAD_TILE + ((f + i) & 1)));
+  }
+}
 
 typedef struct {
   uint8_t sprite[MAX_LEAVES];
@@ -960,6 +1026,12 @@ static uint32_t hand_x, hand_y; //feeding cursor, 1/8 px units
 static uint8_t hand_sprite;
 static uint8_t pond_prev_input;
 
+//depth 0/1/2 -> shallow/mid/deep priorities (no longer contiguous)
+static uint8_t inline koi_depth_prio(uint8_t depth) {
+  return (uint8_t)(depth == 0 ? PRIO_KOI_SHALLOW
+                  : depth == 1 ? PRIO_KOI_MID : PRIO_KOI_DEEP);
+}
+
 static void koi_face(uint8_t i) {
   uint8_t h = koi.heading[i];
   //NOTE: the double-size flag must be re-applied here — it lives in the
@@ -1091,8 +1163,7 @@ static void update_koi(uint32_t frame) {
         koi.theta[i] = (uint8_t)(th + ((h>>12) & 31) - 16);
         koi.target[i] = koi.theta[i];
         koi.depth[i] = (uint8_t)((h>>16) % 3);
-        set_fsp_priority(&GFX, koi.sprite[i],
-                         (uint8_t)(PRIO_KOI_SHALLOW - koi.depth[i]));
+        set_fsp_priority(&GFX, koi.sprite[i], koi_depth_prio(koi.depth[i]));
         fsp_set_enabled(koi.sprite[i], 1);
         fsp_set_enabled(koi.shadow[i], tune_shadows_hint);
       }
@@ -1161,11 +1232,17 @@ static void update_koi(uint32_t frame) {
     //apply the depth (feeding overrides the dive cycle)
     if (want_depth != koi.depth[i]) {
       koi.depth[i] = want_depth;
-      set_fsp_priority(&GFX, koi.sprite[i],
-                       (uint8_t)(PRIO_KOI_SHALLOW - want_depth));
+      set_fsp_priority(&GFX, koi.sprite[i], koi_depth_prio(want_depth));
       //only submerged fish blend with the water; shallow ones stay crisp
       set_fsp_blend(&GFX, koi.sprite[i], (uint8_t)(want_depth > 0));
       koi_shadow_look(i);
+    }
+    //the post is solid: steer around it well before arriving
+    {
+      int32_t pdx = (int32_t)(POST_X<<3) - x;
+      int32_t pdy = (int32_t)(POST_Y<<3) - y;
+      int32_t pd = (pdx<0?-pdx:pdx) + (pdy<0?-pdy:pdy);
+      if (pd < (46<<3)) koi.target[i] = (uint8_t)(angle_toward(pdx, pdy) + 128);
     }
     //no walls in a river: gently favor swimming with the current
     if (target < 0 && ((frame + i*17u) & 63u) == 0
@@ -1246,6 +1323,7 @@ static void update_pond(uint32_t frame, uint8_t allow_input) {
   update_koi(frame);
   update_leaves(frame);
   update_fronds(frame);
+  update_plants(frame);
   if (allow_input) update_sparks(frame); //paused under the debug menu
   update_ripples();
 }
@@ -1324,9 +1402,45 @@ static void begin_pond(void) {
     uint8_t fs = add_fsp(&GFX, FROND_TILE_A, LEAF_PAL,
                          frond_sites[i][0],
                          (uint16_t)(frond_sites[i][1]-12));
-    set_fsp_priority(&GFX, fs, PRIO_KOI_SHALLOW);
+    set_fsp_priority(&GFX, fs, PRIO_MIDGROUND);
     frond_sprite[i] = fs;
   }
+  //stones and shells settle on the bed, below everything that swims
+  for (uint8_t i=0; i<MAX_DECOR; i++) {
+    uint8_t d = add_fsp(&GFX, decor_defs[i][2], LEAF_PAL,
+                        decor_defs[i][0], decor_defs[i][1]);
+    set_fsp_priority(&GFX, d, PRIO_BOTTOM);
+    decor_sprite[i] = d;
+  }
+  //rooted plants: base on the bed, top reaching up through the water
+  for (uint8_t i=0; i<MAX_PLANTS; i++) {
+    uint8_t b = add_fsp(&GFX, PLANT_BASE_TILE, LEAF_PAL,
+                        plant_sites[i][0], plant_sites[i][1]);
+    set_fsp_priority(&GFX, b, PRIO_BOTTOM);
+    plants.base[i] = b;
+    uint8_t t = add_fsp(&GFX, PLANT_TOP_TILE, LEAF_PAL,
+                        plant_sites[i][0], (uint16_t)(plant_sites[i][1]-16));
+    set_fsp_priority(&GFX, t, PRIO_MIDGROUND);
+    plants.top[i] = t;
+  }
+  for (uint8_t i=0; i<MAX_BROAD; i++) {
+    uint8_t b = add_fsp(&GFX, BROAD_TILE, LEAF_PAL,
+                        broad_sites[i][0], broad_sites[i][1]);
+    set_fsp_priority(&GFX, b, PRIO_BOTTOM);
+    broad_sprite[i] = b;
+  }
+  //the jetty post, pinned: the river runs past it
+  post.crate = add_fsp(&GFX, CRATE_TILE, LEAF_PAL, POST_X+12, POST_Y+10);
+  set_fsp_priority(&GFX, post.crate, PRIO_BOTTOM);
+  post.shadow = add_fsp(&GFX, POST_SHADOW_TILE, LEAF_PAL,
+                        POST_X+10, POST_Y+8);
+  set_fsp_priority(&GFX, post.shadow, PRIO_SHADOW);
+  post.low = add_fsp(&GFX, POST_LOW_TILE, LEAF_PAL, POST_X, POST_Y);
+  set_fsp_priority(&GFX, post.low, PRIO_MIDGROUND);
+  post.up = add_fsp(&GFX, POST_UP_TILE, LEAF_PAL, POST_X-3, POST_Y-14);
+  set_fsp_priority(&GFX, post.up, PRIO_SPARKLE);
+  post.top = add_fsp(&GFX, POST_TOP_TILE, LEAF_PAL, POST_X-6, POST_Y-28);
+  set_fsp_priority(&GFX, post.top, PRIO_SPARKLE);
   for (uint8_t i=0; i<MAX_SPARKS; i++) {
     uint8_t sp = add_hsp(&GFX, SPARK_TILE, 1,
                          spark_defs[i][0], spark_defs[i][1]);

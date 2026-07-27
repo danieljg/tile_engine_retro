@@ -1,0 +1,4 @@
+# caustic style 3 (tools/gen_scene3.py)
+type background
+tileset assets/scene3_caustics3_tiles.png
+palette assets/scene3_caustics_pal0.png alpha=1,2,3,4,5,6,7
